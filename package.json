@@ -26,6 +26,6 @@
     "msw": "2.11.1",
     "typescript": "5.9.2",
     "typescript-eslint": "8.67.0",
-    "vitest": "3.2.4"
+    "vitest": "3.2.6"
   }
 }
