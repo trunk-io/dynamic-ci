@@ -141,3 +141,11 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Test report emitted by `pnpm test`.
+junit.xml
+
+# The action executes the committed bundle (see action.yaml `runs.main`), so
+# dist/ must be tracked even though the generic Node ignores above exclude it.
+!dist
+!dist/**

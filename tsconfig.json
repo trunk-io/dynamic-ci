@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    /* Language and environment: the action runs on the node24 Actions runner. */
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext"],
+    "types": ["node"],
+
+    /* Type checking. These deliberately mirror the strictness the source is held to
+       upstream, so a synced file compiles identically on both sides — notably
+       `exactOptionalPropertyTypes: false`, `noPropertyAccessFromIndexSignature`
+       (hence `process.env["X"]`) and `isolatedDeclarations` (hence the explicit
+       annotations on the schema exports). Changing one desyncs the two copies. */
+    "strict": true,
+    "exactOptionalPropertyTypes": false,
+    "erasableSyntaxOnly": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "useUnknownInCatchVariables": true,
+    "isolatedModules": true,
+    "isolatedDeclarations": true,
+    "verbatimModuleSyntax": true,
+
+    /* Interop and emit. esbuild does the bundling; tsc is type-check only, but
+       `declaration` has to be on for `isolatedDeclarations` to be legal. */
+    "declaration": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "esbuild.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

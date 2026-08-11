@@ -1,0 +1,161 @@
+name: Pull Request
+run-name: Pull Request for ${{ github.ref_name }} by ${{ github.actor }}
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+on:
+  pull_request: {}
+
+jobs:
+  trunk_code_quality_runner:
+    name: Trunk Code Quality runner [linux]
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Trunk Check
+        uses: trunk-io/trunk-action@v1
+
+  test_unit_tests:
+    name: Test Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Failures must not stop the job before the uploads: the uploader is what
+      # reports them, and it re-fails the job for any non-quarantined failure via
+      # previous-step-outcome. `outcome` is the result before continue-on-error.
+      - name: Test
+        id: test
+        run: pnpm test
+        continue-on-error: true
+
+      - name: Trunk Analytics Uploader (Prod)
+        if: "!cancelled()"
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: junit.xml
+          org-slug: trunk
+          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          allow-missing-junit-files: false
+          previous-step-outcome: ${{ steps.test.outcome }}
+
+      - name: Trunk Analytics Uploader (Staging)
+        if: "!cancelled()"
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: junit.xml
+          org-slug: trunk-staging-org
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          allow-missing-junit-files: false
+          previous-step-outcome: ${{ steps.test.outcome }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+  test_dist_up_to_date:
+    name: Test Dist Up to Date
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify no changes to dist
+        run: |
+          if [ -n "$(git status --porcelain dist)" ]; then
+            echo "❌ ERROR: dist/ has changes since the last build!"
+            git diff --stat dist
+            echo "Please run 'pnpm build' and commit the result."
+            exit 1
+          fi
+          echo "✅ SUCCESS: dist/ is up to date"
+
+  # End-to-end test of the real bundle on a real runner. No secret needed: pointed at
+  # an unreachable endpoint, the action must fail open and recommend running
+  # everything, which is the behavior most important not to regress.
+  test_action_fails_open:
+    name: Test Action Fails Open
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the action against an unreachable endpoint
+        id: ci-filter
+        uses: ./
+        with:
+          token: not-a-real-token
+          job-names: Smoke Job A,Smoke Job B
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: http://127.0.0.1:9
+          TRUNK_DYNAMIC_CI_TIMEOUT_MS: 5000
+
+      # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+      # and so cannot be declared in action.yaml.
+      - name: Verify it recommended running both jobs
+        env:
+          OUTPUT_A: ${{ steps.ci-filter.outputs.smoke-job-a }}
+          OUTPUT_B: ${{ steps.ci-filter.outputs.smoke-job-b }}
+        # trunk-ignore-end(actionlint/expression)
+        run: |
+          if [ "${OUTPUT_A}" != "true" ] || [ "${OUTPUT_B}" != "true" ]; then
+            echo "❌ ERROR: expected fail-open 'true' for both jobs, got A='${OUTPUT_A}' B='${OUTPUT_B}'"
+            exit 1
+          fi
+          echo "✅ SUCCESS: the action failed open"

@@ -1,0 +1,31 @@
+{
+  "name": "trunk-dynamic-ci-filter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.ts",
+    "clean": "rm -rf dist",
+    "lint": "eslint",
+    "local-action": "local-action . src/local-action.ts .env",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "watch": "TRUNK_ESBUILD_WATCH=true pnpm run build"
+  },
+  "dependencies": {
+    "@actions/core": "1.11.1",
+    "zod": "4.1.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.26.0",
+    "@github/local-action": "7.0.1",
+    "@types/node": "24.13.2",
+    "@vitest/eslint-plugin": "^1.6.27",
+    "esbuild": "0.27.2",
+    "eslint": "9.35.0",
+    "msw": "2.11.1",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.67.0",
+    "vitest": "3.2.4"
+  }
+}

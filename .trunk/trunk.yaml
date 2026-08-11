@@ -1,0 +1,52 @@
+# Controls the behavior of Trunk: https://docs.trunk.io/reference/trunk-yaml
+version: 0.1
+cli:
+  version: 1.25.0
+plugins:
+  sources:
+    - id: trunk
+      ref: v1.7.4
+      uri: https://github.com/trunk-io/plugins
+runtimes:
+  enabled:
+    - node@25.9.0
+    - python@3.10.8
+lint:
+  enabled:
+    - actionlint@1.7.8
+    - checkov@3.2.494
+    - eslint@9.39.1
+    - git-diff-check
+    - markdownlint@0.46.0
+    - osv-scanner@2.3.0
+    - prettier@3.6.2
+    - shellcheck@0.11.0
+    - shfmt@3.6.0
+    - sort-package-json@3.4.0
+    - trufflehog@3.91.1
+    - trunk-toolbox@0.5.4
+    - yamllint@1.37.1
+  ignore:
+    - linters: [ALL]
+      paths:
+        - dist
+actions:
+  definitions:
+    - id: build-pre-commit
+      display_name: Build action bundle
+      runtime: node
+      packages_file: package.json
+      run: pnpm build && git add dist/index.js dist/package.json
+      triggers:
+        - git_hooks: [pre-commit]
+  enabled:
+    - build-pre-commit
+    - trunk-announce
+    - trunk-check-pre-push
+    - trunk-fmt-pre-commit
+    - trunk-upgrade-available
+tools:
+  runtimes:
+    - node
+  enabled:
+    - pnpm@10.23.0
