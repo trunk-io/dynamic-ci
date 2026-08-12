@@ -16,8 +16,11 @@ are, cost, and more.
 > change between releases. Pin a specific tag rather than a moving major version if you
 > need stability, and read the release notes before upgrading.
 
-This action runs the risk of skipping important jobs, so it is important to still run all required
-jobs in the merge queue. See the [configuration](#pre-job-mode-recommended) below and information on [Trunk's Merge Queue](https://docs.trunk.io/merge-queue/merge-queue).
+A recommendation can be wrong, so the jobs that gate a merge still need to run somewhere.
+If you use [Trunk's Merge Queue](https://docs.trunk.io/merge-queue/merge-queue) that is
+handled for you — the service never skips a job on a merge-queue branch, so you do not
+need to special-case the queue in your workflow. See [Merge queues](#merge-queues) for
+what is and isn't covered.
 
 ## Usage
 
@@ -33,6 +36,8 @@ jobs:
     name: Dynamic CI Filter
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Only ask on pull requests; on other events the gate is skipped and, with no
+    # outputs to compare against, every job below runs.
     if: github.event_name == 'pull_request'
     # Per-job outputs are set at runtime, so they must be re-exported here by name.
     outputs:
@@ -50,11 +55,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [dynamic-ci-filter]
     # Always compare against 'false', never 'true' — see "Outputs" below.
-    # Run when not a pull request to ensure full validation in the merge queue.
+    # No merge-queue escape hatch needed: see "Merge queues".
     if: >-
       !cancelled() &&
-      (github.event_name != 'pull_request' ||
-      needs.dynamic-ci-filter.outputs.unit-tests != 'false')
+      needs.dynamic-ci-filter.outputs.unit-tests != 'false'
     steps:
       - run: make test
 ```
@@ -118,6 +122,42 @@ The action is built so that it can never block your CI:
 
 Every fail-open is logged as a warning annotation with the reason, and written to the
 job summary, so you can tell a real skip from a degraded one.
+
+## Merge queues
+
+A merge queue validates the exact commit that is about to land, so skipping a job there
+could merge untested code. The service therefore **never skips a job on a Trunk Merge
+Queue branch**: a request whose branch starts with `trunk-merge/` short-circuits to a
+run-everything verdict before any recommendation work happens. It is a branch-name check
+rather than a heuristic, so it is both deterministic and fast.
+
+You therefore do not need to gate the queue yourself. In particular you do not need
+`github.event_name != 'pull_request'` in your conditions — which matters because with
+**draft merge-queue pull requests** enabled, queue batches arrive as `pull_request` events
+on `trunk-merge/*` branches, so the event name cannot tell them apart from real PRs. Use
+the action the same way everywhere and let the branch check do the work.
+
+The guarantee holds in both modes, with slightly different mechanics:
+
+- With `job-names` set, every named job comes back as an explicit `'true'`.
+- In fan-out mode the response carries no verdicts, so no outputs are set at all — which
+  your `!= 'false'` conditions already read as "run". This is one more reason never to
+  write `== 'true'`.
+
+**Other merge queues are not covered.** The check matches the `trunk-merge/` prefix only.
+GitHub's native merge queue, for instance, validates on `gh-readonly-queue/*` branches via
+`merge_group` events, and those requests are treated like any other — so gate that
+yourself:
+
+```yaml
+if: >-
+  !cancelled() &&
+  (github.event_name == 'merge_group' ||
+  needs.dynamic-ci-filter.outputs.unit-tests != 'false')
+```
+
+You may wish to use another paths filter mechanism to deterministically reduce what runs in the merge queue.
+If you have feedback on the filtering mechanism in merge queues, reach out to us on [Slack](https://slack.trunk.io).
 
 ## Signals
 
