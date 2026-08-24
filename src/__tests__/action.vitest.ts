@@ -102,6 +102,7 @@ const stubRunnerEnv = ({
   vi.stubEnv("GITHUB_RUN_ID", "7890123456");
   vi.stubEnv("GITHUB_RUN_ATTEMPT", "2");
   vi.stubEnv("GITHUB_TRIGGERING_ACTOR", "octocat");
+  vi.stubEnv("GITHUB_EVENT_NAME", "pull_request");
   vi.stubEnv("GITHUB_SHA", "head-sha");
   vi.stubEnv("GITHUB_HEAD_REF", "feature/x");
   vi.stubEnv("GITHUB_REF_NAME", "42/merge");
@@ -179,6 +180,7 @@ describe("the action end to end", () => {
       runId: "7890123456",
       runAttempt: 2,
       triggeringActor: "octocat",
+      eventName: "pull_request",
       workflowPath: ".github/workflows/pr.yaml",
       workflowName: "Pull Request",
       jobNames: ["Unit Tests"],

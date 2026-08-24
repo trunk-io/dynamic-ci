@@ -23555,6 +23555,7 @@ var buildRequest = (inputs) => {
     runId: process.env["GITHUB_RUN_ID"] ?? "",
     runAttempt: resolveRunAttempt(),
     ...process.env["GITHUB_TRIGGERING_ACTOR"] ? { triggeringActor: process.env["GITHUB_TRIGGERING_ACTOR"] } : {},
+    ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
     workflowPath: resolveWorkflowPath(),
     workflowName: process.env["GITHUB_WORKFLOW"] ?? "",
     jobNames: inputs.jobNames,
