@@ -40,6 +40,7 @@ describe("resolveWorkflowPath", () => {
 describe("buildRequest", () => {
   it("populates workflow + run identity from the runner env", () => {
     stubRunnerEnv();
+    vi.stubEnv("GITHUB_EVENT_NAME", "workflow_dispatch");
     const request = buildRequest({
       token: "t",
       jobNames: ["build"],
@@ -51,9 +52,21 @@ describe("buildRequest", () => {
       prNumber: null,
       runId: ENV.runId,
       runAttempt: ENV.runAttempt,
+      eventName: "workflow_dispatch",
       workflowPath: ENV.workflowPath,
       workflowName: ENV.workflowName,
       jobNames: ["build"],
     });
+  });
+
+  it("omits eventName when the runner did not set GITHUB_EVENT_NAME", () => {
+    stubRunnerEnv();
+    vi.stubEnv("GITHUB_EVENT_NAME", "");
+    const request = buildRequest({
+      token: "t",
+      jobNames: ["build"],
+      ignoreSignals: [],
+    });
+    expect(request.eventName).toBeUndefined();
   });
 });

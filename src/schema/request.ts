@@ -26,6 +26,7 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
   runId: z.ZodString;
   runAttempt: z.ZodNumber;
   triggeringActor: z.ZodOptional<z.ZodString>;
+  eventName: z.ZodOptional<z.ZodString>;
   workflowPath: z.ZodString;
   workflowName: z.ZodString;
   jobNames: z.ZodDefault<z.ZodArray<z.ZodString>>;
@@ -53,6 +54,10 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
     .string()
     .optional()
     .describe("github.triggering_actor: who initiated this run/rerun."),
+  eventName: z
+    .string()
+    .optional()
+    .describe("github.event_name: pull_request, workflow_dispatch, push, …."),
   workflowPath: z
     .string()
     .describe(
