@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import type { DynamicCiResponse } from "./schema/response";
+import type { DynamicCiResponse } from "./compat";
 
 /**
  * Convert a job name to a GitHub Actions output key that is safe to reference as

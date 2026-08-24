@@ -238,17 +238,68 @@ describe("the action end to end", () => {
     });
   });
 
-  it("fails open on an unrecognized ignore-signals value", async () => {
+  // A signal this version predates is a normal state, not an error: the service
+  // ships new signals before the vendored contract catches up.
+  it("forwards an unrecognized ignore-signals value, and still gates", async () => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
     stubRunnerEnv({
       jobNames: "Unit Tests",
-      ignoreSignals: "estimated-cost,not-a-real-signal",
+      ignoreSignals: "estimated-cost,a-signal-from-the-future",
     });
 
-    await expect(runAction()).resolves.toBeUndefined();
+    await runAction();
 
-    // Input parsing throws before any request, so no job set is known yet.
-    expect(readOutputs()).toEqual({});
-    expect(readFileSync(summaryPath, "utf8")).toContain("fail-open");
+    expect(body).toMatchObject({
+      ignoreSignals: ["estimated-cost", "a-signal-from-the-future"],
+    });
+    expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    expect(readFileSync(summaryPath, "utf8")).not.toContain("fail-open");
+  });
+
+  // The regression this file most needs to hold: an unrecognized signal `type`
+  // used to fail the whole-response parse, so every job in the workflow lost its
+  // verdict and the action failed open.
+  it("honors verdicts when the service returns a signal it does not know", async () => {
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, () =>
+          HttpResponse.json({
+            jobs: [
+              {
+                jobName: "Unit Tests",
+                run: false,
+                summary: "Skip — the future signal says so.",
+                signals: [
+                  {
+                    type: "a-signal-from-the-future",
+                    recommendation: "A_VOTE_FROM_THE_FUTURE",
+                    message: "Invented by a service newer than this action.",
+                    ignored: false,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+    ]);
+    stubRunnerEnv({ jobNames: "Unit Tests" });
+
+    await runAction();
+
+    expect(readOutputs()).toEqual({ "unit-tests": "false" });
+
+    // Reported rather than dropped: it is what explains the verdict.
+    const summary = readFileSync(summaryPath, "utf8");
+    expect(summary).not.toContain("fail-open");
+    expect(summary).toContain("a-signal-from-the-future");
+    expect(summary).toContain("A_VOTE_FROM_THE_FUTURE");
   });
 
   it("defaults a job the service omits to 'true'", async () => {

@@ -8,6 +8,12 @@ overwritten by the next sync, and worse, will silently disagree with the service
 To change the contract: change it in the monorepo, then re-run the sync so this
 copy and the committed `dist/index.js` are regenerated together.
 
+The action does not import these directly: [`src/compat.ts`](../compat.ts) extends them
+to widen the signal-identifier enums, because the service adds signals between syncs and
+a closed enum would make that additive change fail the whole response. It re-exports the
+same names, so consumers differ only in the import path. Widen there, never here — this
+copy must keep matching the monorepo.
+
 `response.ts` intentionally omits the reserved test-level filter fields that exist
 in the monorepo copy — test-level recommendations are not part of this action.
 Zod ignores unknown keys, so a service response still carrying them parses fine.

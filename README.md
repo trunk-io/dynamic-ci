@@ -90,7 +90,7 @@ steps:
 | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `token`          | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                                           |
 | `job-names`      | no       | A job name, or comma-separated list of job names, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out). This must be a stable job name, not its id/key in the YAML config. |
-| `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. An unrecognized identifier makes the action fail open.                                                                              |
+| `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent.                  |
 
 Job names are matched on the job's **display name**, which is the `name:` field. A job
 with no `name:` is displayed under its id, and that is what to pass for it.
@@ -175,11 +175,18 @@ drop it from the tally:
 | `merge-failure`          | Whether this job failed on the PR's most recent merge-queue run. |
 | `mid-pr-stack`           | Whether another open PR is stacked on top of this one.           |
 
-The identifiers the action accepts are `SIGNAL_TYPES` in
-[`src/schema/signals.ts`](src/schema/signals.ts) — that list is the one validated
-against, and anything not in it makes the action fail open rather than quietly ignore
-your setting. Signals are added and retired while this is in beta, so check that file
-for the release you have pinned.
+The identifiers this action version knows about are `SIGNAL_TYPES` in
+[`src/schema/signals.ts`](src/schema/signals.ts). Signals are added and retired while
+this is in beta, and the service ships them before that vendored list catches up, so
+neither side treats an unfamiliar identifier as an error:
+
+- A signal the service returns that this version does not know is reported in the logs
+  and summary like any other, and the verdict it belongs to is honored.
+- An `ignore-signals` identifier this version does not know is warned about and
+  forwarded anyway — so a typo has no effect, rather than taking the gate down.
+
+Check `SIGNAL_TYPES` for the release you have pinned to see what this version can
+describe, but read the job summary for what actually voted.
 
 ## Environment variables
 
