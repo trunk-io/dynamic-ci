@@ -23405,7 +23405,8 @@ var SIGNAL_TYPES = [
   "diff-driven-volatility",
   "force-override",
   "merge-failure",
-  "mid-pr-stack"
+  "mid-pr-stack",
+  "required-check"
 ];
 var SIGNAL_TYPE_SCHEMA = _enum(SIGNAL_TYPES);
 var RECOMMENDATIONS = [
