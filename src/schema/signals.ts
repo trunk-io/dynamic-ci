@@ -1,6 +1,8 @@
+// Generated file — do not edit by hand.
+// Synced from Trunk's internal contract definition; edit it there instead.
+
 import * as z from "zod";
 
-// Canonical form on the wire, in logs, and in the `ignore-signals` input.
 export const SIGNAL_TYPES = [
   "estimated-cost",
   "previous-result-on-pr",
@@ -9,6 +11,7 @@ export const SIGNAL_TYPES = [
   "force-override",
   "merge-failure",
   "mid-pr-stack",
+  "required-check",
 ] as const;
 
 export const SIGNAL_TYPE_SCHEMA: z.ZodEnum<{
@@ -16,7 +19,6 @@ export const SIGNAL_TYPE_SCHEMA: z.ZodEnum<{
 }> = z.enum(SIGNAL_TYPES);
 export type SignalType = z.infer<typeof SIGNAL_TYPE_SCHEMA>;
 
-// `ABSTAIN` is excluded from the verdict tally; 2+ `INCOMPLETE` force a fail-safe run.
 export const RECOMMENDATIONS = [
   "MUST_RUN",
   "VOTE_RUN",

@@ -1,3 +1,6 @@
+// Generated file — do not edit by hand.
+// Synced from Trunk's internal contract definition; edit it there instead.
+
 import * as z from "zod";
 import { SIGNAL_TYPE_SCHEMA } from "./signals";
 
@@ -15,8 +18,6 @@ export const REPO_SCHEMA: z.ZodObject<{
 });
 export type Repo = z.infer<typeof REPO_SCHEMA>;
 
-// The changed file set is deliberately absent: the service derives the diff from
-// `baseSha`/`commitSha`, so the action never assumes a full checkout on the runner.
 export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
   repo: typeof REPO_SCHEMA;
   commitSha: z.ZodString;
@@ -26,6 +27,7 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
   runId: z.ZodString;
   runAttempt: z.ZodNumber;
   triggeringActor: z.ZodOptional<z.ZodString>;
+  eventName: z.ZodOptional<z.ZodString>;
   workflowPath: z.ZodString;
   workflowName: z.ZodString;
   jobNames: z.ZodDefault<z.ZodArray<z.ZodString>>;
@@ -53,6 +55,10 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
     .string()
     .optional()
     .describe("github.triggering_actor: who initiated this run/rerun."),
+  eventName: z
+    .string()
+    .optional()
+    .describe("github.event_name: pull_request, workflow_dispatch, push, …."),
   workflowPath: z
     .string()
     .describe(
