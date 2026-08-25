@@ -19739,10 +19739,10 @@ Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
       (0, command_1.issueCommand)("error", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
     exports2.error = error;
-    function warning5(message, properties = {}) {
+    function warning6(message, properties = {}) {
       (0, command_1.issueCommand)("warning", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
-    exports2.warning = warning5;
+    exports2.warning = warning6;
     function notice2(message, properties = {}) {
       (0, command_1.issueCommand)("notice", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
@@ -23438,6 +23438,16 @@ var DYNAMIC_CI_RESPONSE_SCHEMA = object({
   jobs: array(JOB_VERDICT_SCHEMA)
 });
 
+// src/compat.ts
+var PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT = PUBLIC_SIGNAL_RESULT_SCHEMA.extend({
+  type: string2(),
+  recommendation: string2()
+});
+var JOB_VERDICT_SCHEMA2 = JOB_VERDICT_SCHEMA.extend({
+  signals: array(PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT)
+});
+var DYNAMIC_CI_RESPONSE_SCHEMA2 = DYNAMIC_CI_RESPONSE_SCHEMA.extend({ jobs: array(JOB_VERDICT_SCHEMA2) });
+
 // src/api.ts
 var requestRecommendations = async ({
   url,
@@ -23466,7 +23476,7 @@ var requestRecommendations = async ({
       );
     }
     const json = await response.json();
-    return DYNAMIC_CI_RESPONSE_SCHEMA.parse(json);
+    return DYNAMIC_CI_RESPONSE_SCHEMA2.parse(json);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`exceeded latency budget of ${String(timeoutMs)}ms`);
@@ -23565,11 +23575,17 @@ var buildRequest = (inputs) => {
 
 // src/inputs.ts
 var core3 = __toESM(require_core(), 1);
+var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
 var readInputs = () => {
   const token = core3.getInput("token", { required: true });
   core3.setSecret(token);
   const jobNames = core3.getInput("job-names").split(",").map((name) => name.trim()).filter(Boolean);
-  const ignoreSignals = core3.getInput("ignore-signals").split(",").map((signal) => signal.trim()).filter(Boolean).map((signal) => SIGNAL_TYPE_SCHEMA.parse(signal));
+  const ignoreSignals = core3.getInput("ignore-signals").split(",").map((signal) => signal.trim()).filter(Boolean);
+  for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
+    core3.warning(
+      `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`
+    );
+  }
   return { token, jobNames, ignoreSignals };
 };
 

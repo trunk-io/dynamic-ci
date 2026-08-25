@@ -1,8 +1,7 @@
 import { createServer, type ServerApi } from "./__fixtures__/msw";
 import { delay, http, HttpResponse } from "msw";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { DynamicCiRequest } from "../schema/request";
-import type { DynamicCiResponse } from "../schema/response";
+import type { DynamicCiRequest, DynamicCiResponse } from "../compat";
 import { requestRecommendations } from "../api";
 import { DEFAULT_API_URL as API_URL } from "../config";
 
@@ -107,6 +106,43 @@ describe("requestRecommendations (MSW integration)", () => {
         timeoutMs: 1000,
       }),
     ).rejects.toThrow(/503/);
+  });
+
+  // The complement of the test below: unknown enum *members* are tolerated (the
+  // service adds signals ahead of this vendored contract), unknown *shapes* are not.
+  it("accepts a signal type and recommendation outside the vendored enums", async () => {
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, () =>
+          HttpResponse.json({
+            jobs: [
+              {
+                jobName: "unit-tests",
+                run: false,
+                summary: "Skip",
+                signals: [
+                  {
+                    type: "a-signal-from-the-future",
+                    recommendation: "A_VOTE_FROM_THE_FUTURE",
+                    message: "…",
+                    ignored: false,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+    ]);
+
+    const result = await requestRecommendations({
+      url: API_URL,
+      token: "tok",
+      body: request,
+      timeoutMs: 1000,
+    });
+
+    expect(result.jobs[0]?.run).toBe(false);
+    expect(result.jobs[0]?.signals[0]?.type).toBe("a-signal-from-the-future");
   });
 
   it("throws when the response fails schema validation", async () => {

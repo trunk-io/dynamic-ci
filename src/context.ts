@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as core from "@actions/core";
-import type { DynamicCiRequest, Repo } from "./schema/request";
+import type { Repo } from "./schema/request";
+import type { DynamicCiRequest } from "./compat";
 import * as z from "zod";
 import type { ActionInputs } from "./inputs";
 

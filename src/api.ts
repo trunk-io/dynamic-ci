@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import * as core from "@actions/core";
-import type { DynamicCiRequest } from "./schema/request";
 import {
   DYNAMIC_CI_RESPONSE_SCHEMA,
+  type DynamicCiRequest,
   type DynamicCiResponse,
-} from "./schema/response";
+} from "./compat";
 
 interface RequestRecommendationsArgs {
   url: string;

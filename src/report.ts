@@ -1,6 +1,9 @@
 import * as core from "@actions/core";
-import type { DynamicCiResponse, JobVerdict } from "./schema/response";
-import type { PublicSignalResult } from "./schema/signals";
+import type {
+  DynamicCiResponse,
+  JobVerdict,
+  PublicSignalResult,
+} from "./compat";
 import { toOutputKey } from "./outputs";
 
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
