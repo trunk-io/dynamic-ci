@@ -23581,11 +23581,6 @@ var readInputs = () => {
   const token = core3.getInput("token", { required: true });
   core3.setSecret(token);
   const jobKeys = splitList(core3.getInput("job-keys"));
-  if (splitList(core3.getInput("job-names")).length > 0) {
-    core3.warning(
-      "job-names has been replaced by job-keys, which takes the workflow's jobs: keys rather than display names. The value was ignored; recommending for the whole workflow instead."
-    );
-  }
   const ignoreSignals = splitList(core3.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
     core3.warning(

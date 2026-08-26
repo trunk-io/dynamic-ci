@@ -38,15 +38,6 @@ export const readInputs = (): ActionInputs => {
 
   const jobKeys = splitList(core.getInput("job-keys"));
 
-  // `job-names` addressed jobs by display name, an identity the service rewrote
-  // in place as workflows were re-ingested. Ignoring it falls back to fan-out,
-  // which still returns a verdict for every keyed job — including this one.
-  if (splitList(core.getInput("job-names")).length > 0) {
-    core.warning(
-      "job-names has been replaced by job-keys, which takes the workflow's jobs: keys rather than display names. The value was ignored; recommending for the whole workflow instead.",
-    );
-  }
-
   const ignoreSignals = splitList(core.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
     core.warning(

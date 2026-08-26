@@ -94,14 +94,8 @@ steps:
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
 workflow file, and what `github.job` reports — not by the `name:` it displays under. A
-display name is not a stable identity: it changes with a job's matrix values, and
-renaming it silently detaches the verdict from the job. The key does not, which is what
-makes it safe to put in an `if:`.
-
-> [!NOTE]
-> Before v2 this input was `job-names` and took display names. Setting it now logs a
-> warning and is otherwise ignored — the action falls back to fan-out, which still
-> returns a verdict for the job.
+display name changes with a job's matrix values; the key does not, which is what makes
+it safe to put in an `if:`.
 
 ## Outputs
 

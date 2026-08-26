@@ -78,18 +78,15 @@ const stubRunnerEnv = ({
   token = "test-token",
   omitToken = false,
   jobKeys = "",
-  jobNames = "",
   ignoreSignals = "",
 }: {
   token?: string;
   omitToken?: boolean;
   jobKeys?: string;
-  jobNames?: string;
   ignoreSignals?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
-  vi.stubEnv("INPUT_JOB-NAMES", jobNames);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -215,25 +212,6 @@ describe("the action end to end", () => {
       build_docs: "true",
       "e2e-chrome": "false",
     });
-  });
-
-  // job-names addressed jobs by an identity the service no longer serves.
-  // Falling back to fan-out still returns a verdict for the caller's job.
-  it("ignores the removed job-names input and fans out instead", async () => {
-    let body: unknown;
-    server.overrideHandlers([
-      () =>
-        http.post(API_URL, async ({ request }) => {
-          body = await request.json();
-          return HttpResponse.json(skipUnitTests);
-        }),
-    ]);
-    stubRunnerEnv({ jobNames: "Unit Tests" });
-
-    await runAction();
-
-    expect(body).toMatchObject({ jobKeys: [] });
-    expect(readOutputs()).toEqual({ "unit-tests": "false" });
   });
 
   it("forwards ignore-signals to the service", async () => {
