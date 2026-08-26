@@ -30,7 +30,7 @@ afterEach(() => {
 const response = {
   jobs: [
     {
-      jobName: "Unit Tests",
+      jobKey: "unit-tests",
       run: true,
       summary:
         "The job must run because a user override forces this job to run.",
@@ -75,7 +75,7 @@ describe("reportRecommendations", () => {
   it("still annotates the job verdict with its summary", async () => {
     await reportRecommendations(response);
     expect(notice).toHaveBeenCalledWith(
-      "Unit Tests: RUN — The job must run because a user override forces this job to run.",
+      "unit-tests: RUN — The job must run because a user override forces this job to run.",
       { title: "Trunk Dynamic CI Filter" },
     );
   });

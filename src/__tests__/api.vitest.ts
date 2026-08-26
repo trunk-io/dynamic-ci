@@ -15,13 +15,13 @@ const request: DynamicCiRequest = {
   runAttempt: 1,
   workflowPath: ".github/workflows/ci.yml",
   workflowName: "CI",
-  jobNames: ["unit-tests"],
+  jobKeys: ["unit-tests"],
 };
 
 const validResponse: DynamicCiResponse = {
   jobs: [
     {
-      jobName: "unit-tests",
+      jobKey: "unit-tests",
       run: false,
       summary: "Skip — 99% historical pass rate",
       signals: [
@@ -82,7 +82,7 @@ describe("requestRecommendations (MSW integration)", () => {
     });
 
     expect(authHeader).toBe("Bearer secret-tok");
-    expect(receivedBody).toMatchObject({ jobNames: ["unit-tests"] });
+    expect(receivedBody).toMatchObject({ jobKeys: ["unit-tests"] });
   });
 
   it("throws on a non-2xx status (caller fails open)", async () => {
@@ -117,7 +117,7 @@ describe("requestRecommendations (MSW integration)", () => {
           HttpResponse.json({
             jobs: [
               {
-                jobName: "unit-tests",
+                jobKey: "unit-tests",
                 run: false,
                 summary: "Skip",
                 signals: [

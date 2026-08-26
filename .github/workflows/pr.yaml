@@ -141,7 +141,7 @@ jobs:
         uses: ./
         with:
           token: not-a-real-token
-          job-names: Smoke Job A,Smoke Job B
+          job-keys: smoke-job-a,smoke-job-b
         env:
           TRUNK_PUBLIC_API_ADDRESS: http://127.0.0.1:9
           TRUNK_DYNAMIC_CI_TIMEOUT_MS: 5000

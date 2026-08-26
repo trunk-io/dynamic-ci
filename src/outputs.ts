@@ -1,44 +1,36 @@
 import * as core from "@actions/core";
 import type { DynamicCiResponse } from "./compat";
 
-/**
- * Convert a job name to a GitHub Actions output key that is safe to reference as
- * `steps.<id>.outputs.<key>`. Lowercases, collapses every run of characters
- * outside `[a-z0-9]` to a single `-`, and trims leading/trailing `-`. So
- * `Unit Tests` → `unit-tests` and `build (ubuntu, 20)` → `build-ubuntu-20`.
- *
- * Job names that aren't already reference-safe (spaces, parens, slashes, commas
- * — common in matrix jobs) otherwise can't be referenced in `if:` conditionals.
- */
-export const toOutputKey = (jobName: string): string =>
-  jobName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-/** Set the per-job output under its reference-safe key. */
-const setJobOutput = (jobName: string, run: boolean): void => {
-  core.setOutput(toOutputKey(jobName), run ? "true" : "false");
+/** Set the per-job output under its job key. */
+const setJobOutput = (jobKey: string, run: boolean): void => {
+  core.setOutput(jobKey, run ? "true" : "false");
 };
 
 /**
- * Emit a flat per-job string output (reference-safe `<job-key>` →
- * `'true'`/`'false'`, see {@link toOutputKey}) for each verdict. Any requested
- * job missing from the response defaults to `'true'` (fail-safe).
+ * Emit a flat per-job string output (`<job-key>` → `'true'`/`'false'`) for each
+ * verdict. Any requested job missing from the response defaults to `'true'`
+ * (fail-safe).
+ *
+ * The output key is the job key verbatim. GitHub constrains a `jobs:` key to the
+ * same character set an expression can dereference, so it is already usable as
+ * `steps.<id>.outputs.<job-key>` — normalizing it here would only make the
+ * caller guess at a second spelling of an identifier they already have.
  */
 export const setOutputs = (
   response: DynamicCiResponse,
-  requestedJobs: string[],
+  requestedJobKeys: string[],
 ): void => {
   const decided = new Set<string>();
   for (const job of response.jobs) {
-    setJobOutput(job.jobName, job.run);
-    decided.add(toOutputKey(job.jobName));
+    setJobOutput(job.jobKey, job.run);
+    decided.add(job.jobKey);
   }
-  for (const job of requestedJobs) {
-    if (!decided.has(toOutputKey(job))) {
-      core.warning(`No verdict returned for job "${job}"; defaulting to run.`);
-      setJobOutput(job, true);
+  for (const jobKey of requestedJobKeys) {
+    if (!decided.has(jobKey)) {
+      core.warning(
+        `No verdict returned for job "${jobKey}"; defaulting to run.`,
+      );
+      setJobOutput(jobKey, true);
     }
   }
 };
@@ -47,8 +39,8 @@ export const setOutputs = (
  * Fail-open outputs: recommend running every job in scope. Used on API error,
  * non-2xx, timeout, or unexpected failure.
  */
-export const setFailOpenOutputs = (jobs: string[]): void => {
-  for (const job of jobs) {
-    setJobOutput(job, true);
+export const setFailOpenOutputs = (jobKeys: string[]): void => {
+  for (const jobKey of jobKeys) {
+    setJobOutput(jobKey, true);
   }
 };

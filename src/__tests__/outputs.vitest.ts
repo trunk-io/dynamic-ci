@@ -18,8 +18,8 @@ beforeEach(() => {
 
 const response: DynamicCiResponse = {
   jobs: [
-    { jobName: "unit-tests", run: false, summary: "Skip", signals: [] },
-    { jobName: "integration", run: true, summary: "Run", signals: [] },
+    { jobKey: "unit-tests", run: false, summary: "Skip", signals: [] },
+    { jobKey: "integration", run: true, summary: "Run", signals: [] },
   ],
 };
 
@@ -42,25 +42,20 @@ describe("setOutputs", () => {
     expect(warning).toHaveBeenCalledWith(expect.stringContaining("e2e"));
   });
 
-  it("normalizes job names to reference-safe output keys", () => {
+  // The job key is already what an `if:` dereferences, so anything but a
+  // verbatim passthrough would make the caller guess at a second spelling.
+  it("names each output for its job key verbatim", () => {
     setOutputs(
       {
         jobs: [
-          {
-            jobName: "build (ubuntu, 20)",
-            run: false,
-            summary: "Skip",
-            signals: [],
-          },
+          { jobKey: "build_Docs", run: false, summary: "Skip", signals: [] },
         ],
       },
-      ["Unit Tests"],
+      ["build_Docs", "e2e-chrome"],
     );
     expect(setOutput.mock.calls).toEqual([
-      // verdict job: "build (ubuntu, 20)" -> "build-ubuntu-20"
-      ["build-ubuntu-20", "false"],
-      // missing requested job: "Unit Tests" -> "unit-tests", defaulted to run
-      ["unit-tests", "true"],
+      ["build_Docs", "false"],
+      ["e2e-chrome", "true"],
     ]);
   });
 });

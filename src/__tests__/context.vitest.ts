@@ -43,7 +43,7 @@ describe("buildRequest", () => {
     vi.stubEnv("GITHUB_EVENT_NAME", "workflow_dispatch");
     const request = buildRequest({
       token: "t",
-      jobNames: ["build"],
+      jobKeys: ["build"],
       ignoreSignals: [],
     });
     expect(request).toMatchObject({
@@ -55,7 +55,7 @@ describe("buildRequest", () => {
       eventName: "workflow_dispatch",
       workflowPath: ENV.workflowPath,
       workflowName: ENV.workflowName,
-      jobNames: ["build"],
+      jobKeys: ["build"],
     });
   });
 
@@ -64,7 +64,7 @@ describe("buildRequest", () => {
     vi.stubEnv("GITHUB_EVENT_NAME", "");
     const request = buildRequest({
       token: "t",
-      jobNames: ["build"],
+      jobKeys: ["build"],
       ignoreSignals: [],
     });
     expect(request.eventName).toBeUndefined();

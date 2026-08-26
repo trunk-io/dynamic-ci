@@ -23429,7 +23429,7 @@ var PUBLIC_SIGNAL_RESULT_SCHEMA = object({
 
 // src/schema/response.ts
 var JOB_VERDICT_SCHEMA = object({
-  jobName: string2(),
+  jobKey: string2(),
   run: boolean2(),
   summary: string2(),
   signals: array(PUBLIC_SIGNAL_RESULT_SCHEMA)
@@ -23568,7 +23568,7 @@ var buildRequest = (inputs) => {
     ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
     workflowPath: resolveWorkflowPath(),
     workflowName: process.env["GITHUB_WORKFLOW"] ?? "",
-    jobNames: inputs.jobNames,
+    jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {}
   };
 };
@@ -23576,41 +23576,43 @@ var buildRequest = (inputs) => {
 // src/inputs.ts
 var core3 = __toESM(require_core(), 1);
 var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
+var splitList = (raw) => raw.split(",").map((entry) => entry.trim()).filter(Boolean);
 var readInputs = () => {
   const token = core3.getInput("token", { required: true });
   core3.setSecret(token);
-  const jobNames = core3.getInput("job-names").split(",").map((name) => name.trim()).filter(Boolean);
-  const ignoreSignals = core3.getInput("ignore-signals").split(",").map((signal) => signal.trim()).filter(Boolean);
+  const jobKeys = splitList(core3.getInput("job-keys"));
+  const ignoreSignals = splitList(core3.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
     core3.warning(
       `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`
     );
   }
-  return { token, jobNames, ignoreSignals };
+  return { token, jobKeys, ignoreSignals };
 };
 
 // src/outputs.ts
 var core4 = __toESM(require_core(), 1);
-var toOutputKey = (jobName) => jobName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-var setJobOutput = (jobName, run2) => {
-  core4.setOutput(toOutputKey(jobName), run2 ? "true" : "false");
+var setJobOutput = (jobKey, run2) => {
+  core4.setOutput(jobKey, run2 ? "true" : "false");
 };
-var setOutputs = (response, requestedJobs) => {
+var setOutputs = (response, requestedJobKeys) => {
   const decided = /* @__PURE__ */ new Set();
   for (const job of response.jobs) {
-    setJobOutput(job.jobName, job.run);
-    decided.add(toOutputKey(job.jobName));
+    setJobOutput(job.jobKey, job.run);
+    decided.add(job.jobKey);
   }
-  for (const job of requestedJobs) {
-    if (!decided.has(toOutputKey(job))) {
-      core4.warning(`No verdict returned for job "${job}"; defaulting to run.`);
-      setJobOutput(job, true);
+  for (const jobKey of requestedJobKeys) {
+    if (!decided.has(jobKey)) {
+      core4.warning(
+        `No verdict returned for job "${jobKey}"; defaulting to run.`
+      );
+      setJobOutput(jobKey, true);
     }
   }
 };
-var setFailOpenOutputs = (jobs) => {
-  for (const job of jobs) {
-    setJobOutput(job, true);
+var setFailOpenOutputs = (jobKeys) => {
+  for (const jobKey of jobKeys) {
+    setJobOutput(jobKey, true);
   }
 };
 
@@ -23622,9 +23624,7 @@ var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` :
 var displaySignals = (job) => job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
 var verdictBadge = (run2) => run2 ? "\u2705 RUN" : "\u23ED\uFE0F SKIP";
 var logVerdict = (job) => {
-  core5.info(
-    `  ${toOutputKey(job.jobName)}: ${verdictLabel(job.run)} \u2014 ${job.summary}`
-  );
+  core5.info(`  ${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`);
   for (const signal of displaySignals(job)) {
     core5.info(
       `    - [${signal.recommendation}] ${signal.type}: ${signalMessage(signal)}`
@@ -23638,7 +23638,7 @@ var overviewTable = (jobs) => [
   mdRow(["---", "---", "---"]),
   ...jobs.map(
     (job) => mdRow([
-      escapeCell(job.jobName),
+      escapeCell(job.jobKey),
       verdictBadge(job.run),
       escapeCell(job.summary)
     ])
@@ -23657,7 +23657,7 @@ var signalTable = (job) => [
 ].join("\n");
 var jobDetails = (job) => [
   "<details>",
-  `<summary>${job.jobName} \u2192 ${verdictBadge(job.run)}</summary>`,
+  `<summary>${job.jobKey} \u2192 ${verdictBadge(job.run)}</summary>`,
   "",
   `_${escapeCell(job.summary)}_`,
   "",
@@ -23684,15 +23684,15 @@ var reportRecommendations = async (response) => {
   core5.info(`${ANNOTATION_TITLE} recommendations:`);
   for (const job of response.jobs) {
     logVerdict(job);
-    core5.notice(`${job.jobName}: ${verdictLabel(job.run)} \u2014 ${job.summary}`, {
+    core5.notice(`${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`, {
       title: ANNOTATION_TITLE
     });
   }
   await writeSummary(response.jobs);
 };
-var reportFailOpen = async (jobs, reason) => {
+var reportFailOpen = async (jobKeys, reason) => {
   core5.warning(
-    `${ANNOTATION_TITLE} failed open \u2014 recommending RUN for ${jobs.join(", ") || "all jobs in scope"}: ${reason}`,
+    `${ANNOTATION_TITLE} failed open \u2014 recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
     { title: `${ANNOTATION_TITLE} (fail-open)` }
   );
   if (!process.env["GITHUB_STEP_SUMMARY"]) {
@@ -23700,7 +23700,7 @@ var reportFailOpen = async (jobs, reason) => {
   }
   core5.summary.addHeading(`${ANNOTATION_TITLE} \u2014 fail-open`, 2);
   core5.summary.addRaw(
-    `Recommending **RUN** for all jobs in scope (${jobs.join(", ") || "unknown"}).`
+    `Recommending **RUN** for all jobs in scope (${jobKeys.join(", ") || "unknown"}).`
   );
   core5.summary.addBreak();
   core5.summary.addRaw(`Reason: ${reason}`);
@@ -23708,16 +23708,16 @@ var reportFailOpen = async (jobs, reason) => {
 };
 
 // src/main.ts
-var failOpen = async (jobs, reason) => {
-  setFailOpenOutputs(jobs);
-  await reportFailOpen(jobs, reason);
+var failOpen = async (jobKeys, reason) => {
+  setFailOpenOutputs(jobKeys);
+  await reportFailOpen(jobKeys, reason);
 };
 var run = async () => {
   const inputs = readInputs();
   const request = buildRequest(inputs);
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
-  const scope = request.jobNames.length > 0 ? request.jobNames.join(", ") : `all jobs in workflow "${request.workflowName}"`;
+  const scope = request.jobKeys.length > 0 ? request.jobKeys.join(", ") : `all jobs in workflow "${request.workflowName}"`;
   core6.info(`Requesting recommendations from ${apiUrl} for: ${scope}`);
   try {
     const response = await requestRecommendations({
@@ -23726,11 +23726,11 @@ var run = async () => {
       body: request,
       timeoutMs
     });
-    setOutputs(response, request.jobNames);
+    setOutputs(response, request.jobKeys);
     await reportRecommendations(response);
   } catch (error) {
     await failOpen(
-      request.jobNames,
+      request.jobKeys,
       error instanceof Error ? error.message : String(error)
     );
   }
