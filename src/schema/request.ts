@@ -30,7 +30,7 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
   eventName: z.ZodOptional<z.ZodString>;
   workflowPath: z.ZodString;
   workflowName: z.ZodString;
-  jobNames: z.ZodDefault<z.ZodArray<z.ZodString>>;
+  jobKeys: z.ZodDefault<z.ZodArray<z.ZodString>>;
   ignoreSignals: z.ZodOptional<z.ZodArray<typeof SIGNAL_TYPE_SCHEMA>>;
 }> = z.object({
   repo: REPO_SCHEMA,
@@ -65,11 +65,11 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
       "Workflow file path from github.workflow_ref, e.g. .github/workflows/ci.yml.",
     ),
   workflowName: z.string().describe("github.workflow."),
-  jobNames: z
+  jobKeys: z
     .array(z.string())
     .default([])
     .describe(
-      "Jobs to scope the recommendation to. Empty means every job in the workflow.",
+      "Job keys (github.job) to scope the recommendation to. Empty means every keyed job in the workflow.",
     ),
   ignoreSignals: z
     .array(SIGNAL_TYPE_SCHEMA)

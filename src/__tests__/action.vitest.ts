@@ -22,7 +22,7 @@ const API_URL = `${API_BASE}/v1/dynamic-ci`;
 const skipUnitTests: DynamicCiResponse = {
   jobs: [
     {
-      jobName: "Unit Tests",
+      jobKey: "unit-tests",
       run: false,
       summary: "Skip — 99% historical pass rate and no impacted files.",
       signals: [
@@ -77,15 +77,18 @@ const readOutputs = (): Record<string, string> => {
 const stubRunnerEnv = ({
   token = "test-token",
   omitToken = false,
+  jobKeys = "",
   jobNames = "",
   ignoreSignals = "",
 }: {
   token?: string;
   omitToken?: boolean;
+  jobKeys?: string;
   jobNames?: string;
   ignoreSignals?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
+  vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_JOB-NAMES", jobNames);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
@@ -148,7 +151,7 @@ describe("the action end to end", () => {
   });
 
   it("writes a skip verdict as a 'false' job output", async () => {
-    stubRunnerEnv({ jobNames: "Unit Tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests" });
 
     await runAction();
 
@@ -166,7 +169,7 @@ describe("the action end to end", () => {
           return HttpResponse.json(skipUnitTests);
         }),
     ]);
-    stubRunnerEnv({ jobNames: "Unit Tests", token: "secret-token" });
+    stubRunnerEnv({ jobKeys: "unit-tests", token: "secret-token" });
 
     await runAction();
 
@@ -183,24 +186,19 @@ describe("the action end to end", () => {
       eventName: "pull_request",
       workflowPath: ".github/workflows/pr.yaml",
       workflowName: "Pull Request",
-      jobNames: ["Unit Tests"],
+      jobKeys: ["unit-tests"],
     });
   });
 
-  it("normalizes job names and fans out when job-names is unset", async () => {
+  it("fans out over the workflow when job-keys is unset", async () => {
     server.overrideHandlers([
       () =>
         http.post(API_URL, () =>
           HttpResponse.json({
             jobs: [
+              { jobKey: "build_docs", run: true, summary: "Run", signals: [] },
               {
-                jobName: "build (ubuntu, 20)",
-                run: true,
-                summary: "Run",
-                signals: [],
-              },
-              {
-                jobName: "E2E / chrome",
+                jobKey: "e2e-chrome",
                 run: false,
                 summary: "Skip",
                 signals: [],
@@ -214,9 +212,28 @@ describe("the action end to end", () => {
     await runAction();
 
     expect(readOutputs()).toEqual({
-      "build-ubuntu-20": "true",
+      build_docs: "true",
       "e2e-chrome": "false",
     });
+  });
+
+  // job-names addressed jobs by an identity the service no longer serves.
+  // Falling back to fan-out still returns a verdict for the caller's job.
+  it("ignores the removed job-names input and fans out instead", async () => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    stubRunnerEnv({ jobNames: "Unit Tests" });
+
+    await runAction();
+
+    expect(body).toMatchObject({ jobKeys: [] });
+    expect(readOutputs()).toEqual({ "unit-tests": "false" });
   });
 
   it("forwards ignore-signals to the service", async () => {
@@ -229,7 +246,7 @@ describe("the action end to end", () => {
         }),
     ]);
     stubRunnerEnv({
-      jobNames: "Unit Tests",
+      jobKeys: "unit-tests",
       ignoreSignals: "estimated-cost, historical-pass-rate",
     });
 
@@ -252,7 +269,7 @@ describe("the action end to end", () => {
         }),
     ]);
     stubRunnerEnv({
-      jobNames: "Unit Tests",
+      jobKeys: "unit-tests",
       ignoreSignals: "estimated-cost,a-signal-from-the-future",
     });
 
@@ -275,7 +292,7 @@ describe("the action end to end", () => {
           HttpResponse.json({
             jobs: [
               {
-                jobName: "Unit Tests",
+                jobKey: "unit-tests",
                 run: false,
                 summary: "Skip — the future signal says so.",
                 signals: [
@@ -291,7 +308,7 @@ describe("the action end to end", () => {
           }),
         ),
     ]);
-    stubRunnerEnv({ jobNames: "Unit Tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests" });
 
     await runAction();
 
@@ -305,7 +322,7 @@ describe("the action end to end", () => {
   });
 
   it("defaults a job the service omits to 'true'", async () => {
-    stubRunnerEnv({ jobNames: "Unit Tests,Integration Tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
 
     await runAction();
 
@@ -327,7 +344,7 @@ describe("the action end to end", () => {
             }),
         ),
     ]);
-    stubRunnerEnv({ jobNames: "Unit Tests,Integration Tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
 
     await runAction();
 
@@ -346,7 +363,7 @@ describe("the action end to end", () => {
           return HttpResponse.json(skipUnitTests);
         }),
     ]);
-    stubRunnerEnv({ jobNames: "Unit Tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests" });
     vi.stubEnv("TRUNK_DYNAMIC_CI_TIMEOUT_MS", "20");
 
     await runAction();
@@ -356,7 +373,7 @@ describe("the action end to end", () => {
   });
 
   it("fails open without failing the step when the token is missing", async () => {
-    stubRunnerEnv({ jobNames: "Unit Tests", omitToken: true });
+    stubRunnerEnv({ jobKeys: "unit-tests", omitToken: true });
 
     await expect(runAction()).resolves.toBeUndefined();
 
@@ -366,12 +383,12 @@ describe("the action end to end", () => {
   });
 
   it("writes a per-job summary table that omits ABSTAIN signals", async () => {
-    stubRunnerEnv({ jobNames: "Unit Tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests" });
 
     await runAction();
 
     const summary = readFileSync(summaryPath, "utf8");
-    expect(summary).toContain("Unit Tests");
+    expect(summary).toContain("unit-tests");
     expect(summary).toContain("⏭️ SKIP");
     expect(summary).toContain("historical-pass-rate");
     expect(summary).not.toContain("ABSTAIN");

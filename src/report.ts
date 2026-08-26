@@ -4,7 +4,6 @@ import type {
   JobVerdict,
   PublicSignalResult,
 } from "./compat";
-import { toOutputKey } from "./outputs";
 
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
 
@@ -28,15 +27,12 @@ const displaySignals = (job: JobVerdict): PublicSignalResult[] =>
 const verdictBadge = (run: boolean): string => (run ? "✅ RUN" : "⏭️ SKIP");
 
 /**
- * Per-job log line, keyed by the normalized
- * output key rather than the display name so a log line can be matched
- * verbatim against the `steps.<id>.outputs.<key>` reference in an `if:`
- * conditional. The human-readable name stays in the annotation and summary.
+ * Per-job log line, keyed by the job key — which is both the output key and what
+ * an `if:` conditional names, so a log line matches the
+ * `steps.<id>.outputs.<job-key>` reference verbatim.
  */
 const logVerdict = (job: JobVerdict): void => {
-  core.info(
-    `  ${toOutputKey(job.jobName)}: ${verdictLabel(job.run)} — ${job.summary}`,
-  );
+  core.info(`  ${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`);
   for (const signal of displaySignals(job)) {
     core.info(
       `    - [${signal.recommendation}] ${signal.type}: ${signalMessage(signal)}`,
@@ -58,7 +54,7 @@ const overviewTable = (jobs: JobVerdict[]): string =>
     mdRow(["---", "---", "---"]),
     ...jobs.map((job) =>
       mdRow([
-        escapeCell(job.jobName),
+        escapeCell(job.jobKey),
         verdictBadge(job.run),
         escapeCell(job.summary),
       ]),
@@ -87,7 +83,7 @@ const signalTable = (job: JobVerdict): string =>
 const jobDetails = (job: JobVerdict): string =>
   [
     "<details>",
-    `<summary>${job.jobName} → ${verdictBadge(job.run)}</summary>`,
+    `<summary>${job.jobKey} → ${verdictBadge(job.run)}</summary>`,
     "",
     `_${escapeCell(job.summary)}_`,
     "",
@@ -125,7 +121,7 @@ export const reportRecommendations = async (
   core.info(`${ANNOTATION_TITLE} recommendations:`);
   for (const job of response.jobs) {
     logVerdict(job);
-    core.notice(`${job.jobName}: ${verdictLabel(job.run)} — ${job.summary}`, {
+    core.notice(`${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`, {
       title: ANNOTATION_TITLE,
     });
   }
@@ -134,11 +130,11 @@ export const reportRecommendations = async (
 
 /** Log + annotate that the action failed open (recommending RUN for all jobs). */
 export const reportFailOpen = async (
-  jobs: string[],
+  jobKeys: string[],
   reason: string,
 ): Promise<void> => {
   core.warning(
-    `${ANNOTATION_TITLE} failed open — recommending RUN for ${jobs.join(", ") || "all jobs in scope"}: ${reason}`,
+    `${ANNOTATION_TITLE} failed open — recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
     { title: `${ANNOTATION_TITLE} (fail-open)` },
   );
   if (!process.env["GITHUB_STEP_SUMMARY"]) {
@@ -146,7 +142,7 @@ export const reportFailOpen = async (
   }
   core.summary.addHeading(`${ANNOTATION_TITLE} — fail-open`, 2);
   core.summary.addRaw(
-    `Recommending **RUN** for all jobs in scope (${jobs.join(", ") || "unknown"}).`,
+    `Recommending **RUN** for all jobs in scope (${jobKeys.join(", ") || "unknown"}).`,
   );
   core.summary.addBreak();
   core.summary.addRaw(`Reason: ${reason}`);

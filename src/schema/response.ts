@@ -5,12 +5,12 @@ import * as z from "zod";
 import { PUBLIC_SIGNAL_RESULT_SCHEMA } from "./signals";
 
 export const JOB_VERDICT_SCHEMA: z.ZodObject<{
-  jobName: z.ZodString;
+  jobKey: z.ZodString;
   run: z.ZodBoolean;
   summary: z.ZodString;
   signals: z.ZodArray<typeof PUBLIC_SIGNAL_RESULT_SCHEMA>;
 }> = z.object({
-  jobName: z.string(),
+  jobKey: z.string(),
   run: z.boolean(),
   summary: z.string(),
   signals: z.array(PUBLIC_SIGNAL_RESULT_SCHEMA),

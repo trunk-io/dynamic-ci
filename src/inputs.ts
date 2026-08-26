@@ -6,19 +6,25 @@ const KNOWN_SIGNALS = new Set<string>(SIGNAL_TYPES);
 export interface ActionInputs {
   /** Trunk organization API token. Marked as a secret so it is never logged. */
   token: string;
-  /** Jobs to scope the recommendation to; empty means the whole workflow. */
-  jobNames: string[];
+  /** Job keys to scope the recommendation to; empty means the whole workflow. */
+  jobKeys: string[];
   /** Signal identifiers the caller wants excluded, forwarded to the service as given. */
   ignoreSignals: string[];
 }
 
+const splitList = (raw: string): string[] =>
+  raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
 /**
- * Read the action inputs. `job-names` is a comma-separated list taken only from
- * the explicit input — the current job is never inferred from `GITHUB_JOB`,
- * since the action is often run as a fan-out/pre-job step before any job has
- * started. Empty means "recommend for the whole workflow". Both inputs are
- * split on commas only (not whitespace), since job names can contain spaces
- * (e.g. `Unit Tests`). `ignore-signals` is a comma-separated list of kebab-case
+ * Read the action inputs. `job-keys` is a comma-separated list of declarative
+ * `jobs:` keys — the value `github.job` reports and an `if:` names, not the
+ * rendered display name. It is taken only from the explicit input: the current
+ * job is never inferred from `GITHUB_JOB`, since the action is often run as a
+ * fan-out/pre-job step before any job has started. Empty means "recommend for
+ * the whole workflow". `ignore-signals` is a comma-separated list of kebab-case
  * signal ids (e.g. `estimated-cost`) forwarded to the service verbatim: it owns
  * the signal list and is the only side that can authoritatively reject an id,
  * since new signals ship there before this vendored contract catches up. An id
@@ -30,22 +36,23 @@ export const readInputs = (): ActionInputs => {
   // Ensure the token is scrubbed from any log output.
   core.setSecret(token);
 
-  const jobNames = core
-    .getInput("job-names")
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean);
+  const jobKeys = splitList(core.getInput("job-keys"));
 
-  const ignoreSignals = core
-    .getInput("ignore-signals")
-    .split(",")
-    .map((signal) => signal.trim())
-    .filter(Boolean);
+  // `job-names` addressed jobs by display name, an identity the service rewrote
+  // in place as workflows were re-ingested. Ignoring it falls back to fan-out,
+  // which still returns a verdict for every keyed job — including this one.
+  if (splitList(core.getInput("job-names")).length > 0) {
+    core.warning(
+      "job-names has been replaced by job-keys, which takes the workflow's jobs: keys rather than display names. The value was ignored; recommending for the whole workflow instead.",
+    );
+  }
+
+  const ignoreSignals = splitList(core.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
     core.warning(
       `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`,
     );
   }
 
-  return { token, jobNames, ignoreSignals };
+  return { token, jobKeys, ignoreSignals };
 };

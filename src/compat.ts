@@ -49,7 +49,7 @@ export type PublicSignalResult = z.infer<
 >;
 
 export const JOB_VERDICT_SCHEMA: z.ZodObject<{
-  jobName: z.ZodString;
+  jobKey: z.ZodString;
   run: z.ZodBoolean;
   summary: z.ZodString;
   signals: z.ZodArray<typeof PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT>;

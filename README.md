@@ -77,7 +77,7 @@ steps:
     uses: trunk-io/dynamic-ci-filter@v1
     with:
       token: ${{ secrets.TRUNK_API_TOKEN }}
-      job-names: Unit Tests
+      job-keys: unit-tests
 
   - name: Unit Tests
     if: steps.ci-filter.outputs.unit-tests != 'false'
@@ -86,27 +86,34 @@ steps:
 
 ## Inputs
 
-| Input            | Required | Description                                                                                                                                                                                                |
-| ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `token`          | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                                           |
-| `job-names`      | no       | A job name, or comma-separated list of job names, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out). This must be a stable job name, not its id/key in the YAML config. |
-| `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent.                  |
+| Input            | Required | Description                                                                                                                                                                               |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token`          | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
+| `job-keys`       | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
+| `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
 
-Job names are matched on the job's **display name**, which is the `name:` field. A job
-with no `name:` is displayed under its id, and that is what to pass for it.
+Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
+workflow file, and what `github.job` reports — not by the `name:` it displays under. A
+display name is not a stable identity: it changes with a job's matrix values, and
+renaming it silently detaches the verdict from the job. The key does not, which is what
+makes it safe to put in an `if:`.
+
+> [!NOTE]
+> Before v2 this input was `job-names` and took display names. Setting it now logs a
+> warning and is otherwise ignored — the action falls back to fan-out, which still
+> returns a verdict for the job.
 
 ## Outputs
 
 One output per job, whose value is the string `'true'` (run) or `'false'` (skip).
 
-The output key is the job name normalized to something referenceable in an `if:`
-expression: lowercased, with every run of non-alphanumeric characters collapsed to a
-single `-`. So `Unit Tests` becomes `unit-tests` and `build (ubuntu, 20)` becomes
-`build-ubuntu-20`.
+The output is named for the job key verbatim. GitHub already constrains a `jobs:` key to
+what an expression can dereference, so a job written as `unit-tests` is read back as
+`steps.ci-filter.outputs.unit-tests` with no transformation to work out.
 
 **Always write `!= 'false'`, never `== 'true'`.** A job with no verdict — a service
-outage, a job name the service has never seen, a job you just renamed — emits no
-output at all, and `!= 'false'` correctly runs it. Writing `== 'true'` would silently
+outage, a job the service has never seen, a job whose key it has not resolved yet —
+emits no output at all, and `!= 'false'` correctly runs it. Writing `== 'true'` would silently
 skip your entire test suite the first time something goes wrong.
 
 ## Failing open
@@ -139,7 +146,7 @@ the action the same way everywhere and let the branch check do the work.
 
 The guarantee holds in both modes, with slightly different mechanics:
 
-- With `job-names` set, every named job comes back as an explicit `'true'`.
+- With `job-keys` set, every named job comes back as an explicit `'true'`.
 - In fan-out mode the response carries no verdicts, so no outputs are set at all — which
   your `!= 'false'` conditions already read as "run". This is one more reason never to
   write `== 'true'`.
@@ -174,6 +181,7 @@ drop it from the tally:
 | `force-override`         | An explicit user override forcing the job to run.                |
 | `merge-failure`          | Whether this job failed on the PR's most recent merge-queue run. |
 | `mid-pr-stack`           | Whether another open PR is stacked on top of this one.           |
+| `required-check`         | Whether the PR's base branch requires this job to merge.         |
 
 The identifiers this action version knows about are `SIGNAL_TYPES` in
 [`src/schema/signals.ts`](src/schema/signals.ts). Signals are added and retired while

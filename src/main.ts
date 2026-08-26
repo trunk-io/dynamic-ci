@@ -6,9 +6,9 @@ import { readInputs } from "./inputs";
 import { setFailOpenOutputs, setOutputs } from "./outputs";
 import { reportFailOpen, reportRecommendations } from "./report";
 
-const failOpen = async (jobs: string[], reason: string): Promise<void> => {
-  setFailOpenOutputs(jobs);
-  await reportFailOpen(jobs, reason);
+const failOpen = async (jobKeys: string[], reason: string): Promise<void> => {
+  setFailOpenOutputs(jobKeys);
+  await reportFailOpen(jobKeys, reason);
 };
 
 export const run = async (): Promise<void> => {
@@ -17,10 +17,10 @@ export const run = async (): Promise<void> => {
 
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
-  // An empty `jobNames` is fan-out mode: the service enumerates the whole workflow.
+  // An empty `jobKeys` is fan-out mode: the service enumerates the whole workflow.
   const scope =
-    request.jobNames.length > 0
-      ? request.jobNames.join(", ")
+    request.jobKeys.length > 0
+      ? request.jobKeys.join(", ")
       : `all jobs in workflow "${request.workflowName}"`;
   core.info(`Requesting recommendations from ${apiUrl} for: ${scope}`);
 
@@ -31,11 +31,11 @@ export const run = async (): Promise<void> => {
       body: request,
       timeoutMs,
     });
-    setOutputs(response, request.jobNames);
+    setOutputs(response, request.jobKeys);
     await reportRecommendations(response);
   } catch (error) {
     await failOpen(
-      request.jobNames,
+      request.jobKeys,
       error instanceof Error ? error.message : String(error),
     );
   }

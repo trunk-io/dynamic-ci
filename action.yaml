@@ -11,24 +11,26 @@ inputs:
   token:
     description: Trunk organization API token.
     required: true
-  job-names:
+  job-keys:
     description:
-      Job(s) to scope the recommendation to (pre-step mode) — a single job name
-      or a comma-separated list of job names. Leave unset to return
-      recommendations for all known job names in this workflow.
+      Job(s) to scope the recommendation to (pre-step mode) — a single job key
+      or a comma-separated list of job keys, as written under `jobs:` in the
+      workflow file (the value `github.job` reports). Leave unset to return
+      recommendations for every keyed job in this workflow.
     required: false
   ignore-signals:
     description:
       Optional comma-separated list of signal identifiers to exclude from the
       recommendation. Valid identifiers are estimated-cost,
       previous-result-on-pr, historical-pass-rate, diff-driven-volatility,
-      force-override, merge-failure, and mid-pr-stack. An unrecognized
-      identifier makes the action fail open (recommend running everything)
-      rather than silently ignore the setting.
+      force-override, merge-failure, mid-pr-stack, and required-check. An
+      unrecognized identifier makes the action fail open (recommend running
+      everything) rather than silently ignore the setting.
     required: false
 
 # Per-job outputs are set at runtime and so cannot be declared here. See the
-# README: keys are normalized job names, and conditionals must test != 'false'.
+# README: each output is named for its job key, and conditionals must test
+# != 'false'.
 
 runs:
   using: node24
