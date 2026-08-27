@@ -1,15 +1,25 @@
-/** Production endpoint. Used when {@link API_ADDRESS_ENV} is unset. */
-export const DEFAULT_API_URL =
-  "https://ci-optimizer.v2.api.trunk.io/v1/dynamic-ci";
-
 /** Path appended to the public API address to reach the recommendation endpoint. */
-export const DYNAMIC_CI_PATH = "/v1/dynamic-ci";
+export const DYNAMIC_CI_PATH = "/v2/dynamic-ci/generate-plan";
+
+/** Trunk's public API. Used when {@link API_ADDRESS_ENV} is unset. */
+export const DEFAULT_API_ADDRESS = "https://api.trunk.io";
+
+/** Production endpoint. Used when {@link API_ADDRESS_ENV} is unset. */
+// Spelled out rather than composed from the two constants above: a template
+// literal needs an explicit annotation under `isolatedDeclarations`, which
+// `no-inferrable-types` then rejects. config.vitest.ts pins it against them.
+export const DEFAULT_API_URL =
+  "https://api.trunk.io/v2/dynamic-ci/generate-plan";
 
 /**
- * Override the recommendation endpoint via the shared trunk API base address
- * (dev/staging) — the same env var the test-results uploader reads. It is a base
- * address (e.g. `https://api.trunk.io`); {@link DYNAMIC_CI_PATH} is
- * appended to it. Unset falls back to the production endpoint.
+ * Point the action at a different Trunk deployment via the shared trunk API base
+ * address (dev/staging) — the same env var the test-results uploader reads. It is
+ * a base address (e.g. `https://api.trunk.io`), host only; {@link DYNAMIC_CI_PATH}
+ * is always appended. Unset falls back to production.
+ *
+ * Deliberately a host override rather than a whole-URL one: the path is part of
+ * the contract between this action and the API version it speaks, so letting a
+ * caller replace it would let the two drift silently.
  */
 export const API_ADDRESS_ENV = "TRUNK_PUBLIC_API_ADDRESS";
 

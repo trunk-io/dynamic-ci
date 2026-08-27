@@ -192,10 +192,10 @@ describe, but read the job summary for what actually voted.
 
 ## Environment variables
 
-| Variable                      | Default | Description                                                                                     |
-| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
-| `TRUNK_PUBLIC_API_ADDRESS`    | —       | Override the Trunk API base address. The recommendation path is appended to it.                 |
-| `TRUNK_DYNAMIC_CI_TIMEOUT_MS` | `30000` | Request timeout, which is also the fail-open latency budget. Invalid values fall back to 30000. |
+| Variable                      | Default                | Description                                                                                     |
+| ----------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `TRUNK_PUBLIC_API_ADDRESS`    | `https://api.trunk.io` | Trunk API base address (host only). The recommendation path is appended to it.                  |
+| `TRUNK_DYNAMIC_CI_TIMEOUT_MS` | `30000`                | Request timeout, which is also the fail-open latency budget. Invalid values fall back to 30000. |
 
 ## Contributing
 

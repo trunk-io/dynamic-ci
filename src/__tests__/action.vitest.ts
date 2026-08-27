@@ -17,7 +17,7 @@ import { runAction } from "../main";
 import type { DynamicCiResponse } from "../schema/response";
 
 const API_BASE = "https://dynamic-ci.test";
-const API_URL = `${API_BASE}/v1/dynamic-ci`;
+const API_URL = `${API_BASE}/v2/dynamic-ci/generate-plan`;
 
 const skipUnitTests: DynamicCiResponse = {
   jobs: [
