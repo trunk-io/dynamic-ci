@@ -138,8 +138,9 @@ warning annotation and in the job summary — for example:
 > Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to
 > turn it on. `[ORG_NOT_ENABLED]`
 
-Without a notice — an older service, or a plan that genuinely scored nothing — the
-action still says that every job will run rather than printing an empty heading.
+A notice covers every expected cause, so a plan that arrives empty _without_ one
+means something went wrong that Trunk could not name. The action says so and points
+you at [slack.trunk.io](https://slack.trunk.io) rather than printing an empty heading.
 
 ## Merge queues
 

@@ -123,11 +123,11 @@ describe("a plan with no verdicts", () => {
 
   // A service too old to send a notice, or one that scored nothing at all: the
   // action still has to say that every job is about to run.
-  it("says every job will run when the service sent no notice", async () => {
+  it("points at support when the service sent no notice", async () => {
     await reportRecommendations({ jobs: [] });
 
     expect(warning).toHaveBeenCalledWith(
-      expect.stringContaining("every job in this workflow will run"),
+      "No per-job recommendations were returned. Please contact slack.trunk.io for support.",
       { title: "Trunk Dynamic CI Filter" },
     );
   });

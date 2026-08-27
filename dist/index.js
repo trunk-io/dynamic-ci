@@ -23624,7 +23624,7 @@ var setFailOpenOutputs = (jobKeys) => {
 // src/report.ts
 var core5 = __toESM(require_core(), 1);
 var ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
-var NO_VERDICTS_MESSAGE = "No per-job recommendations were returned, so every job in this workflow will run. This is the documented fail-safe, not a failure.";
+var NO_VERDICTS_MESSAGE = "No per-job recommendations were returned. Please contact slack.trunk.io for support.";
 var verdictLabel = (run2) => run2 ? "RUN" : "SKIP";
 var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` : signal.message;
 var displaySignals = (job) => job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
@@ -23689,10 +23689,7 @@ var writeSummary = async (response) => {
   const markdown = [
     `## ${ANNOTATION_TITLE}`,
     "",
-    ...response.notice ? [
-      `> **${response.notice.code}** \u2014 ${escapeCell(response.notice.message)}`,
-      ""
-    ] : [],
+    ...response.notice ? [`> ${escapeCell(response.notice.message)}`, ""] : [],
     ...summaryBody(response)
   ].join("\n");
   core5.summary.addRaw(markdown).addEOL();

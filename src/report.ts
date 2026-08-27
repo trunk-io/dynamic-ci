@@ -8,11 +8,12 @@ import type {
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
 
 /**
- * The residual empty plan: no verdicts and no notice explaining why. Reachable
- * from a service too old to send a notice, or one that scored nothing at all.
+ * An empty plan with no notice explaining it. Notices cover every expected
+ * cause, so reaching this means something went wrong that the service could not
+ * name — hence pointing at support rather than restating the fail-safe.
  */
 const NO_VERDICTS_MESSAGE =
-  "No per-job recommendations were returned, so every job in this workflow will run. This is the documented fail-safe, not a failure.";
+  "No per-job recommendations were returned. Please contact slack.trunk.io for support.";
 
 const verdictLabel = (run: boolean): string => (run ? "RUN" : "SKIP");
 
@@ -131,10 +132,7 @@ const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
     `## ${ANNOTATION_TITLE}`,
     "",
     ...(response.notice
-      ? [
-          `> **${response.notice.code}** — ${escapeCell(response.notice.message)}`,
-          "",
-        ]
+      ? [`> ${escapeCell(response.notice.message)}`, ""]
       : []),
     ...summaryBody(response),
   ].join("\n");
@@ -143,13 +141,9 @@ const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
 };
 
 /**
- * The plan-level condition, when the service reports one.
- *
- * A warning rather than an info line, because every condition that carries a
- * notice answers with a run-everything plan — which in fan-out mode is an empty
- * `jobs` — and a green step whose only evidence is an absence is precisely what
- * made this report unreadable before. `core.warning` reaches the run's
- * annotation list; `core.info` reaches only the step log.
+ * The plan-level condition, when the service reports one. A warning rather than
+ * an info line: these plans are green and empty, and only a warning reaches the
+ * run's annotation list.
  */
 const reportPlanNotice = (response: DynamicCiResponse): void => {
   if (response.notice) {
