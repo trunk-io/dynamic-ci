@@ -23488,8 +23488,8 @@ var requestRecommendations = async ({
 };
 
 // src/config.ts
-var DEFAULT_API_URL = "https://ci-optimizer.v2.api.trunk.io/v1/dynamic-ci";
-var DYNAMIC_CI_PATH = "/v1/dynamic-ci";
+var DYNAMIC_CI_PATH = "/v2/dynamic-ci/generate-plan";
+var DEFAULT_API_URL = "https://api.trunk.io/v2/dynamic-ci/generate-plan";
 var API_ADDRESS_ENV = "TRUNK_PUBLIC_API_ADDRESS";
 var TIMEOUT_MS_ENV = "TRUNK_DYNAMIC_CI_TIMEOUT_MS";
 var DEFAULT_TIMEOUT_MS = 3e4;
