@@ -7,6 +7,13 @@ import type {
 
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
 
+/**
+ * The residual empty plan: no verdicts and no notice explaining why. Reachable
+ * from a service too old to send a notice, or one that scored nothing at all.
+ */
+const NO_VERDICTS_MESSAGE =
+  "No per-job recommendations were returned, so every job in this workflow will run. This is the documented fail-safe, not a failure.";
+
 const verdictLabel = (run: boolean): string => (run ? "RUN" : "SKIP");
 
 /**
@@ -93,39 +100,88 @@ const jobDetails = (job: JobVerdict): string =>
   ].join("\n");
 
 /**
- * Write the job summary as markdown: a compact at-a-glance verdict table, then
- * one collapsible `<details>` section per job holding its per-signal breakdown
- * so many jobs (fan-out mode) stay scannable. Skipped (logs only) when
- * `GITHUB_STEP_SUMMARY` is unavailable (e.g. tests).
+ * The verdict tables, or a plain statement that there are none. A notice already
+ * states the consequence, so repeating the generic line beneath it would say the
+ * same thing twice.
  */
-const writeSummary = async (jobs: JobVerdict[]): Promise<void> => {
+const summaryBody = (response: DynamicCiResponse): string[] => {
+  if (response.jobs.length === 0) {
+    return response.notice ? [] : [NO_VERDICTS_MESSAGE];
+  }
+  return [
+    overviewTable(response.jobs),
+    "",
+    // Blank line between each <details> so GitHub renders them all.
+    response.jobs.map(jobDetails).join("\n\n"),
+  ];
+};
+
+/**
+ * Write the job summary as markdown: the plan-level notice if there is one, then
+ * a compact at-a-glance verdict table and one collapsible `<details>` section per
+ * job holding its per-signal breakdown, so many jobs (fan-out mode) stay
+ * scannable. Skipped (logs only) when `GITHUB_STEP_SUMMARY` is unavailable
+ * (e.g. tests).
+ */
+const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
   if (!process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   const markdown = [
     `## ${ANNOTATION_TITLE}`,
     "",
-    overviewTable(jobs),
-    "",
-    // Blank line between each <details> so GitHub renders them all.
-    jobs.map(jobDetails).join("\n\n"),
+    ...(response.notice
+      ? [
+          `> **${response.notice.code}** — ${escapeCell(response.notice.message)}`,
+          "",
+        ]
+      : []),
+    ...summaryBody(response),
   ].join("\n");
   core.summary.addRaw(markdown).addEOL();
   await core.summary.write();
+};
+
+/**
+ * The plan-level condition, when the service reports one.
+ *
+ * A warning rather than an info line, because every condition that carries a
+ * notice answers with a run-everything plan — which in fan-out mode is an empty
+ * `jobs` — and a green step whose only evidence is an absence is precisely what
+ * made this report unreadable before. `core.warning` reaches the run's
+ * annotation list; `core.info` reaches only the step log.
+ */
+const reportPlanNotice = (response: DynamicCiResponse): void => {
+  if (response.notice) {
+    core.warning(`${response.notice.message} [${response.notice.code}]`, {
+      title: ANNOTATION_TITLE,
+    });
+    return;
+  }
+  if (response.jobs.length === 0) {
+    core.warning(NO_VERDICTS_MESSAGE, { title: ANNOTATION_TITLE });
+  }
 };
 
 /** Log + annotate the recommendations served by the API. */
 export const reportRecommendations = async (
   response: DynamicCiResponse,
 ): Promise<void> => {
-  core.info(`${ANNOTATION_TITLE} recommendations:`);
-  for (const job of response.jobs) {
-    logVerdict(job);
-    core.notice(`${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`, {
-      title: ANNOTATION_TITLE,
-    });
+  reportPlanNotice(response);
+
+  // Guarded: an unconditional heading over zero verdicts is the bare
+  // `recommendations:` line that started all this.
+  if (response.jobs.length > 0) {
+    core.info(`${ANNOTATION_TITLE} recommendations:`);
+    for (const job of response.jobs) {
+      logVerdict(job);
+      core.notice(`${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`, {
+        title: ANNOTATION_TITLE,
+      });
+    }
   }
-  await writeSummary(response.jobs);
+
+  await writeSummary(response);
 };
 
 /** Log + annotate that the action failed open (recommending RUN for all jobs). */

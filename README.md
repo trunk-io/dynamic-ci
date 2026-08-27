@@ -124,6 +124,23 @@ The action is built so that it can never block your CI:
 Every fail-open is logged as a warning annotation with the reason, and written to the
 job summary, so you can tell a real skip from a degraded one.
 
+### When Trunk returns no recommendations
+
+Trunk can answer successfully and still have nothing to recommend — because Dynamic CI
+is not enabled for your organization, because the branch is a merge-queue branch,
+because the engine was unavailable, or because Trunk has not yet enumerated the jobs in
+this workflow. **Every job runs in all four cases**, which is the fail-safe working as
+intended.
+
+When that happens the response carries a `notice`, and the action renders it as a
+warning annotation and in the job summary — for example:
+
+> Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to
+> turn it on. `[ORG_NOT_ENABLED]`
+
+Without a notice — an older service, or a plan that genuinely scored nothing — the
+action still says that every job will run rather than printing an empty heading.
+
 ## Merge queues
 
 A merge queue validates the exact commit that is about to land, so skipping a job there

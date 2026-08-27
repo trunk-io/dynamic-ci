@@ -3,6 +3,7 @@ import { PUBLIC_SIGNAL_RESULT_SCHEMA } from "./schema/signals";
 import {
   DYNAMIC_CI_RESPONSE_SCHEMA as SYNCED_RESPONSE_SCHEMA,
   JOB_VERDICT_SCHEMA as SYNCED_JOB_VERDICT_SCHEMA,
+  PLAN_NOTICE_SCHEMA,
 } from "./schema/response";
 import type { DynamicCiRequest as SyncedRequest } from "./schema/request";
 
@@ -58,8 +59,16 @@ export const JOB_VERDICT_SCHEMA: z.ZodObject<{
 });
 export type JobVerdict = z.infer<typeof JOB_VERDICT_SCHEMA>;
 
+/**
+ * `notice` needs no widening: the service defines `code` as an open string
+ * precisely so a notice this copy predates parses rather than failing the whole
+ * response. It is carried in the annotation only because `isolatedDeclarations`
+ * requires the shape to be spelled out — omitting it here would silently drop
+ * the field on the way through.
+ */
 export const DYNAMIC_CI_RESPONSE_SCHEMA: z.ZodObject<{
   jobs: z.ZodArray<typeof JOB_VERDICT_SCHEMA>;
+  notice: z.ZodOptional<typeof PLAN_NOTICE_SCHEMA>;
 }> = SYNCED_RESPONSE_SCHEMA.extend({ jobs: z.array(JOB_VERDICT_SCHEMA) });
 export type DynamicCiResponse = z.infer<typeof DYNAMIC_CI_RESPONSE_SCHEMA>;
 
