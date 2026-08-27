@@ -197,6 +197,44 @@ describe, but read the job summary for what actually voted.
 | `TRUNK_PUBLIC_API_ADDRESS`    | `https://api.trunk.io` | Trunk API base address (host only). The recommendation path is appended to it.                  |
 | `TRUNK_DYNAMIC_CI_TIMEOUT_MS` | `30000`                | Request timeout, which is also the fail-open latency budget. Invalid values fall back to 30000. |
 
+## Matrices
+
+### A matrix is one job identity
+
+Verdicts are keyed on the job **key** — what the job is written as under `jobs:` — and a
+matrix expands into many legs beneath that one key. Trunk issues **one verdict for the
+whole job**: either every leg runs or every leg skips. There is no per-leg verdict, and no
+way to skip one platform while running another.
+
+If you need matrix legs judged separately, reach out to us at
+[slack.trunk.io](https://slack.trunk.io).
+
+### Matrix legs as required checks
+
+GitHub evaluates a job's `if:` before it expands the matrix, so a matrix job that Dynamic
+CI skips emits a single check run under the **unexpanded** name:
+
+```text
+Test for ${{ matrix.platform.target }}
+```
+
+Per-leg contexts like `Test for x86_64-apple-darwin` then never report, and a pull request
+whose branch protection requires them waits on **"Expected — Waiting for status to be
+reported"** indefinitely. Wildcards are no help: required contexts are exact-match
+strings on every plan. Non-matrix jobs are unaffected — a skipped job reports a `skipped`
+conclusion, which branch protection accepts as satisfied.
+
+Four ways to resolve it:
+
+| Option                           | How it works                                                                                                                                                 | Trade-off                                                                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fan-in job** (recommended)     | Add one `if: always()` job that `needs` the gated jobs and passes when each finished `success` or `skipped`. Require its name in place of the leg names.     | Aggregates per job, so it cannot require a subset of legs. Never gate this job with Dynamic CI — a gate that can be skipped cannot report.                      |
+| **Require the workflow**         | GitHub's "Require workflows to pass before merging" ruleset rule keys on the workflow file path, and a run whose jobs all skip still concludes successfully. | GitHub Enterprise Cloud only. Requires the workflow as a whole, so jobs you had left out of the required set start blocking merges.                             |
+| **Leave the job ungated**        | Omit the matrix job from the filter's `outputs:` and give it no `if:`. Its per-leg contexts keep reporting exactly as they do today.                         | No savings on that job. Everything else in the workflow can still be gated.                                                                                     |
+| **In-step gating** (discouraged) | Move the verdict out of the job's `if:` and into each step's `if:`, so every leg still boots and still reports its context.                                  | Spends the runner anyway, and reports `success` without doing the work — feeding `historical-pass-rate` and `previous-result-on-pr` a pass that never happened. |
+
+Prefer the fan-in job: it costs one cheap runner and keeps the pass-rate signals honest.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
