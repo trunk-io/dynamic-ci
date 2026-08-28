@@ -159,3 +159,41 @@ jobs:
             exit 1
           fi
           echo "✅ SUCCESS: the action failed open"
+
+  # Complements test_action_fails_open: the same bundle against a real deployment,
+  # so auth, the response schema and scoring are actually exercised.
+  test_action_against_staging:
+    name: Test Action Against Staging
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the action against staging
+        id: ci-filter
+        uses: ./
+        with:
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+      # and so cannot be declared in action.yaml.
+      - name: Verify staging served real verdicts
+        env:
+          VERDICT_QUALITY: ${{ steps.ci-filter.outputs.trunk_code_quality_runner }}
+          VERDICT_UNIT: ${{ steps.ci-filter.outputs.test_unit_tests }}
+          VERDICT_DIST: ${{ steps.ci-filter.outputs.test_dist_up_to_date }}
+        # trunk-ignore-end(actionlint/expression)
+        run: |
+          echo "trunk_code_quality_runner=${VERDICT_QUALITY:-unset}"
+          echo "test_unit_tests=${VERDICT_UNIT:-unset}"
+          echo "test_dist_up_to_date=${VERDICT_DIST:-unset}"
+
+          # The action never fails the step, but in fan-out mode a fail-open sets no
+          # outputs at all — so a verdict is the only proof staging answered.
+          if [ -z "${VERDICT_QUALITY}${VERDICT_UNIT}${VERDICT_DIST}" ]; then
+            echo "❌ ERROR: no verdicts. The action failed open, or staging served an empty plan."
+            exit 1
+          fi
+          echo "✅ SUCCESS: staging served a plan with real verdicts"
