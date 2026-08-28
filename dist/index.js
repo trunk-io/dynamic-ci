@@ -23434,8 +23434,13 @@ var JOB_VERDICT_SCHEMA = object({
   summary: string2(),
   signals: array(PUBLIC_SIGNAL_RESULT_SCHEMA)
 });
+var PLAN_NOTICE_SCHEMA = object({
+  code: string2(),
+  message: string2()
+});
 var DYNAMIC_CI_RESPONSE_SCHEMA = object({
-  jobs: array(JOB_VERDICT_SCHEMA)
+  jobs: array(JOB_VERDICT_SCHEMA),
+  notice: PLAN_NOTICE_SCHEMA.optional()
 });
 
 // src/compat.ts
@@ -23619,6 +23624,7 @@ var setFailOpenOutputs = (jobKeys) => {
 // src/report.ts
 var core5 = __toESM(require_core(), 1);
 var ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
+var NO_VERDICTS_MESSAGE = "No per-job recommendations were returned. Please contact slack.trunk.io for support.";
 var verdictLabel = (run2) => run2 ? "RUN" : "SKIP";
 var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` : signal.message;
 var displaySignals = (job) => job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
@@ -23665,30 +23671,53 @@ var jobDetails = (job) => [
   "",
   "</details>"
 ].join("\n");
-var writeSummary = async (jobs) => {
+var summaryBody = (response) => {
+  if (response.jobs.length === 0) {
+    return response.notice ? [] : [NO_VERDICTS_MESSAGE];
+  }
+  return [
+    overviewTable(response.jobs),
+    "",
+    // Blank line between each <details> so GitHub renders them all.
+    response.jobs.map(jobDetails).join("\n\n")
+  ];
+};
+var writeSummary = async (response) => {
   if (!process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   const markdown = [
     `## ${ANNOTATION_TITLE}`,
     "",
-    overviewTable(jobs),
-    "",
-    // Blank line between each <details> so GitHub renders them all.
-    jobs.map(jobDetails).join("\n\n")
+    ...response.notice ? [`> ${escapeCell(response.notice.message)}`, ""] : [],
+    ...summaryBody(response)
   ].join("\n");
   core5.summary.addRaw(markdown).addEOL();
   await core5.summary.write();
 };
-var reportRecommendations = async (response) => {
-  core5.info(`${ANNOTATION_TITLE} recommendations:`);
-  for (const job of response.jobs) {
-    logVerdict(job);
-    core5.notice(`${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`, {
+var reportPlanNotice = (response) => {
+  if (response.notice) {
+    core5.warning(`${response.notice.message} [${response.notice.code}]`, {
       title: ANNOTATION_TITLE
     });
+    return;
   }
-  await writeSummary(response.jobs);
+  if (response.jobs.length === 0) {
+    core5.warning(NO_VERDICTS_MESSAGE, { title: ANNOTATION_TITLE });
+  }
+};
+var reportRecommendations = async (response) => {
+  reportPlanNotice(response);
+  if (response.jobs.length > 0) {
+    core5.info(`${ANNOTATION_TITLE} recommendations:`);
+    for (const job of response.jobs) {
+      logVerdict(job);
+      core5.notice(`${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`, {
+        title: ANNOTATION_TITLE
+      });
+    }
+  }
+  await writeSummary(response);
 };
 var reportFailOpen = async (jobKeys, reason) => {
   core5.warning(
