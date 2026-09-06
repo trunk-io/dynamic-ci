@@ -8,7 +8,6 @@ afterEach(() => {
 const ENV = {
   repository: "trunk-io/trunk",
   workflowPath: ".github/workflows/ci.yml",
-  workflowName: "CI",
   runId: "7890123456",
   runAttempt: 2,
   sha: "abc123",
@@ -21,7 +20,6 @@ const stubRunnerEnv = (): void => {
     "GITHUB_WORKFLOW_REF",
     `${ENV.repository}/${ENV.workflowPath}@refs/heads/main`,
   );
-  vi.stubEnv("GITHUB_WORKFLOW", ENV.workflowName);
   vi.stubEnv("GITHUB_RUN_ID", ENV.runId);
   vi.stubEnv("GITHUB_RUN_ATTEMPT", String(ENV.runAttempt));
   vi.stubEnv("GITHUB_SHA", ENV.sha);
@@ -54,7 +52,6 @@ describe("buildRequest", () => {
       runAttempt: ENV.runAttempt,
       eventName: "workflow_dispatch",
       workflowPath: ENV.workflowPath,
-      workflowName: ENV.workflowName,
       jobKeys: ["build"],
     });
   });

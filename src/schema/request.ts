@@ -12,7 +12,9 @@ export const REPO_SCHEMA: z.ZodObject<{
   host: z
     .string()
     .default("github.com")
-    .describe("Disambiguates GitHub.com from a GitHub Enterprise Server host."),
+    .describe(
+      "Repository host. `github.com` is the only supported value; any other host is rejected.",
+    ),
   owner: z.string(),
   name: z.string(),
 });
@@ -29,7 +31,6 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
   triggeringActor: z.ZodOptional<z.ZodString>;
   eventName: z.ZodOptional<z.ZodString>;
   workflowPath: z.ZodString;
-  workflowName: z.ZodString;
   jobKeys: z.ZodDefault<z.ZodArray<z.ZodString>>;
   ignoreSignals: z.ZodOptional<z.ZodArray<typeof SIGNAL_TYPE_SCHEMA>>;
 }> = z.object({
@@ -64,7 +65,6 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
     .describe(
       "Workflow file path from github.workflow_ref, e.g. .github/workflows/ci.yml.",
     ),
-  workflowName: z.string().describe("github.workflow."),
   jobKeys: z
     .array(z.string())
     .default([])

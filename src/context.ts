@@ -117,7 +117,6 @@ export const buildRequest = (inputs: ActionInputs): DynamicCiRequest => {
       ? { eventName: process.env["GITHUB_EVENT_NAME"] }
       : {}),
     workflowPath: resolveWorkflowPath(),
-    workflowName: process.env["GITHUB_WORKFLOW"] ?? "",
     jobKeys: inputs.jobKeys,
     ...(inputs.ignoreSignals.length > 0
       ? { ignoreSignals: inputs.ignoreSignals }
