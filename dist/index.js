@@ -23572,7 +23572,6 @@ var buildRequest = (inputs) => {
     ...process.env["GITHUB_TRIGGERING_ACTOR"] ? { triggeringActor: process.env["GITHUB_TRIGGERING_ACTOR"] } : {},
     ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
     workflowPath: resolveWorkflowPath(),
-    workflowName: process.env["GITHUB_WORKFLOW"] ?? "",
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {}
   };
@@ -23746,7 +23745,7 @@ var run = async () => {
   const request = buildRequest(inputs);
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
-  const scope = request.jobKeys.length > 0 ? request.jobKeys.join(", ") : `all jobs in workflow "${request.workflowName}"`;
+  const scope = request.jobKeys.length > 0 ? request.jobKeys.join(", ") : `all jobs in workflow "${request.workflowPath}"`;
   core6.info(`Requesting recommendations from ${apiUrl} for: ${scope}`);
   try {
     const response = await requestRecommendations({

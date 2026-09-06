@@ -14,7 +14,6 @@ const request: DynamicCiRequest = {
   runId: "7890123456",
   runAttempt: 1,
   workflowPath: ".github/workflows/ci.yml",
-  workflowName: "CI",
   jobKeys: ["unit-tests"],
 };
 

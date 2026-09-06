@@ -21,7 +21,7 @@ export const run = async (): Promise<void> => {
   const scope =
     request.jobKeys.length > 0
       ? request.jobKeys.join(", ")
-      : `all jobs in workflow "${request.workflowName}"`;
+      : `all jobs in workflow "${request.workflowPath}"`;
   core.info(`Requesting recommendations from ${apiUrl} for: ${scope}`);
 
   try {
