@@ -23406,7 +23406,8 @@ var SIGNAL_TYPES = [
   "force-override",
   "merge-failure",
   "mid-pr-stack",
-  "required-check"
+  "required-check",
+  "merge-queue-is-required"
 ];
 var SIGNAL_TYPE_SCHEMA = _enum(SIGNAL_TYPES);
 var RECOMMENDATIONS = [
