@@ -75,7 +75,7 @@ describe("requestRecommendations retries", () => {
         }),
     ]);
 
-    const result = await call(4);
+    const result = await call(3);
 
     expect(result.attempts).toBe(3);
     expect(result.response.jobs[0]?.run).toBe(false);
@@ -91,8 +91,8 @@ describe("requestRecommendations retries", () => {
         }),
     ]);
 
-    await expect(call(4)).rejects.toThrow(/500/);
-    expect(received).toBe(4);
+    await expect(call(3)).rejects.toThrow(/500/);
+    expect(received).toBe(3);
   });
 
   // The whole point of the non-retryable path: retrying a wire-shape disagreement
@@ -107,7 +107,7 @@ describe("requestRecommendations retries", () => {
         }),
     ]);
 
-    await expect(call(4)).rejects.toThrow(/cannot parse/);
+    await expect(call(3)).rejects.toThrow(/cannot parse/);
     expect(received).toBe(1);
   });
 
@@ -136,8 +136,8 @@ describe("requestRecommendations retries", () => {
         }),
     ]);
 
-    await expect(call(4)).rejects.toThrow(/401/);
-    expect(received).toBe(4);
+    await expect(call(3)).rejects.toThrow(/401/);
+    expect(received).toBe(3);
   });
 
   it("reports the measured attempt count on the thrown error", async () => {
@@ -151,7 +151,7 @@ describe("requestRecommendations retries", () => {
 
     // The non-retryable path exits after one request, so anything that assumes the
     // budget was spent would report 4 here.
-    await expect(call(4)).rejects.toMatchObject({ attempts: 1 });
+    await expect(call(3)).rejects.toMatchObject({ attempts: 1 });
   });
 
   it("makes exactly one attempt when the budget is one", async () => {

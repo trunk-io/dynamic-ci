@@ -17,13 +17,13 @@ describe("outcomeForResponse", () => {
   it("reports a plan with verdicts as a success carrying no reason", () => {
     expect(outcomeForResponse(withVerdicts)).toEqual({
       status: PLAN_STATUS.success,
-      reason: PLAN_REASON.unspecified,
+      reason: PLAN_REASON.none,
     });
   });
 
   // Shadow plans carry real verdicts, so they are a success; shadow-vs-enforced is a
   // server-side label and duplicating it here would be a second source of truth.
-  it("reports shadow mode as a success, not a skip", () => {
+  it("reports shadow mode as a success, not an omission", () => {
     expect(
       outcomeForResponse({
         ...withVerdicts,
@@ -31,12 +31,12 @@ describe("outcomeForResponse", () => {
       }),
     ).toEqual({
       status: PLAN_STATUS.success,
-      reason: PLAN_REASON.unspecified,
+      reason: PLAN_REASON.none,
     });
   });
 
   // A 200 with a notice, but nothing was gated because the engine broke. Filing it
-  // under `skipped` would hide a crash among the expected short-circuits.
+  // under `omitted` would hide a crash among the expected short-circuits.
   it("reports an absorbed engine crash as a failure", () => {
     expect(outcomeForResponse(withNotice("ENGINE_UNAVAILABLE"))).toEqual({
       status: PLAN_STATUS.failed,
@@ -49,19 +49,19 @@ describe("outcomeForResponse", () => {
     ["ORG_NOT_ENABLED", PLAN_REASON.orgNotEnabled],
     ["REPO_NOT_ENABLED", PLAN_REASON.repoNotEnabled],
     ["WORKFLOW_NOT_RECOGNIZED", PLAN_REASON.workflowNotRecognized],
-  ])("maps the %s short-circuit to a skip", (code, reason) => {
+  ])("maps the %s short-circuit to an omission", (code, reason) => {
     expect(outcomeForResponse(withNotice(code))).toEqual({
-      status: PLAN_STATUS.skipped,
+      status: PLAN_STATUS.omitted,
       reason,
     });
   });
 
   // The engine ships notices ahead of this vendored copy, so an unknown code must
   // still land in the right bucket rather than being dropped.
-  it("keeps an unrecognized notice a skip", () => {
+  it("keeps an unrecognized notice an omission", () => {
     expect(outcomeForResponse(withNotice("A_NOTICE_FROM_THE_FUTURE"))).toEqual({
-      status: PLAN_STATUS.skipped,
-      reason: PLAN_REASON.unspecified,
+      status: PLAN_STATUS.omitted,
+      reason: PLAN_REASON.none,
     });
   });
 

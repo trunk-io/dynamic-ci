@@ -31600,8 +31600,8 @@ var API_ADDRESS_ENV = "TRUNK_PUBLIC_API_ADDRESS";
 var TIMEOUT_MS_ENV = "TRUNK_DYNAMIC_CI_TIMEOUT_MS";
 var DEFAULT_TIMEOUT_MS = 3e4;
 var MAX_ATTEMPTS_ENV = "TRUNK_DYNAMIC_CI_MAX_ATTEMPTS";
-var DEFAULT_MAX_ATTEMPTS = 4;
-var MAX_ATTEMPTS_CEILING = 4;
+var DEFAULT_MAX_ATTEMPTS = 3;
+var MAX_ATTEMPTS_CEILING = 3;
 var BACKOFF_STARTING_DELAY_MS = 1e3;
 var BACKOFF_MAX_DELAY_MS = 1e4;
 var BACKOFF_TIME_MULTIPLE = 2;
@@ -31856,33 +31856,32 @@ var readInputs = () => {
 
 // src/telemetry/protos.ts
 var import_protobufjs = __toESM(require_protobufjs(), 1);
-var Semver = new import_protobufjs.default.Type("Semver").add(new import_protobufjs.default.Field("major", 1, "uint32")).add(new import_protobufjs.default.Field("minor", 2, "uint32")).add(new import_protobufjs.default.Field("patch", 3, "uint32")).add(new import_protobufjs.default.Field("suffix", 4, "string"));
 var Repo = new import_protobufjs.default.Type("Repo").add(new import_protobufjs.default.Field("host", 1, "string")).add(new import_protobufjs.default.Field("owner", 2, "string")).add(new import_protobufjs.default.Field("name", 3, "string"));
 var PLAN_STATUS = {
   unspecified: 0,
   success: 1,
   failed: 2,
-  skipped: 3
+  omitted: 3
 };
 var PLAN_REASON = {
-  unspecified: 0,
-  engineUnavailable: 1,
-  httpServerError: 2,
-  httpClientError: 3,
-  httpRateLimited: 4,
-  timeout: 5,
-  transport: 6,
-  invalidResponse: 7,
-  noVerdicts: 8,
-  internal: 9,
-  mergeQueueBranch: 10,
-  orgNotEnabled: 11,
-  repoNotEnabled: 12,
-  workflowNotRecognized: 13
+  none: "",
+  engineUnavailable: "engine_unavailable",
+  httpServerError: "http_server_error",
+  httpClientError: "http_client_error",
+  httpRateLimited: "http_rate_limited",
+  timeout: "timeout",
+  transport: "transport",
+  invalidResponse: "invalid_response",
+  noVerdicts: "no_verdicts",
+  internal: "internal",
+  mergeQueueBranch: "merge_queue_branch",
+  orgNotEnabled: "org_not_enabled",
+  repoNotEnabled: "repo_not_enabled",
+  workflowNotRecognized: "workflow_not_recognized"
 };
 var PlanRequestMetrics = new import_protobufjs.default.Type(
   "PlanRequestMetrics"
-).add(new import_protobufjs.default.Field("action_version", 1, "Semver")).add(new import_protobufjs.default.Field("repo", 2, "Repo")).add(new import_protobufjs.default.Field("status", 3, "int32")).add(new import_protobufjs.default.Field("reason", 4, "int32")).add(new import_protobufjs.default.Field("attempts", 5, "uint32")).add(new import_protobufjs.default.Field("duration_ms", 6, "uint32")).add(Semver).add(Repo);
+).add(new import_protobufjs.default.Field("action_version", 1, "string")).add(new import_protobufjs.default.Field("repo", 2, "Repo")).add(new import_protobufjs.default.Field("status", 3, "int32")).add(new import_protobufjs.default.Field("reason", 4, "string")).add(new import_protobufjs.default.Field("attempts", 5, "uint32")).add(new import_protobufjs.default.Field("duration_ms", 6, "uint32")).add(new import_protobufjs.default.Field("job_count", 7, "uint32")).add(Repo);
 
 // src/outcome.ts
 var NOTICE_REASON = {
@@ -31909,14 +31908,14 @@ var outcomeForResponse = (response) => {
   }
   if (code !== void 0 && code !== "REPO_IN_SHADOW_MODE") {
     return {
-      status: PLAN_STATUS.skipped,
-      reason: NOTICE_REASON[code] ?? PLAN_REASON.unspecified
+      status: PLAN_STATUS.omitted,
+      reason: NOTICE_REASON[code] ?? PLAN_REASON.none
     };
   }
   if (response.jobs.length === 0) {
     return { status: PLAN_STATUS.failed, reason: PLAN_REASON.noVerdicts };
   }
-  return { status: PLAN_STATUS.success, reason: PLAN_REASON.unspecified };
+  return { status: PLAN_STATUS.success, reason: PLAN_REASON.none };
 };
 var outcomeForError = (error) => ({
   status: PLAN_STATUS.failed,
@@ -32077,39 +32076,19 @@ var TelemetryHttpError = class extends Error {
     this.isClientError = status < HTTP_SERVER_ERROR_FLOOR2;
   }
 };
-var SUFFIX_MAX_CHARS = 32;
-var SAFE_SUFFIX = /^[A-Za-z0-9._/-]+$/;
-var semverFromRef = (ref) => {
-  const matches = /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(.+))?$/.exec(ref);
-  if (matches) {
-    return {
-      major: Number(matches[1]),
-      minor: Number(matches[2] ?? 0),
-      patch: Number(matches[3] ?? 0),
-      suffix: boundedSuffix(matches[4] ?? "")
-    };
-  }
-  return { major: 0, minor: 0, patch: 0, suffix: boundedSuffix(ref) };
-};
-var boundedSuffix = (value) => {
-  if (!value) {
-    return "unknown";
-  }
-  const trimmed = value.slice(0, SUFFIX_MAX_CHARS);
-  return SAFE_SUFFIX.test(trimmed) ? trimmed : "other";
-};
 var sendPlanTelemetry = async (telemetry) => {
   if (telemetryDisabled()) {
     return;
   }
   try {
     const message = PlanRequestMetrics.create({
-      action_version: Semver.create(semverFromRef(telemetry.actionRef)),
+      action_version: telemetry.actionRef || "unknown",
       repo: Repo.create(telemetry.repo),
       status: telemetry.outcome.status,
       reason: telemetry.outcome.reason,
       attempts: telemetry.attempts,
-      duration_ms: Math.round(telemetry.durationMs)
+      duration_ms: Math.round(telemetry.durationMs),
+      job_count: telemetry.jobCount
     });
     const buffer = PlanRequestMetrics.encode(message).finish();
     await (0, import_exponential_backoff2.backOff)(
@@ -32132,8 +32111,8 @@ var sendPlanTelemetry = async (telemetry) => {
         jitter: "full",
         maxDelay: BACKOFF_MAX_DELAY_MS,
         numOfAttempts: TELEMETRY_ATTEMPTS,
-        // A 4xx is the documented steady-state failure of a drifted proto contract;
-        // retrying it just pays the budget to be rejected three identical times.
+        // A 4xx is a drifted contract, not a blip; retrying just pays the budget
+        // to be rejected three identical times.
         retry: (error) => !(error instanceof TelemetryHttpError && error.isClientError),
         startingDelay: resolveBackoffStartMs(),
         timeMultiple: BACKOFF_TIME_MULTIPLE
@@ -32176,7 +32155,8 @@ var run = async () => {
       repo: request.repo,
       outcome: outcomeForResponse(result.response),
       attempts: result.attempts,
-      durationMs: Date.now() - startedAt
+      durationMs: Date.now() - startedAt,
+      jobCount: result.response.jobs.length
     });
   } catch (error) {
     await failOpen(
@@ -32189,7 +32169,8 @@ var run = async () => {
       repo: request.repo,
       outcome: outcomeForError(error),
       attempts: error instanceof RecommendationError ? error.attempts ?? 0 : 0,
-      durationMs: Date.now() - startedAt
+      durationMs: Date.now() - startedAt,
+      jobCount: 0
     });
   }
 };
@@ -32213,7 +32194,8 @@ var runAction = async () => {
         repo: parseRepo(),
         outcome: { status: PLAN_STATUS.failed, reason: PLAN_REASON.internal },
         attempts: 0,
-        durationMs: 0
+        durationMs: 0,
+        jobCount: 0
       });
     } catch {
     }

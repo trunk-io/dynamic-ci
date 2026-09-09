@@ -46,6 +46,7 @@ export const run = async (): Promise<void> => {
       outcome: outcomeForResponse(result.response),
       attempts: result.attempts,
       durationMs: Date.now() - startedAt,
+      jobCount: result.response.jobs.length,
     });
   } catch (error) {
     await failOpen(
@@ -60,6 +61,7 @@ export const run = async (): Promise<void> => {
       attempts:
         error instanceof RecommendationError ? (error.attempts ?? 0) : 0,
       durationMs: Date.now() - startedAt,
+      jobCount: 0,
     });
   }
 };
@@ -89,6 +91,7 @@ export const runAction = async (): Promise<void> => {
         outcome: { status: PLAN_STATUS.failed, reason: PLAN_REASON.internal },
         attempts: 0,
         durationMs: 0,
+        jobCount: 0,
       });
     } catch {
       // Nothing left to report with.

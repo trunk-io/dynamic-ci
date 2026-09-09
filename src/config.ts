@@ -32,33 +32,17 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
 /** Override the number of attempts (1 initial + retries). */
 export const MAX_ATTEMPTS_ENV = "TRUNK_DYNAMIC_CI_MAX_ATTEMPTS";
 
-/**
- * Total attempts, i.e. 1 initial + 3 retries.
- *
- * Note `exponential-backoff`'s `numOfAttempts` is a *total*, not a retry count —
- * the test-results uploader's 3 means two retries. Do not "align" the two on the
- * assumption they mean the same thing.
- *
- * The timeout above stays **per attempt**, so a fully unreachable API costs up to
- * `DEFAULT_TIMEOUT_MS * MAX_ATTEMPTS + backoff` per job. Lower this env fleet-wide
- * to cut that ceiling without cutting a release.
- */
-export const DEFAULT_MAX_ATTEMPTS = 4;
+/** Total attempts, not retries — `exponential-backoff`'s `numOfAttempts` is a total. */
+export const DEFAULT_MAX_ATTEMPTS = 3;
 
-/** Beyond four attempts the per-job latency cost dominates. */
-const MAX_ATTEMPTS_CEILING = 4;
+const MAX_ATTEMPTS_CEILING = 3;
 
 /** Backoff between attempts. Mirrors the uploader's shared config. */
 export const BACKOFF_STARTING_DELAY_MS = 1_000;
 export const BACKOFF_MAX_DELAY_MS = 10_000;
 export const BACKOFF_TIME_MULTIPLE = 2;
 
-/**
- * Shrink the backoff. Exists for tests: real backoff is uniform-random up to ~14s
- * across four attempts, which races vitest's 5s default and makes the retry suite
- * flake — and a flaky retry test is the one that gets quarantined, which is exactly
- * the test that would catch retries being removed.
- */
+/** Shrink the backoff. Exists so the retry tests do not race vitest's timeout. */
 export const BACKOFF_START_MS_ENV = "TRUNK_DYNAMIC_CI_BACKOFF_START_MS";
 
 export const resolveBackoffStartMs = (): number => {
@@ -73,8 +57,6 @@ export const resolveMaxAttempts = (): number => {
   if (!raw) {
     return DEFAULT_MAX_ATTEMPTS;
   }
-  // Number() (not parseInt) so trailing garbage is rejected to the default rather
-  // than silently truncated, matching resolveTimeoutMs.
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     return DEFAULT_MAX_ATTEMPTS;
@@ -112,10 +94,9 @@ const telemetryUrl = (host: string): string =>
 export const DEFAULT_TELEMETRY_URL: string = telemetryUrl("api.trunk.io");
 
 /**
- * Derived from the same base address as the plan endpoint, matching the uploader, so
- * a staging run reports to staging. Deliberately a *different host* from the plan
- * API: telemetry rides trunk1's telemetry-gateway while the plan crosses the /v2
- * apex forward, which is what lets a plan-path outage still be reported.
+ * Follows the plan endpoint's base address, so a staging run reports to staging.
+ * A different host from the plan API on purpose: that is what lets an outage of the
+ * plan path still be reported.
  */
 export const resolveTelemetryUrl = (): string => {
   const base = process.env[API_ADDRESS_ENV]?.trim();
@@ -140,10 +121,5 @@ export const DISABLE_TELEMETRY_ENV = "TRUNK_DISABLE_TELEMETRY";
 export const telemetryDisabled = (): boolean =>
   (process.env[DISABLE_TELEMETRY_ENV] ?? "").toLowerCase() === "true";
 
-/**
- * Telemetry is not the critical path, so it gets a tight deadline rather than the
- * plan lane's. Node's fetch defaults to a 300s headers timeout, which across three
- * attempts would add ~15 minutes to every job against a host that accepts and
- * stalls. The uploader's client uses 1s for exactly this call.
- */
+/** Node's fetch defaults to a 300s headers timeout; the uploader uses 1s here. */
 export const TELEMETRY_TIMEOUT_MS = 1_000;

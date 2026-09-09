@@ -4,19 +4,19 @@ import { PLAN_REASON, PLAN_STATUS } from "./telemetry/protos";
 
 export interface PlanOutcome {
   status: number;
-  reason: number;
+  reason: string;
 }
 
-// An unknown code still maps to `skipped`, so a notice this action predates reports
+// An unknown code still maps to `omitted`, so a notice this action predates reports
 // as "served, gating nothing" rather than being dropped.
-const NOTICE_REASON: Record<string, number> = {
+const NOTICE_REASON: Record<string, string> = {
   MERGE_QUEUE_BRANCH: PLAN_REASON.mergeQueueBranch,
   ORG_NOT_ENABLED: PLAN_REASON.orgNotEnabled,
   REPO_NOT_ENABLED: PLAN_REASON.repoNotEnabled,
   WORKFLOW_NOT_RECOGNIZED: PLAN_REASON.workflowNotRecognized,
 };
 
-const FAILURE_REASON: Record<string, number> = {
+const FAILURE_REASON: Record<string, string> = {
   http_server_error: PLAN_REASON.httpServerError,
   http_client_error: PLAN_REASON.httpClientError,
   http_rate_limited: PLAN_REASON.httpRateLimited,
@@ -26,7 +26,7 @@ const FAILURE_REASON: Record<string, number> = {
 };
 
 /** Shadow is a success (real verdicts); ENGINE_UNAVAILABLE is a failure despite its
- *  200, since filing a crash under `skipped` hides it among expected short-circuits. */
+ *  200, since filing a crash under `omitted` hides it among expected short-circuits. */
 export const outcomeForResponse = (
   response: DynamicCiResponse,
 ): PlanOutcome => {
@@ -39,8 +39,8 @@ export const outcomeForResponse = (
   }
   if (code !== undefined && code !== "REPO_IN_SHADOW_MODE") {
     return {
-      status: PLAN_STATUS.skipped,
-      reason: NOTICE_REASON[code] ?? PLAN_REASON.unspecified,
+      status: PLAN_STATUS.omitted,
+      reason: NOTICE_REASON[code] ?? PLAN_REASON.none,
     };
   }
   // No verdicts and no notice: notices cover every expected empty plan, so this is
@@ -48,7 +48,7 @@ export const outcomeForResponse = (
   if (response.jobs.length === 0) {
     return { status: PLAN_STATUS.failed, reason: PLAN_REASON.noVerdicts };
   }
-  return { status: PLAN_STATUS.success, reason: PLAN_REASON.unspecified };
+  return { status: PLAN_STATUS.success, reason: PLAN_REASON.none };
 };
 
 export const outcomeForError = (error: unknown): PlanOutcome => ({

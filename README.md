@@ -91,7 +91,6 @@ steps:
 | `token`          | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
 | `job-keys`       | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
 | `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
-| `gh-action-ref`  | no       | The action's own ref, reported with telemetry so a bad release can be told from a bad backend. Defaults to `${{ github.action_ref }}`; you should not need to set it.                     |
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
 workflow file, and what `github.job` reports — not by the `name:` it displays under. A

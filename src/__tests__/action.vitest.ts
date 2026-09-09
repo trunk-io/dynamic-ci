@@ -62,15 +62,15 @@ let eventPath: string;
 
 const decodeTelemetry = (
   payload: Uint8Array,
-): { status: number; reason: number; attempts: number } => {
+): { status: number; reason: string; attempts: number } => {
   const decoded = PlanRequestMetrics.decode(payload) as unknown as {
     status?: number;
-    reason?: number;
+    reason?: string;
     attempts?: number;
   };
   return {
     status: decoded.status ?? 0,
-    reason: decoded.reason ?? 0,
+    reason: decoded.reason ?? "",
     attempts: decoded.attempts ?? 0,
   };
 };
@@ -413,7 +413,7 @@ describe("the action end to end", () => {
       expect(telemetryPosts).toHaveLength(1);
       expect(decodeTelemetry(telemetryPosts[0] ?? new Uint8Array())).toEqual({
         status: PLAN_STATUS.success,
-        reason: PLAN_REASON.unspecified,
+        reason: PLAN_REASON.none,
         attempts: 1,
       });
     });
