@@ -104,12 +104,6 @@ short-deadlined — so it can never change an output or fail the step. Set
 generated code, copying the analytics-uploader: protoc's output needs regex surgery to
 become ESM, and protobufjs's `load` uses `XMLHttpRequest`, absent on a runner.
 
-**It is half of a cross-repo wire contract with no automated guard**, the other half
-being trunk1's telemetry-service. Field numbers and values must change together; a
-mismatch degrades to a swallowed 400, i.e. silently lost telemetry. The same applies to
-`src/outcome.ts`, which hand-maintains a copy of the engine's `PLAN_NOTICE` codes —
-unlike `src/schema/`, nothing syncs it, so a new notice degrades to an unspecified
-`omitted`.
 
 Values that become metric labels (the action ref, the reason) are kept low-cardinality
 here and bounded again server-side.
