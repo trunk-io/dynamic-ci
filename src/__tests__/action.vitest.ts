@@ -13,11 +13,21 @@ import {
   vi,
 } from "vitest";
 import { createServer, type ServerApi } from "./__fixtures__/msw";
+import {
+  PLAN_REASON,
+  PLAN_STATUS,
+  PlanRequestMetrics,
+} from "../telemetry/protos";
 import { runAction } from "../main";
 import type { DynamicCiResponse } from "../schema/response";
 
 const API_BASE = "https://dynamic-ci.test";
 const API_URL = `${API_BASE}/v2/dynamic-ci/generate-plan`;
+const TELEMETRY_URL =
+  "https://telemetry.dynamic-ci.test/v1/dynamic-ci/plan-metrics";
+
+/** Status/reason are read back as raw protobuf field bytes; see decodeTelemetry. */
+let telemetryPosts: Uint8Array[] = [];
 
 const skipUnitTests: DynamicCiResponse = {
   jobs: [
@@ -49,6 +59,21 @@ let workspace: string;
 let outputPath: string;
 let summaryPath: string;
 let eventPath: string;
+
+const decodeTelemetry = (
+  payload: Uint8Array,
+): { status: number; reason: number; attempts: number } => {
+  const decoded = PlanRequestMetrics.decode(payload) as unknown as {
+    status?: number;
+    reason?: number;
+    attempts?: number;
+  };
+  return {
+    status: decoded.status ?? 0,
+    reason: decoded.reason ?? 0,
+    attempts: decoded.attempts ?? 0,
+  };
+};
 
 /** Parse the `name<<delimiter\nvalue\ndelimiter` protocol @actions/core writes. */
 const readOutputs = (): Record<string, string> => {
@@ -89,6 +114,7 @@ const stubRunnerEnv = ({
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
+  vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
   vi.stubEnv("GITHUB_STEP_SUMMARY", summaryPath);
   vi.stubEnv("GITHUB_EVENT_PATH", eventPath);
@@ -128,6 +154,13 @@ describe("the action end to end", () => {
 
     server = createServer([
       () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
+      // Registered for every case: msw is configured to error on an unhandled
+      // request, and the telemetry lane must never influence the action's outcome.
+      () =>
+        http.post(TELEMETRY_URL, async ({ request: received }) => {
+          telemetryPosts.push(new Uint8Array(await received.arrayBuffer()));
+          return new HttpResponse(null, { status: 200 });
+        }),
     ]);
     server.start();
   });
@@ -135,6 +168,7 @@ describe("the action end to end", () => {
   beforeEach(() => {
     writeFileSync(outputPath, "");
     writeFileSync(summaryPath, "");
+    telemetryPosts = [];
     server.reset();
   });
 
@@ -368,5 +402,59 @@ describe("the action end to end", () => {
     expect(summary).toContain("⏭️ SKIP");
     expect(summary).toContain("historical-pass-rate");
     expect(summary).not.toContain("ABSTAIN");
+  });
+
+  describe("plan telemetry", () => {
+    it("reports a served plan as a success carrying no reason", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+
+      await runAction();
+
+      expect(telemetryPosts).toHaveLength(1);
+      expect(decodeTelemetry(telemetryPosts[0] ?? new Uint8Array())).toEqual({
+        status: PLAN_STATUS.success,
+        reason: PLAN_REASON.unspecified,
+        attempts: 1,
+      });
+    });
+
+    it("reports a fail-open with the failure class that caused it", async () => {
+      server.overrideHandlers([
+        () => http.post(API_URL, () => new HttpResponse(null, { status: 503 })),
+        () =>
+          http.post(TELEMETRY_URL, async ({ request: received }) => {
+            telemetryPosts.push(new Uint8Array(await received.arrayBuffer()));
+            return new HttpResponse(null, { status: 200 });
+          }),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+
+      await runAction();
+
+      expect(readOutputs()).toEqual({ "unit-tests": "true" });
+      expect(
+        decodeTelemetry(telemetryPosts[0] ?? new Uint8Array()),
+      ).toMatchObject({
+        status: PLAN_STATUS.failed,
+        reason: PLAN_REASON.httpServerError,
+      });
+    });
+
+    // The lane is fire-and-forget: it runs after the verdict is set, and a telemetry
+    // outage must not change a single output or fail the step.
+    it("leaves outputs untouched when telemetry itself fails", async () => {
+      server.overrideHandlers([
+        () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
+        () =>
+          http.post(
+            TELEMETRY_URL,
+            () => new HttpResponse(null, { status: 500 }),
+          ),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+
+      await expect(runAction()).resolves.toBeUndefined();
+      expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    });
   });
 });
