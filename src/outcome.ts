@@ -7,8 +7,9 @@ export interface PlanOutcome {
   reason: string;
 }
 
-// An unknown code still maps to `omitted`, so a notice this action predates reports
-// as "served, gating nothing" rather than being dropped.
+// A hand-maintained copy of the engine's PLAN_NOTICE codes — unlike `src/schema/`,
+// nothing syncs it, so a notice added upstream degrades to an unspecified `omitted`
+// rather than being dropped.
 const NOTICE_REASON: Record<string, string> = {
   MERGE_QUEUE_BRANCH: PLAN_REASON.mergeQueueBranch,
   ORG_NOT_ENABLED: PLAN_REASON.orgNotEnabled,

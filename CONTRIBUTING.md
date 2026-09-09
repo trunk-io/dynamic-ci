@@ -21,7 +21,7 @@ pnpm install
 | `src/config.ts`  | Endpoint and timeout resolution.                                      |
 | `src/api.ts`     | The outbound HTTP call, its retries, and response validation.         |
 | `src/outcome.ts` | Maps a plan or a failure to the telemetry `(status, reason)` pair.    |
-| `src/telemetry/` | Fire-and-forget plan telemetry. **Cross-repo contract — see below.**  |
+| `src/telemetry/` | Fire-and-forget plan telemetry, and its wire contract.                |
 | `src/outputs.ts` | Job-name normalization and `core.setOutput` calls.                    |
 | `src/report.ts`  | Log lines, annotations, and the job summary.                          |
 | `src/schema/`    | The wire contract. **Synced — see below.**                            |
@@ -103,7 +103,6 @@ short-deadlined — so it can never change an output or fail the step. Set
 `src/telemetry/protos.ts` defines the message with protobufjs reflection rather than
 generated code, copying the analytics-uploader: protoc's output needs regex surgery to
 become ESM, and protobufjs's `load` uses `XMLHttpRequest`, absent on a runner.
-
 
 Values that become metric labels (the action ref, the reason) are kept low-cardinality
 here and bounded again server-side.
