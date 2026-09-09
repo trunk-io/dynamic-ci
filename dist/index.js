@@ -279,8 +279,8 @@ var require_proxy = __commonJS({
       return hostLower === "localhost" || hostLower.startsWith("127.") || hostLower.startsWith("[::1]") || hostLower.startsWith("[0:0:0:0:0:0:0:1]");
     }
     var DecodedURL = class extends URL {
-      constructor(url, base) {
-        super(url, base);
+      constructor(url2, base) {
+        super(url2, base);
         this._decodedUsername = decodeURIComponent(super.username);
         this._decodedPassword = decodeURIComponent(super.password);
       }
@@ -422,18 +422,18 @@ var require_tunnel = __commonJS({
             res.statusCode
           );
           socket.destroy();
-          var error = new Error("tunneling socket could not be established, statusCode=" + res.statusCode);
-          error.code = "ECONNRESET";
-          options.request.emit("error", error);
+          var error2 = new Error("tunneling socket could not be established, statusCode=" + res.statusCode);
+          error2.code = "ECONNRESET";
+          options.request.emit("error", error2);
           self2.removeSocket(placeholder);
           return;
         }
         if (head.length > 0) {
           debug2("got illegal response body from proxy");
           socket.destroy();
-          var error = new Error("got illegal response body from proxy");
-          error.code = "ECONNRESET";
-          options.request.emit("error", error);
+          var error2 = new Error("got illegal response body from proxy");
+          error2.code = "ECONNRESET";
+          options.request.emit("error", error2);
           self2.removeSocket(placeholder);
           return;
         }
@@ -448,9 +448,9 @@ var require_tunnel = __commonJS({
           cause.message,
           cause.stack
         );
-        var error = new Error("tunneling socket could not be established, cause=" + cause.message);
-        error.code = "ECONNRESET";
-        options.request.emit("error", error);
+        var error2 = new Error("tunneling socket could not be established, cause=" + cause.message);
+        error2.code = "ECONNRESET";
+        options.request.emit("error", error2);
         self2.removeSocket(placeholder);
       }
     };
@@ -953,65 +953,65 @@ var require_util = __commonJS({
     function isBlobLike(object2) {
       return Blob2 && object2 instanceof Blob2 || object2 && typeof object2 === "object" && (typeof object2.stream === "function" || typeof object2.arrayBuffer === "function") && /^(Blob|File)$/.test(object2[Symbol.toStringTag]);
     }
-    function buildURL(url, queryParams) {
-      if (url.includes("?") || url.includes("#")) {
+    function buildURL(url2, queryParams) {
+      if (url2.includes("?") || url2.includes("#")) {
         throw new Error('Query params cannot be passed when url already contains "?" or "#".');
       }
       const stringified = stringify(queryParams);
       if (stringified) {
-        url += "?" + stringified;
+        url2 += "?" + stringified;
       }
-      return url;
+      return url2;
     }
-    function parseURL(url) {
-      if (typeof url === "string") {
-        url = new URL(url);
-        if (!/^https?:/.test(url.origin || url.protocol)) {
+    function parseURL(url2) {
+      if (typeof url2 === "string") {
+        url2 = new URL(url2);
+        if (!/^https?:/.test(url2.origin || url2.protocol)) {
           throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
         }
-        return url;
+        return url2;
       }
-      if (!url || typeof url !== "object") {
+      if (!url2 || typeof url2 !== "object") {
         throw new InvalidArgumentError("Invalid URL: The URL argument must be a non-null object.");
       }
-      if (!/^https?:/.test(url.origin || url.protocol)) {
+      if (!/^https?:/.test(url2.origin || url2.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
       }
-      if (!(url instanceof URL)) {
-        if (url.port != null && url.port !== "" && !Number.isFinite(parseInt(url.port))) {
+      if (!(url2 instanceof URL)) {
+        if (url2.port != null && url2.port !== "" && !Number.isFinite(parseInt(url2.port))) {
           throw new InvalidArgumentError("Invalid URL: port must be a valid integer or a string representation of an integer.");
         }
-        if (url.path != null && typeof url.path !== "string") {
+        if (url2.path != null && typeof url2.path !== "string") {
           throw new InvalidArgumentError("Invalid URL path: the path must be a string or null/undefined.");
         }
-        if (url.pathname != null && typeof url.pathname !== "string") {
+        if (url2.pathname != null && typeof url2.pathname !== "string") {
           throw new InvalidArgumentError("Invalid URL pathname: the pathname must be a string or null/undefined.");
         }
-        if (url.hostname != null && typeof url.hostname !== "string") {
+        if (url2.hostname != null && typeof url2.hostname !== "string") {
           throw new InvalidArgumentError("Invalid URL hostname: the hostname must be a string or null/undefined.");
         }
-        if (url.origin != null && typeof url.origin !== "string") {
+        if (url2.origin != null && typeof url2.origin !== "string") {
           throw new InvalidArgumentError("Invalid URL origin: the origin must be a string or null/undefined.");
         }
-        const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
-        let origin = url.origin != null ? url.origin : `${url.protocol}//${url.hostname}:${port}`;
-        let path = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        const port = url2.port != null ? url2.port : url2.protocol === "https:" ? 443 : 80;
+        let origin = url2.origin != null ? url2.origin : `${url2.protocol}//${url2.hostname}:${port}`;
+        let path = url2.path != null ? url2.path : `${url2.pathname || ""}${url2.search || ""}`;
         if (origin.endsWith("/")) {
           origin = origin.substring(0, origin.length - 1);
         }
         if (path && !path.startsWith("/")) {
           path = `/${path}`;
         }
-        url = new URL(origin + path);
+        url2 = new URL(origin + path);
       }
-      return url;
+      return url2;
     }
-    function parseOrigin(url) {
-      url = parseURL(url);
-      if (url.pathname !== "/" || url.search || url.hash) {
+    function parseOrigin(url2) {
+      url2 = parseURL(url2);
+      if (url2.pathname !== "/" || url2.search || url2.hash) {
         throw new InvalidArgumentError("invalid url");
       }
-      return url;
+      return url2;
     }
     function getHostname(host) {
       if (host[0] === "[") {
@@ -3662,8 +3662,8 @@ var require_util2 = __commonJS({
       return request.urlList[request.urlList.length - 1];
     }
     function requestBadPort(request) {
-      const url = requestCurrentURL(request);
-      if (urlIsHttpHttpsScheme(url) && badPortsSet.has(url.port)) {
+      const url2 = requestCurrentURL(request);
+      if (urlIsHttpHttpsScheme(url2) && badPortsSet.has(url2.port)) {
         return "blocked";
       }
       return "allowed";
@@ -3877,30 +3877,30 @@ var require_util2 = __commonJS({
           return isNonPotentiallyTrustWorthy ? "no-referrer" : referrerOrigin;
       }
     }
-    function stripURLForReferrer(url, originOnly) {
-      assert2(url instanceof URL);
-      if (url.protocol === "file:" || url.protocol === "about:" || url.protocol === "blank:") {
+    function stripURLForReferrer(url2, originOnly) {
+      assert2(url2 instanceof URL);
+      if (url2.protocol === "file:" || url2.protocol === "about:" || url2.protocol === "blank:") {
         return "no-referrer";
       }
-      url.username = "";
-      url.password = "";
-      url.hash = "";
+      url2.username = "";
+      url2.password = "";
+      url2.hash = "";
       if (originOnly) {
-        url.pathname = "";
-        url.search = "";
+        url2.pathname = "";
+        url2.search = "";
       }
-      return url;
+      return url2;
     }
-    function isURLPotentiallyTrustworthy(url) {
-      if (!(url instanceof URL)) {
+    function isURLPotentiallyTrustworthy(url2) {
+      if (!(url2 instanceof URL)) {
         return false;
       }
-      if (url.href === "about:blank" || url.href === "about:srcdoc") {
+      if (url2.href === "about:blank" || url2.href === "about:srcdoc") {
         return true;
       }
-      if (url.protocol === "data:") return true;
-      if (url.protocol === "file:") return true;
-      return isOriginPotentiallyTrustworthy(url.origin);
+      if (url2.protocol === "data:") return true;
+      if (url2.protocol === "file:") return true;
+      return isOriginPotentiallyTrustworthy(url2.origin);
       function isOriginPotentiallyTrustworthy(origin) {
         if (origin == null || origin === "null") return false;
         const originAsURL = new URL(origin);
@@ -4170,20 +4170,20 @@ var require_util2 = __commonJS({
         byteLength += chunk.length;
       }
     }
-    function urlIsLocal(url) {
-      assert2("protocol" in url);
-      const protocol = url.protocol;
+    function urlIsLocal(url2) {
+      assert2("protocol" in url2);
+      const protocol = url2.protocol;
       return protocol === "about:" || protocol === "blob:" || protocol === "data:";
     }
-    function urlHasHttpsScheme(url) {
-      if (typeof url === "string") {
-        return url.startsWith("https:");
+    function urlHasHttpsScheme(url2) {
+      if (typeof url2 === "string") {
+        return url2.startsWith("https:");
       }
-      return url.protocol === "https:";
+      return url2.protocol === "https:";
     }
-    function urlIsHttpHttpsScheme(url) {
-      assert2("protocol" in url);
-      const protocol = url.protocol;
+    function urlIsHttpHttpsScheme(url2) {
+      assert2("protocol" in url2);
+      const protocol = url2.protocol;
       return protocol === "http:" || protocol === "https:";
     }
     var hasOwn = Object.hasOwn || ((dict, key) => Object.prototype.hasOwnProperty.call(dict, key));
@@ -4668,12 +4668,12 @@ var require_dataURL = __commonJS({
       }
       return { mimeType: mimeTypeRecord, body };
     }
-    function URLSerializer(url, excludeFragment = false) {
+    function URLSerializer(url2, excludeFragment = false) {
       if (!excludeFragment) {
-        return url.href;
+        return url2.href;
       }
-      const href = url.href;
-      const hashLength = url.hash.length;
+      const href = url2.href;
+      const hashLength = url2.hash.length;
       return hashLength === 0 ? href : href.substring(0, href.length - hashLength);
     }
     function collectASequenceOfCodePoints(condition, input, position) {
@@ -5578,7 +5578,7 @@ Content-Type: ${value.type || "application/octet-stream"}\r
         throw new TypeError("Body is unusable");
       }
       const promise = createDeferredPromise();
-      const errorSteps = (error) => promise.reject(error);
+      const errorSteps = (error2) => promise.reject(error2);
       const successSteps = (data) => {
         try {
           promise.resolve(convertBytesToJSValue(data));
@@ -5864,16 +5864,16 @@ var require_request = __commonJS({
           this.onError(err);
         }
       }
-      onError(error) {
+      onError(error2) {
         this.onFinally();
         if (channels.error.hasSubscribers) {
-          channels.error.publish({ request: this, error });
+          channels.error.publish({ request: this, error: error2 });
         }
         if (this.aborted) {
           return;
         }
         this.aborted = true;
-        return this[kHandler].onError(error);
+        return this[kHandler].onError(error2);
       }
       onFinally() {
         if (this.errorHandler) {
@@ -6736,8 +6736,8 @@ var require_RedirectHandler = __commonJS({
       onUpgrade(statusCode, headers, socket) {
         this.handler.onUpgrade(statusCode, headers, socket);
       }
-      onError(error) {
-        this.handler.onError(error);
+      onError(error2) {
+        this.handler.onError(error2);
       }
       onHeaders(statusCode, headers, resume, statusText) {
         this.location = this.history.length >= this.maxRedirections || util.isDisturbed(this.opts.body) ? null : parseLocation(statusCode, headers);
@@ -6980,7 +6980,7 @@ var require_client = __commonJS({
        * @param {string|URL} url
        * @param {import('../types/client').Client.Options} options
        */
-      constructor(url, {
+      constructor(url2, {
         interceptors,
         maxHeaderSize,
         headersTimeout,
@@ -7086,7 +7086,7 @@ var require_client = __commonJS({
           });
         }
         this[kInterceptors] = interceptors && interceptors.Client && Array.isArray(interceptors.Client) ? interceptors.Client : [createRedirectInterceptor({ maxRedirections })];
-        this[kUrl] = util.parseOrigin(url);
+        this[kUrl] = util.parseOrigin(url2);
         this[kConnector] = connect2;
         this[kSocket] = null;
         this[kPipelining] = pipelining != null ? pipelining : 1;
@@ -8878,7 +8878,7 @@ var require_pool = __commonJS({
         this[kOptions] = { ...util.deepClone(options), connect, allowH2 };
         this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kFactory] = factory;
-        this.on("connectionError", (origin2, targets, error) => {
+        this.on("connectionError", (origin2, targets, error2) => {
           for (const target of targets) {
             const idx = this[kClients].indexOf(target);
             if (idx !== -1) {
@@ -10487,13 +10487,13 @@ var require_mock_utils = __commonJS({
       if (mockDispatch2.data.callback) {
         mockDispatch2.data = { ...mockDispatch2.data, ...mockDispatch2.data.callback(opts) };
       }
-      const { data: { statusCode, data, headers, trailers, error }, delay, persist } = mockDispatch2;
+      const { data: { statusCode, data, headers, trailers, error: error2 }, delay, persist } = mockDispatch2;
       const { timesInvoked, times } = mockDispatch2;
       mockDispatch2.consumed = !persist && timesInvoked >= times;
       mockDispatch2.pending = timesInvoked < times;
-      if (error !== null) {
+      if (error2 !== null) {
         deleteMockDispatch(this[kDispatches], key);
-        handler.onError(error);
+        handler.onError(error2);
         return true;
       }
       if (typeof delay === "number" && delay > 0) {
@@ -10531,19 +10531,19 @@ var require_mock_utils = __commonJS({
         if (agent.isMockActive) {
           try {
             mockDispatch.call(this, opts, handler);
-          } catch (error) {
-            if (error instanceof MockNotMatchedError) {
+          } catch (error2) {
+            if (error2 instanceof MockNotMatchedError) {
               const netConnect = agent[kGetNetConnect]();
               if (netConnect === false) {
-                throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin} was not allowed (net.connect disabled)`);
+                throw new MockNotMatchedError(`${error2.message}: subsequent request to origin ${origin} was not allowed (net.connect disabled)`);
               }
               if (checkNetConnect(netConnect, origin)) {
                 originalDispatch.call(this, opts, handler);
               } else {
-                throw new MockNotMatchedError(`${error.message}: subsequent request to origin ${origin} was not allowed (net.connect is not enabled for this origin)`);
+                throw new MockNotMatchedError(`${error2.message}: subsequent request to origin ${origin} was not allowed (net.connect is not enabled for this origin)`);
               }
             } else {
-              throw error;
+              throw error2;
             }
           }
         } else {
@@ -10552,10 +10552,10 @@ var require_mock_utils = __commonJS({
       };
     }
     function checkNetConnect(netConnect, origin) {
-      const url = new URL(origin);
+      const url2 = new URL(origin);
       if (netConnect === true) {
         return true;
-      } else if (Array.isArray(netConnect) && netConnect.some((matcher) => matchValue(matcher, url.host))) {
+      } else if (Array.isArray(netConnect) && netConnect.some((matcher) => matchValue(matcher, url2.host))) {
         return true;
       }
       return false;
@@ -10706,11 +10706,11 @@ var require_mock_interceptor = __commonJS({
       /**
        * Mock an undici request with a defined error.
        */
-      replyWithError(error) {
-        if (typeof error === "undefined") {
+      replyWithError(error2) {
+        if (typeof error2 === "undefined") {
           throw new InvalidArgumentError("error must be defined");
         }
-        const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], { error });
+        const newMockDispatch = addMockDispatch(this[kDispatches], this[kDispatchKey], { error: error2 });
         return new MockScope(newMockDispatch);
       }
       /**
@@ -11997,16 +11997,16 @@ var require_response = __commonJS({
         return responseObject;
       }
       // Creates a redirect Response that redirects to url with status status.
-      static redirect(url, status = 302) {
+      static redirect(url2, status = 302) {
         const relevantRealm = { settingsObject: {} };
         webidl.argumentLengthCheck(arguments, 1, { header: "Response.redirect" });
-        url = webidl.converters.USVString(url);
+        url2 = webidl.converters.USVString(url2);
         status = webidl.converters["unsigned short"](status);
         let parsedURL;
         try {
-          parsedURL = new URL(url, getGlobalOrigin());
+          parsedURL = new URL(url2, getGlobalOrigin());
         } catch (err) {
-          throw Object.assign(new TypeError("Failed to parse URL from " + url), {
+          throw Object.assign(new TypeError("Failed to parse URL from " + url2), {
             cause: err
           });
         }
@@ -12050,11 +12050,11 @@ var require_response = __commonJS({
       get url() {
         webidl.brandCheck(this, _Response);
         const urlList = this[kState].urlList;
-        const url = urlList[urlList.length - 1] ?? null;
-        if (url === null) {
+        const url2 = urlList[urlList.length - 1] ?? null;
+        if (url2 === null) {
           return "";
         }
-        return URLSerializer(url, true);
+        return URLSerializer(url2, true);
       }
       // Returns whether response was obtained through a redirect.
       get redirected() {
@@ -13037,17 +13037,17 @@ var require_fetch = __commonJS({
         this.emit("terminated", reason);
       }
       // https://fetch.spec.whatwg.org/#fetch-controller-abort
-      abort(error) {
+      abort(error2) {
         if (this.state !== "ongoing") {
           return;
         }
         this.state = "aborted";
-        if (!error) {
-          error = new DOMException2("The operation was aborted.", "AbortError");
+        if (!error2) {
+          error2 = new DOMException2("The operation was aborted.", "AbortError");
         }
-        this.serializedAbortReason = error;
-        this.connection?.destroy(error);
-        this.emit("terminated", error);
+        this.serializedAbortReason = error2;
+        this.connection?.destroy(error2);
+        this.emit("terminated", error2);
       }
     };
     function fetch2(input, init = {}) {
@@ -13151,13 +13151,13 @@ var require_fetch = __commonJS({
         performance.markResourceTiming(timingInfo, originalURL.href, initiatorType, globalThis2, cacheState);
       }
     }
-    function abortFetch(p, request, responseObject, error) {
-      if (!error) {
-        error = new DOMException2("The operation was aborted.", "AbortError");
+    function abortFetch(p, request, responseObject, error2) {
+      if (!error2) {
+        error2 = new DOMException2("The operation was aborted.", "AbortError");
       }
-      p.reject(error);
+      p.reject(error2);
       if (request.body != null && isReadable(request.body?.stream)) {
-        request.body.stream.cancel(error).catch((err) => {
+        request.body.stream.cancel(error2).catch((err) => {
           if (err.code === "ERR_INVALID_STATE") {
             return;
           }
@@ -13169,7 +13169,7 @@ var require_fetch = __commonJS({
       }
       const response = responseObject[kState];
       if (response.body != null && isReadable(response.body?.stream)) {
-        response.body.stream.cancel(error).catch((err) => {
+        response.body.stream.cancel(error2).catch((err) => {
           if (err.code === "ERR_INVALID_STATE") {
             return;
           }
@@ -13846,12 +13846,12 @@ var require_fetch = __commonJS({
       }
       return response;
       async function dispatch({ body }) {
-        const url = requestCurrentURL(request);
+        const url2 = requestCurrentURL(request);
         const agent = fetchParams.controller.dispatcher;
         return new Promise((resolve, reject) => agent.dispatch(
           {
-            path: url.pathname + url.search,
-            origin: url.origin,
+            path: url2.pathname + url2.search,
+            origin: url2.origin,
             method: request.method,
             body: fetchParams.controller.dispatcher.isMockActive ? request.body && (request.body.source || request.body.stream) : body,
             headers: request.headersList.entries,
@@ -13949,13 +13949,13 @@ var require_fetch = __commonJS({
               fetchParams.controller.ended = true;
               this.body.push(null);
             },
-            onError(error) {
+            onError(error2) {
               if (this.abort) {
                 fetchParams.controller.off("terminated", this.abort);
               }
-              this.body?.destroy(error);
-              fetchParams.controller.terminate(error);
-              reject(error);
+              this.body?.destroy(error2);
+              fetchParams.controller.terminate(error2);
+              reject(error2);
             },
             onUpgrade(status, headersList, socket) {
               if (status !== 101) {
@@ -14421,8 +14421,8 @@ var require_util4 = __commonJS({
                   }
                   fr[kResult] = result;
                   fireAProgressEvent("load", fr);
-                } catch (error) {
-                  fr[kError] = error;
+                } catch (error2) {
+                  fr[kError] = error2;
                   fireAProgressEvent("error", fr);
                 }
                 if (fr[kState] !== "loading") {
@@ -14431,13 +14431,13 @@ var require_util4 = __commonJS({
               });
               break;
             }
-          } catch (error) {
+          } catch (error2) {
             if (fr[kAborted]) {
               return;
             }
             queueMicrotask(() => {
               fr[kState] = "done";
-              fr[kError] = error;
+              fr[kError] = error2;
               fireAProgressEvent("error", fr);
               if (fr[kState] !== "loading") {
                 fireAProgressEvent("loadend", fr);
@@ -15541,9 +15541,9 @@ var require_util6 = __commonJS({
         throw new Error("Invalid cookie domain");
       }
     }
-    function toIMFDate(date3) {
-      if (typeof date3 === "number") {
-        date3 = new Date(date3);
+    function toIMFDate(date4) {
+      if (typeof date4 === "number") {
+        date4 = new Date(date4);
       }
       const days = [
         "Sun",
@@ -15568,13 +15568,13 @@ var require_util6 = __commonJS({
         "Nov",
         "Dec"
       ];
-      const dayName = days[date3.getUTCDay()];
-      const day = date3.getUTCDate().toString().padStart(2, "0");
-      const month = months[date3.getUTCMonth()];
-      const year = date3.getUTCFullYear();
-      const hour = date3.getUTCHours().toString().padStart(2, "0");
-      const minute = date3.getUTCMinutes().toString().padStart(2, "0");
-      const second = date3.getUTCSeconds().toString().padStart(2, "0");
+      const dayName = days[date4.getUTCDay()];
+      const day = date4.getUTCDate().toString().padStart(2, "0");
+      const month = months[date4.getUTCMonth()];
+      const year = date4.getUTCFullYear();
+      const hour = date4.getUTCHours().toString().padStart(2, "0");
+      const minute = date4.getUTCMinutes().toString().padStart(2, "0");
+      const second = date4.getUTCSeconds().toString().padStart(2, "0");
       return `${dayName}, ${day} ${month} ${year} ${hour}:${minute}:${second} GMT`;
     }
     function validateCookieMaxAge(maxAge) {
@@ -16331,9 +16331,9 @@ var require_connection = __commonJS({
       crypto = require("crypto");
     } catch {
     }
-    function establishWebSocketConnection(url, protocols, ws, onEstablish, options) {
-      const requestURL = url;
-      requestURL.protocol = url.protocol === "ws:" ? "http:" : "https:";
+    function establishWebSocketConnection(url2, protocols, ws, onEstablish, options) {
+      const requestURL = url2;
+      requestURL.protocol = url2.protocol === "ws:" ? "http:" : "https:";
       const request = makeRequest({
         urlList: [requestURL],
         serviceWorkers: "none",
@@ -16437,11 +16437,11 @@ var require_connection = __commonJS({
         });
       }
     }
-    function onSocketError(error) {
+    function onSocketError(error2) {
       const { ws } = this;
       ws[kReadyState] = states.CLOSING;
       if (channels.socketError.hasSubscribers) {
-        channels.socketError.publish(error);
+        channels.socketError.publish(error2);
       }
       this.destroy();
     }
@@ -16784,7 +16784,7 @@ var require_websocket = __commonJS({
        * @param {string} url
        * @param {string|string[]} protocols
        */
-      constructor(url, protocols = []) {
+      constructor(url2, protocols = []) {
         super();
         webidl.argumentLengthCheck(arguments, 1, { header: "WebSocket constructor" });
         if (!experimentalWarned) {
@@ -16794,12 +16794,12 @@ var require_websocket = __commonJS({
           });
         }
         const options = webidl.converters["DOMString or sequence<DOMString> or WebSocketInit"](protocols);
-        url = webidl.converters.USVString(url);
+        url2 = webidl.converters.USVString(url2);
         protocols = options.protocols;
         const baseURL = getGlobalOrigin();
         let urlRecord;
         try {
-          urlRecord = new URL(url, baseURL);
+          urlRecord = new URL(url2, baseURL);
         } catch (e) {
           throw new DOMException2(e, "SyntaxError");
         }
@@ -17194,12 +17194,12 @@ var require_undici = __commonJS({
     module2.exports.buildConnector = buildConnector;
     module2.exports.errors = errors;
     function makeDispatcher(fn) {
-      return (url, opts, handler) => {
+      return (url2, opts, handler) => {
         if (typeof opts === "function") {
           handler = opts;
           opts = null;
         }
-        if (!url || typeof url !== "string" && typeof url !== "object" && !(url instanceof URL)) {
+        if (!url2 || typeof url2 !== "string" && typeof url2 !== "object" && !(url2 instanceof URL)) {
           throw new InvalidArgumentError("invalid url");
         }
         if (opts != null && typeof opts !== "object") {
@@ -17213,12 +17213,12 @@ var require_undici = __commonJS({
           if (!opts.path.startsWith("/")) {
             path = `/${path}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path);
+          url2 = new URL(util.parseOrigin(url2).origin + path);
         } else {
           if (!opts) {
-            opts = typeof url === "object" ? url : {};
+            opts = typeof url2 === "object" ? url2 : {};
           }
-          url = util.parseURL(url);
+          url2 = util.parseURL(url2);
         }
         const { agent, dispatcher = getGlobalDispatcher() } = opts;
         if (agent) {
@@ -17226,8 +17226,8 @@ var require_undici = __commonJS({
         }
         return fn.call(dispatcher, {
           ...opts,
-          origin: url.origin,
-          path: url.search ? `${url.pathname}${url.search}` : url.pathname,
+          origin: url2.origin,
+          path: url2.search ? `${url2.pathname}${url2.search}` : url2.pathname,
           method: opts.method || (opts.body ? "PUT" : "GET")
         }, handler);
       };
@@ -18073,12 +18073,12 @@ var require_oidc_utils = __commonJS({
         var _a2;
         return __awaiter(this, void 0, void 0, function* () {
           const httpclient = _OidcClient.createHttpClient();
-          const res = yield httpclient.getJson(id_token_url).catch((error) => {
+          const res = yield httpclient.getJson(id_token_url).catch((error2) => {
             throw new Error(`Failed to get ID Token. 
  
-        Error Code : ${error.statusCode}
+        Error Code : ${error2.statusCode}
  
-        Error Message: ${error.message}`);
+        Error Message: ${error2.message}`);
           });
           const id_token = (_a2 = res.result) === null || _a2 === void 0 ? void 0 : _a2.value;
           if (!id_token) {
@@ -18099,8 +18099,8 @@ var require_oidc_utils = __commonJS({
             const id_token = yield _OidcClient.getCall(id_token_url);
             (0, core_1.setSecret)(id_token);
             return id_token;
-          } catch (error) {
-            throw new Error(`Error message: ${error.message}`);
+          } catch (error2) {
+            throw new Error(`Error message: ${error2.message}`);
           }
         });
       }
@@ -19222,7 +19222,7 @@ var require_toolrunner = __commonJS({
               this._debug(`STDIO streams have closed for tool '${this.toolPath}'`);
               state.CheckComplete();
             });
-            state.on("done", (error, exitCode) => {
+            state.on("done", (error2, exitCode) => {
               if (stdbuffer.length > 0) {
                 this.emit("stdline", stdbuffer);
               }
@@ -19230,8 +19230,8 @@ var require_toolrunner = __commonJS({
                 this.emit("errline", errbuffer);
               }
               cp.removeAllListeners();
-              if (error) {
-                reject(error);
+              if (error2) {
+                reject(error2);
               } else {
                 resolve(exitCode);
               }
@@ -19326,14 +19326,14 @@ var require_toolrunner = __commonJS({
         this.emit("debug", message);
       }
       _setResult() {
-        let error;
+        let error2;
         if (this.processExited) {
           if (this.processError) {
-            error = new Error(`There was an error when attempting to execute the process '${this.toolPath}'. This may indicate the process failed to start. Error: ${this.processError}`);
+            error2 = new Error(`There was an error when attempting to execute the process '${this.toolPath}'. This may indicate the process failed to start. Error: ${this.processError}`);
           } else if (this.processExitCode !== 0 && !this.options.ignoreReturnCode) {
-            error = new Error(`The process '${this.toolPath}' failed with exit code ${this.processExitCode}`);
+            error2 = new Error(`The process '${this.toolPath}' failed with exit code ${this.processExitCode}`);
           } else if (this.processStderr && this.options.failOnStdErr) {
-            error = new Error(`The process '${this.toolPath}' failed because one or more lines were written to the STDERR stream`);
+            error2 = new Error(`The process '${this.toolPath}' failed because one or more lines were written to the STDERR stream`);
           }
         }
         if (this.timeout) {
@@ -19341,7 +19341,7 @@ var require_toolrunner = __commonJS({
           this.timeout = null;
         }
         this.done = true;
-        this.emit("done", error, this.processExitCode);
+        this.emit("done", error2, this.processExitCode);
       }
       static HandleTimeout(state) {
         if (state.done) {
@@ -19724,7 +19724,7 @@ Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
     exports2.setCommandEcho = setCommandEcho;
     function setFailed(message) {
       process.exitCode = ExitCode.Failure;
-      error(message);
+      error2(message);
     }
     exports2.setFailed = setFailed;
     function isDebug() {
@@ -19735,10 +19735,10 @@ Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
       (0, command_1.issueCommand)("debug", {}, message);
     }
     exports2.debug = debug2;
-    function error(message, properties = {}) {
+    function error2(message, properties = {}) {
       (0, command_1.issueCommand)("error", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
-    exports2.error = error;
+    exports2.error = error2;
     function warning6(message, properties = {}) {
       (0, command_1.issueCommand)("warning", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
@@ -20399,11 +20399,11 @@ var require_base64 = __commonJS({
   "node_modules/.pnpm/protobufjs@8.8.0/node_modules/protobufjs/src/util/base64.js"(exports2) {
     "use strict";
     var base642 = exports2;
-    base642.length = function length(string3) {
-      var p = string3.length;
+    base642.length = function length(string4) {
+      var p = string4.length;
       if (!p)
         return 0;
-      while (p > 0 && string3.charAt(p - 1) === "=")
+      while (p > 0 && string4.charAt(p - 1) === "=")
         --p;
       return Math.floor(p * 3 / 4);
     };
@@ -20455,11 +20455,11 @@ var require_base64 = __commonJS({
       return String.fromCharCode.apply(String, chunk.slice(0, i2));
     };
     var invalidEncoding = "invalid encoding";
-    base642.decode = function decode2(string3, buffer, offset) {
+    base642.decode = function decode2(string4, buffer, offset) {
       var start = offset;
       var j = 0, t;
-      for (var i2 = 0; i2 < string3.length; ) {
-        var c = string3.charCodeAt(i2++);
+      for (var i2 = 0; i2 < string4.length; ) {
+        var c = string4.charCodeAt(i2++);
         if (c === 61 && j > 1)
           break;
         if ((c = s64[c]) === void 0)
@@ -20492,8 +20492,8 @@ var require_base64 = __commonJS({
     var base64Re = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
     var base64UrlRe = /[-_]/;
     var base64UrlNoPaddingRe = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-9_-]{3}=?)?$/;
-    base642.test = function test(string3) {
-      return base64Re.test(string3) || base64UrlRe.test(string3) && base64UrlNoPaddingRe.test(string3);
+    base642.test = function test(string4) {
+      return base64Re.test(string4) || base64UrlRe.test(string4) && base64UrlNoPaddingRe.test(string4);
     };
   }
 });
@@ -20753,15 +20753,15 @@ var require_utf8 = __commonJS({
     } catch (err) {
       strictDecoder = looseDecoder;
     }
-    utf8.length = function utf8_length(string3) {
+    utf8.length = function utf8_length(string4) {
       var len = 0, c = 0;
-      for (var i = 0; i < string3.length; ++i) {
-        c = string3.charCodeAt(i);
+      for (var i = 0; i < string4.length; ++i) {
+        c = string4.charCodeAt(i);
         if (c < 128)
           len += 1;
         else if (c < 2048)
           len += 2;
-        else if ((c & 64512) === 55296 && (string3.charCodeAt(i + 1) & 64512) === 56320) {
+        else if ((c & 64512) === 55296 && (string4.charCodeAt(i + 1) & 64512) === 56320) {
           ++i;
           len += 4;
         } else
@@ -20827,16 +20827,16 @@ var require_utf8 = __commonJS({
       }
       return str;
     };
-    utf8.write = function utf8_write(string3, buffer, offset) {
+    utf8.write = function utf8_write(string4, buffer, offset) {
       var start = offset, c1, c2;
-      for (var i = 0; i < string3.length; ++i) {
-        c1 = string3.charCodeAt(i);
+      for (var i = 0; i < string4.length; ++i) {
+        c1 = string4.charCodeAt(i);
         if (c1 < 128) {
           buffer[offset++] = c1;
         } else if (c1 < 2048) {
           buffer[offset++] = c1 >> 6 | 192;
           buffer[offset++] = c1 & 63 | 128;
-        } else if ((c1 & 64512) === 55296 && ((c2 = string3.charCodeAt(i + 1)) & 64512) === 56320) {
+        } else if ((c1 & 64512) === 55296 && ((c2 = string4.charCodeAt(i + 1)) & 64512) === 56320) {
           c1 = 65536 + ((c1 & 1023) << 10) + (c2 & 1023);
           ++i;
           buffer[offset++] = c1 >> 18 | 240;
@@ -28691,10 +28691,10 @@ var initializer = (inst, def) => {
 };
 var $ZodError = $constructor("$ZodError", initializer);
 var $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
-function flattenError(error, mapper = (issue2) => issue2.message) {
+function flattenError(error2, mapper = (issue2) => issue2.message) {
   const fieldErrors = {};
   const formErrors = [];
-  for (const sub of error.issues) {
+  for (const sub of error2.issues) {
     if (sub.path.length > 0) {
       fieldErrors[sub.path[0]] = fieldErrors[sub.path[0]] || [];
       fieldErrors[sub.path[0]].push(mapper(sub));
@@ -28704,10 +28704,10 @@ function flattenError(error, mapper = (issue2) => issue2.message) {
   }
   return { formErrors, fieldErrors };
 }
-function formatError(error, mapper = (issue2) => issue2.message) {
+function formatError(error2, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error2) => {
-    for (const issue2 of error2.issues) {
+  const processError = (error3) => {
+    for (const issue2 of error3.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
         issue2.errors.map((issues) => processError({ issues }));
       } else if (issue2.code === "invalid_key") {
@@ -28734,7 +28734,7 @@ function formatError(error, mapper = (issue2) => issue2.message) {
       }
     }
   };
-  processError(error);
+  processError(error2);
   return fieldErrors;
 }
 
@@ -28866,6 +28866,7 @@ var string = (params) => {
   const regex = params ? `[\\s\\S]{${params?.minimum ?? 0},${params?.maximum ?? ""}}` : `[\\s\\S]*`;
   return new RegExp(`^${regex}$`);
 };
+var bigint = /^-?\d+n?$/;
 var integer = /^-?\d+$/;
 var number = /^-?\d+(?:\.\d+)?/;
 var boolean = /^(?:true|false)$/i;
@@ -29468,10 +29469,10 @@ var $ZodURL = /* @__PURE__ */ $constructor("$ZodURL", (inst, def) => {
   inst._zod.check = (payload) => {
     try {
       const trimmed = payload.value.trim();
-      const url = new URL(trimmed);
+      const url2 = new URL(trimmed);
       if (def.hostname) {
         def.hostname.lastIndex = 0;
-        if (!def.hostname.test(url.hostname)) {
+        if (!def.hostname.test(url2.hostname)) {
           payload.issues.push({
             code: "invalid_format",
             format: "url",
@@ -29485,7 +29486,7 @@ var $ZodURL = /* @__PURE__ */ $constructor("$ZodURL", (inst, def) => {
       }
       if (def.protocol) {
         def.protocol.lastIndex = 0;
-        if (!def.protocol.test(url.protocol.endsWith(":") ? url.protocol.slice(0, -1) : url.protocol)) {
+        if (!def.protocol.test(url2.protocol.endsWith(":") ? url2.protocol.slice(0, -1) : url2.protocol)) {
           payload.issues.push({
             code: "invalid_format",
             format: "url",
@@ -29498,7 +29499,7 @@ var $ZodURL = /* @__PURE__ */ $constructor("$ZodURL", (inst, def) => {
         }
       }
       if (def.normalize) {
-        payload.value = url.href;
+        payload.value = url2.href;
       } else {
         payload.value = trimmed;
       }
@@ -29751,6 +29752,26 @@ var $ZodBoolean = /* @__PURE__ */ $constructor("$ZodBoolean", (inst, def) => {
     return payload;
   };
 });
+var $ZodBigInt = /* @__PURE__ */ $constructor("$ZodBigInt", (inst, def) => {
+  $ZodType.init(inst, def);
+  inst._zod.pattern = bigint;
+  inst._zod.parse = (payload, _ctx) => {
+    if (def.coerce)
+      try {
+        payload.value = BigInt(payload.value);
+      } catch (_) {
+      }
+    if (typeof payload.value === "bigint")
+      return payload;
+    payload.issues.push({
+      expected: "bigint",
+      code: "invalid_type",
+      input: payload.value,
+      inst
+    });
+    return payload;
+  };
+});
 var $ZodUnknown = /* @__PURE__ */ $constructor("$ZodUnknown", (inst, def) => {
   $ZodType.init(inst, def);
   inst._zod.parse = (payload) => payload;
@@ -29762,6 +29783,30 @@ var $ZodNever = /* @__PURE__ */ $constructor("$ZodNever", (inst, def) => {
       expected: "never",
       code: "invalid_type",
       input: payload.value,
+      inst
+    });
+    return payload;
+  };
+});
+var $ZodDate = /* @__PURE__ */ $constructor("$ZodDate", (inst, def) => {
+  $ZodType.init(inst, def);
+  inst._zod.parse = (payload, _ctx) => {
+    if (def.coerce) {
+      try {
+        payload.value = new Date(payload.value);
+      } catch (_err) {
+      }
+    }
+    const input = payload.value;
+    const isDate = input instanceof Date;
+    const isValidDate = isDate && !Number.isNaN(input.getTime());
+    if (isValidDate)
+      return payload;
+    payload.issues.push({
+      expected: "date",
+      code: "invalid_type",
+      input,
+      ...isDate ? { received: "Invalid Date" } : {},
       inst
     });
     return payload;
@@ -30421,6 +30466,125 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
+// node_modules/.pnpm/zod@4.1.13/node_modules/zod/v4/locales/en.js
+var parsedType = (data) => {
+  const t = typeof data;
+  switch (t) {
+    case "number": {
+      return Number.isNaN(data) ? "NaN" : "number";
+    }
+    case "object": {
+      if (Array.isArray(data)) {
+        return "array";
+      }
+      if (data === null) {
+        return "null";
+      }
+      if (Object.getPrototypeOf(data) !== Object.prototype && data.constructor) {
+        return data.constructor.name;
+      }
+    }
+  }
+  return t;
+};
+var error = () => {
+  const Sizable = {
+    string: { unit: "characters", verb: "to have" },
+    file: { unit: "bytes", verb: "to have" },
+    array: { unit: "items", verb: "to have" },
+    set: { unit: "items", verb: "to have" }
+  };
+  function getSizing(origin) {
+    return Sizable[origin] ?? null;
+  }
+  const Nouns = {
+    regex: "input",
+    email: "email address",
+    url: "URL",
+    emoji: "emoji",
+    uuid: "UUID",
+    uuidv4: "UUIDv4",
+    uuidv6: "UUIDv6",
+    nanoid: "nanoid",
+    guid: "GUID",
+    cuid: "cuid",
+    cuid2: "cuid2",
+    ulid: "ULID",
+    xid: "XID",
+    ksuid: "KSUID",
+    datetime: "ISO datetime",
+    date: "ISO date",
+    time: "ISO time",
+    duration: "ISO duration",
+    ipv4: "IPv4 address",
+    ipv6: "IPv6 address",
+    mac: "MAC address",
+    cidrv4: "IPv4 range",
+    cidrv6: "IPv6 range",
+    base64: "base64-encoded string",
+    base64url: "base64url-encoded string",
+    json_string: "JSON string",
+    e164: "E.164 number",
+    jwt: "JWT",
+    template_literal: "input"
+  };
+  return (issue2) => {
+    switch (issue2.code) {
+      case "invalid_type":
+        return `Invalid input: expected ${issue2.expected}, received ${parsedType(issue2.input)}`;
+      case "invalid_value":
+        if (issue2.values.length === 1)
+          return `Invalid input: expected ${stringifyPrimitive(issue2.values[0])}`;
+        return `Invalid option: expected one of ${joinValues(issue2.values, "|")}`;
+      case "too_big": {
+        const adj = issue2.inclusive ? "<=" : "<";
+        const sizing = getSizing(issue2.origin);
+        if (sizing)
+          return `Too big: expected ${issue2.origin ?? "value"} to have ${adj}${issue2.maximum.toString()} ${sizing.unit ?? "elements"}`;
+        return `Too big: expected ${issue2.origin ?? "value"} to be ${adj}${issue2.maximum.toString()}`;
+      }
+      case "too_small": {
+        const adj = issue2.inclusive ? ">=" : ">";
+        const sizing = getSizing(issue2.origin);
+        if (sizing) {
+          return `Too small: expected ${issue2.origin} to have ${adj}${issue2.minimum.toString()} ${sizing.unit}`;
+        }
+        return `Too small: expected ${issue2.origin} to be ${adj}${issue2.minimum.toString()}`;
+      }
+      case "invalid_format": {
+        const _issue = issue2;
+        if (_issue.format === "starts_with") {
+          return `Invalid string: must start with "${_issue.prefix}"`;
+        }
+        if (_issue.format === "ends_with")
+          return `Invalid string: must end with "${_issue.suffix}"`;
+        if (_issue.format === "includes")
+          return `Invalid string: must include "${_issue.includes}"`;
+        if (_issue.format === "regex")
+          return `Invalid string: must match pattern ${_issue.pattern}`;
+        return `Invalid ${Nouns[_issue.format] ?? issue2.format}`;
+      }
+      case "not_multiple_of":
+        return `Invalid number: must be a multiple of ${issue2.divisor}`;
+      case "unrecognized_keys":
+        return `Unrecognized key${issue2.keys.length > 1 ? "s" : ""}: ${joinValues(issue2.keys, ", ")}`;
+      case "invalid_key":
+        return `Invalid key in ${issue2.origin}`;
+      case "invalid_union":
+        return "Invalid input";
+      case "invalid_element":
+        return `Invalid value in ${issue2.origin}`;
+      default:
+        return `Invalid input`;
+    }
+  };
+};
+function en_default() {
+  return {
+    localeError: error()
+  };
+}
+
 // node_modules/.pnpm/zod@4.1.13/node_modules/zod/v4/core/registries.js
 var _a;
 var $ZodRegistry = class {
@@ -30476,6 +30640,13 @@ var globalRegistry = globalThis.__zod_globalRegistry;
 function _string(Class2, params) {
   return new Class2({
     type: "string",
+    ...normalizeParams(params)
+  });
+}
+function _coercedString(Class2, params) {
+  return new Class2({
+    type: "string",
+    coerce: true,
     ...normalizeParams(params)
   });
 }
@@ -30723,6 +30894,14 @@ function _number(Class2, params) {
     ...normalizeParams(params)
   });
 }
+function _coercedNumber(Class2, params) {
+  return new Class2({
+    type: "number",
+    coerce: true,
+    checks: [],
+    ...normalizeParams(params)
+  });
+}
 function _int(Class2, params) {
   return new Class2({
     type: "number",
@@ -30738,6 +30917,20 @@ function _boolean(Class2, params) {
     ...normalizeParams(params)
   });
 }
+function _coercedBoolean(Class2, params) {
+  return new Class2({
+    type: "boolean",
+    coerce: true,
+    ...normalizeParams(params)
+  });
+}
+function _coercedBigint(Class2, params) {
+  return new Class2({
+    type: "bigint",
+    coerce: true,
+    ...normalizeParams(params)
+  });
+}
 function _unknown(Class2) {
   return new Class2({
     type: "unknown"
@@ -30746,6 +30939,13 @@ function _unknown(Class2) {
 function _never(Class2, params) {
   return new Class2({
     type: "never",
+    ...normalizeParams(params)
+  });
+}
+function _coercedDate(Class2, params) {
+  return new Class2({
+    type: "date",
+    coerce: true,
     ...normalizeParams(params)
   });
 }
@@ -31158,6 +31358,9 @@ var ZodURL = /* @__PURE__ */ $constructor("ZodURL", (inst, def) => {
   $ZodURL.init(inst, def);
   ZodStringFormat.init(inst, def);
 });
+function url(params) {
+  return _url(ZodURL, params);
+}
 var ZodEmoji = /* @__PURE__ */ $constructor("ZodEmoji", (inst, def) => {
   $ZodEmoji.init(inst, def);
   ZodStringFormat.init(inst, def);
@@ -31260,6 +31463,27 @@ var ZodBoolean = /* @__PURE__ */ $constructor("ZodBoolean", (inst, def) => {
 function boolean2(params) {
   return _boolean(ZodBoolean, params);
 }
+var ZodBigInt = /* @__PURE__ */ $constructor("ZodBigInt", (inst, def) => {
+  $ZodBigInt.init(inst, def);
+  ZodType.init(inst, def);
+  inst.gte = (value, params) => inst.check(_gte(value, params));
+  inst.min = (value, params) => inst.check(_gte(value, params));
+  inst.gt = (value, params) => inst.check(_gt(value, params));
+  inst.gte = (value, params) => inst.check(_gte(value, params));
+  inst.min = (value, params) => inst.check(_gte(value, params));
+  inst.lt = (value, params) => inst.check(_lt(value, params));
+  inst.lte = (value, params) => inst.check(_lte(value, params));
+  inst.max = (value, params) => inst.check(_lte(value, params));
+  inst.positive = (params) => inst.check(_gt(BigInt(0), params));
+  inst.negative = (params) => inst.check(_lt(BigInt(0), params));
+  inst.nonpositive = (params) => inst.check(_lte(BigInt(0), params));
+  inst.nonnegative = (params) => inst.check(_gte(BigInt(0), params));
+  inst.multipleOf = (value, params) => inst.check(_multipleOf(value, params));
+  const bag = inst._zod.bag;
+  inst.minValue = bag.minimum ?? null;
+  inst.maxValue = bag.maximum ?? null;
+  inst.format = bag.format ?? null;
+});
 var ZodUnknown = /* @__PURE__ */ $constructor("ZodUnknown", (inst, def) => {
   $ZodUnknown.init(inst, def);
   ZodType.init(inst, def);
@@ -31274,6 +31498,15 @@ var ZodNever = /* @__PURE__ */ $constructor("ZodNever", (inst, def) => {
 function never(params) {
   return _never(ZodNever, params);
 }
+var ZodDate = /* @__PURE__ */ $constructor("ZodDate", (inst, def) => {
+  $ZodDate.init(inst, def);
+  ZodType.init(inst, def);
+  inst.min = (value, params) => inst.check(_gte(value, params));
+  inst.max = (value, params) => inst.check(_lte(value, params));
+  const c = inst._zod.bag;
+  inst.minDate = c.minimum ? new Date(c.minimum) : null;
+  inst.maxDate = c.maximum ? new Date(c.maximum) : null;
+});
 var ZodArray = /* @__PURE__ */ $constructor("ZodArray", (inst, def) => {
   $ZodArray.init(inst, def);
   ZodType.init(inst, def);
@@ -31536,6 +31769,39 @@ function superRefine(fn) {
   return _superRefine(fn);
 }
 
+// node_modules/.pnpm/zod@4.1.13/node_modules/zod/v4/classic/compat.js
+var ZodFirstPartyTypeKind;
+/* @__PURE__ */ (function(ZodFirstPartyTypeKind2) {
+})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
+
+// node_modules/.pnpm/zod@4.1.13/node_modules/zod/v4/classic/coerce.js
+var coerce_exports = {};
+__export(coerce_exports, {
+  bigint: () => bigint2,
+  boolean: () => boolean3,
+  date: () => date3,
+  number: () => number3,
+  string: () => string3
+});
+function string3(params) {
+  return _coercedString(ZodString, params);
+}
+function number3(params) {
+  return _coercedNumber(ZodNumber, params);
+}
+function boolean3(params) {
+  return _coercedBoolean(ZodBoolean, params);
+}
+function bigint2(params) {
+  return _coercedBigint(ZodBigInt, params);
+}
+function date3(params) {
+  return _coercedDate(ZodDate, params);
+}
+
+// node_modules/.pnpm/zod@4.1.13/node_modules/zod/v4/classic/external.js
+config(en_default());
+
 // src/schema/signals.ts
 var SIGNAL_TYPES = [
   "estimated-cost",
@@ -31606,54 +31872,26 @@ var BACKOFF_STARTING_DELAY_MS = 1e3;
 var BACKOFF_MAX_DELAY_MS = 1e4;
 var BACKOFF_TIME_MULTIPLE = 2;
 var BACKOFF_START_MS_ENV = "TRUNK_DYNAMIC_CI_BACKOFF_START_MS";
-var resolveBackoffStartMs = () => {
-  const parsed = Number(process.env[BACKOFF_START_MS_ENV]);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : BACKOFF_STARTING_DELAY_MS;
-};
-var resolveMaxAttempts = () => {
-  const raw = process.env[MAX_ATTEMPTS_ENV];
-  if (!raw) {
-    return DEFAULT_MAX_ATTEMPTS;
-  }
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return DEFAULT_MAX_ATTEMPTS;
-  }
-  return Math.min(parsed, MAX_ATTEMPTS_CEILING);
-};
-var resolveApiUrl = () => {
-  const base = process.env[API_ADDRESS_ENV]?.trim();
-  if (!base) {
-    return DEFAULT_API_URL;
-  }
-  return `${base.replace(/\/+$/, "")}${DYNAMIC_CI_PATH}`;
-};
-var resolveTimeoutMs = () => {
-  const raw = process.env[TIMEOUT_MS_ENV];
-  if (!raw) {
-    return DEFAULT_TIMEOUT_MS;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
-};
 var TELEMETRY_PATH = "/v1/dynamic-ci/plan-metrics";
+var DISABLE_TELEMETRY_ENV = "TRUNK_DISABLE_TELEMETRY";
+var TELEMETRY_TIMEOUT_MS = 1e3;
 var telemetryUrl = (host) => `https://telemetry.${host}${TELEMETRY_PATH}`;
 var DEFAULT_TELEMETRY_URL = telemetryUrl("api.trunk.io");
-var resolveTelemetryUrl = () => {
-  const base = process.env[API_ADDRESS_ENV]?.trim();
-  if (!base) {
-    return DEFAULT_TELEMETRY_URL;
-  }
-  try {
-    const url = new URL(base);
-    return url.protocol === "https:" ? telemetryUrl(url.host) : `${url.origin}${TELEMETRY_PATH}`;
-  } catch {
-    return DEFAULT_TELEMETRY_URL;
-  }
-};
-var DISABLE_TELEMETRY_ENV = "TRUNK_DISABLE_TELEMETRY";
-var telemetryDisabled = () => (process.env[DISABLE_TELEMETRY_ENV] ?? "").toLowerCase() === "true";
-var TELEMETRY_TIMEOUT_MS = 1e3;
+var timeoutMsSchema = coerce_exports.number().positive().catch(DEFAULT_TIMEOUT_MS);
+var maxAttemptsSchema = coerce_exports.number().int().positive().transform((attempts) => Math.min(attempts, MAX_ATTEMPTS_CEILING)).catch(DEFAULT_MAX_ATTEMPTS);
+var backoffStartMsSchema = coerce_exports.number().nonnegative().catch(BACKOFF_STARTING_DELAY_MS);
+var disableTelemetrySchema = string2().transform((value) => value.trim().toLowerCase() === "true").catch(false);
+var apiUrlSchema = string2().trim().min(1).transform((base) => `${base.replace(/\/+$/, "")}${DYNAMIC_CI_PATH}`).catch(DEFAULT_API_URL);
+var telemetryUrlSchema = string2().trim().pipe(url()).transform((base) => {
+  const url2 = new URL(base);
+  return url2.protocol === "https:" ? telemetryUrl(url2.host) : `${url2.origin}${TELEMETRY_PATH}`;
+}).catch(DEFAULT_TELEMETRY_URL);
+var resolveTimeoutMs = () => timeoutMsSchema.parse(process.env[TIMEOUT_MS_ENV]);
+var resolveMaxAttempts = () => maxAttemptsSchema.parse(process.env[MAX_ATTEMPTS_ENV]);
+var resolveBackoffStartMs = () => backoffStartMsSchema.parse(process.env[BACKOFF_START_MS_ENV]);
+var telemetryDisabled = () => disableTelemetrySchema.parse(process.env[DISABLE_TELEMETRY_ENV]);
+var resolveApiUrl = () => apiUrlSchema.parse(process.env[API_ADDRESS_ENV]);
+var resolveTelemetryUrl = () => telemetryUrlSchema.parse(process.env[API_ADDRESS_ENV]);
 
 // src/api.ts
 var RecommendationError = class extends Error {
@@ -31712,11 +31950,11 @@ var attemptOnce = async (args) => {
       );
     }
     return parsed.data;
-  } catch (error) {
-    if (error instanceof RecommendationError) {
-      throw error;
+  } catch (error2) {
+    if (error2 instanceof RecommendationError) {
+      throw error2;
     }
-    if (error instanceof Error && error.name === "AbortError") {
+    if (error2 instanceof Error && error2.name === "AbortError") {
       throw new RecommendationError(
         "timeout",
         `exceeded latency budget of ${String(args.timeoutMs)}ms`
@@ -31724,7 +31962,7 @@ var attemptOnce = async (args) => {
     }
     throw new RecommendationError(
       "transport",
-      error instanceof Error ? error.message : String(error)
+      error2 instanceof Error ? error2.message : String(error2)
     );
   } finally {
     clearTimeout(timer);
@@ -31748,11 +31986,11 @@ var requestRecommendations = async ({
       numOfAttempts: maxAttempts,
       startingDelay: resolveBackoffStartMs(),
       timeMultiple: BACKOFF_TIME_MULTIPLE,
-      retry: (error, attemptNumber) => {
-        if (error instanceof RecommendationError && !error.retryable) {
+      retry: (error2, attemptNumber) => {
+        if (error2 instanceof RecommendationError && !error2.retryable) {
           return false;
         }
-        const reason = error instanceof Error ? error.message : String(error);
+        const reason = error2 instanceof Error ? error2.message : String(error2);
         const remaining = attemptNumber < maxAttempts;
         core.info(
           `Recommendation attempt ${String(attemptNumber)} of ${String(maxAttempts)} failed (${reason})${remaining ? "; retrying." : "."}`
@@ -31760,11 +31998,11 @@ var requestRecommendations = async ({
         return true;
       }
     }
-  ).catch((error) => {
-    if (error instanceof RecommendationError) {
-      error.attempts = attempts;
+  ).catch((error2) => {
+    if (error2 instanceof RecommendationError) {
+      error2.attempts = attempts;
     }
-    throw error;
+    throw error2;
   });
   return { response, attempts };
 };
@@ -31787,8 +32025,8 @@ var readEvent = () => {
   }
   try {
     return GitHubEventSchema.parse(JSON.parse((0, import_node_fs.readFileSync)(path, "utf8")));
-  } catch (error) {
-    core2.warning(`Could not read GITHUB_EVENT_PATH: ${String(error)}`);
+  } catch (error2) {
+    core2.warning(`Could not read GITHUB_EVENT_PATH: ${String(error2)}`);
     return {};
   }
 };
@@ -31917,9 +32155,9 @@ var outcomeForResponse = (response) => {
   }
   return { status: PLAN_STATUS.success, reason: PLAN_REASON.none };
 };
-var outcomeForError = (error) => ({
+var outcomeForError = (error2) => ({
   status: PLAN_STATUS.failed,
-  reason: error instanceof RecommendationError ? FAILURE_REASON[error.kind] ?? PLAN_REASON.internal : PLAN_REASON.internal
+  reason: error2 instanceof RecommendationError ? FAILURE_REASON[error2.kind] ?? PLAN_REASON.internal : PLAN_REASON.internal
 });
 
 // src/outputs.ts
@@ -32113,14 +32351,14 @@ var sendPlanTelemetry = async (telemetry) => {
         numOfAttempts: TELEMETRY_ATTEMPTS,
         // A 4xx is a drifted contract, not a blip; retrying just pays the budget
         // to be rejected three identical times.
-        retry: (error) => !(error instanceof TelemetryHttpError && error.isClientError),
+        retry: (error2) => !(error2 instanceof TelemetryHttpError && error2.isClientError),
         startingDelay: resolveBackoffStartMs(),
         timeMultiple: BACKOFF_TIME_MULTIPLE
       }
     );
-  } catch (error) {
+  } catch (error2) {
     core6.debug(
-      `Telemetry upload failed: ${error instanceof Error ? error.message : String(error)}`
+      `Telemetry upload failed: ${error2 instanceof Error ? error2.message : String(error2)}`
     );
   }
 };
@@ -32158,17 +32396,17 @@ var run = async () => {
       durationMs: Date.now() - startedAt,
       jobCount: result.response.jobs.length
     });
-  } catch (error) {
+  } catch (error2) {
     await failOpen(
       request.jobKeys,
-      error instanceof Error ? error.message : String(error)
+      error2 instanceof Error ? error2.message : String(error2)
     );
     await sendPlanTelemetry({
       token: inputs.token,
       actionRef: inputs.actionRef,
       repo: request.repo,
-      outcome: outcomeForError(error),
-      attempts: error instanceof RecommendationError ? error.attempts ?? 0 : 0,
+      outcome: outcomeForError(error2),
+      attempts: error2 instanceof RecommendationError ? error2.attempts ?? 0 : 0,
       durationMs: Date.now() - startedAt,
       jobCount: 0
     });
@@ -32177,8 +32415,8 @@ var run = async () => {
 var runAction = async () => {
   try {
     await run();
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+  } catch (error2) {
+    const reason = error2 instanceof Error ? error2.message : String(error2);
     core7.warning(
       `Trunk Dynamic CI Filter failed open due to an unexpected error: ${reason}`
     );
