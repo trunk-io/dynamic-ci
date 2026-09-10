@@ -3,9 +3,15 @@ import {
   DEFAULT_API_ADDRESS,
   DEFAULT_API_URL,
   DYNAMIC_CI_PATH,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_TELEMETRY_URL,
   DEFAULT_TIMEOUT_MS,
+  TELEMETRY_PATH,
   resolveApiUrl,
+  resolveMaxAttempts,
+  resolveTelemetryUrl,
   resolveTimeoutMs,
+  telemetryDisabled,
 } from "../config";
 
 afterEach(() => {
@@ -69,6 +75,70 @@ describe("resolveTimeoutMs", () => {
     (value) => {
       vi.stubEnv("TRUNK_DYNAMIC_CI_TIMEOUT_MS", value);
       expect(resolveTimeoutMs()).toBe(DEFAULT_TIMEOUT_MS);
+    },
+  );
+});
+
+describe("resolveMaxAttempts", () => {
+  it("honors a lower budget", () => {
+    vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
+    expect(resolveMaxAttempts()).toBe(1);
+  });
+
+  // Clamped rather than rejected: asking for more means "as many as I can have".
+  it("clamps a request above the ceiling", () => {
+    vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "99");
+    expect(resolveMaxAttempts()).toBe(DEFAULT_MAX_ATTEMPTS);
+  });
+
+  // `Number("")` and `Number(" ")` are both 0, which a bare isInteger check accepts.
+  it.each([undefined, "", " ", "0", "-1", "2.5", "4abc"])(
+    "falls back to the default for %j",
+    (value) => {
+      vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", value);
+      expect(resolveMaxAttempts()).toBe(DEFAULT_MAX_ATTEMPTS);
+    },
+  );
+});
+
+describe("resolveTelemetryUrl", () => {
+  it("defaults to the production telemetry host", () => {
+    vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", undefined);
+    expect(resolveTelemetryUrl()).toBe(DEFAULT_TELEMETRY_URL);
+  });
+
+  it("follows the api address so a staging run reports to staging", () => {
+    vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", "https://api.trunk-staging.io");
+    expect(resolveTelemetryUrl()).toBe(
+      `https://telemetry.api.trunk-staging.io${TELEMETRY_PATH}`,
+    );
+  });
+
+  // `telemetry.localhost` resolves to nothing, so the local loop posts to the base.
+  it("posts to the base host itself when the address is not https", () => {
+    vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", "http://localhost:3000");
+    expect(resolveTelemetryUrl()).toBe(
+      `http://localhost:3000${TELEMETRY_PATH}`,
+    );
+  });
+
+  it("falls back to production for an unparseable address", () => {
+    vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", "not a url");
+    expect(resolveTelemetryUrl()).toBe(DEFAULT_TELEMETRY_URL);
+  });
+});
+
+describe("telemetryDisabled", () => {
+  it.each(["true", "TRUE", " true "])("is opt-in via %j", (value) => {
+    vi.stubEnv("TRUNK_DISABLE_TELEMETRY", value);
+    expect(telemetryDisabled()).toBe(true);
+  });
+
+  it.each([undefined, "", "false", "yes", "1"])(
+    "stays enabled for %j",
+    (value) => {
+      vi.stubEnv("TRUNK_DISABLE_TELEMETRY", value);
+      expect(telemetryDisabled()).toBe(false);
     },
   );
 });

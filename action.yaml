@@ -27,6 +27,13 @@ inputs:
       unrecognized identifier makes the action fail open (recommend running
       everything) rather than silently ignore the setting.
     required: false
+  gh-action-ref:
+    description:
+      The ref of the action being used. Defaults to the value GitHub resolves for
+      this step; reported with telemetry so a bad release can be told from a bad
+      backend.
+    required: false
+    default: ${{ github.action_ref }}
 
 # Per-job outputs are set at runtime and so cannot be declared here. See the
 # README: each output is named for its job key, and conditionals must test

@@ -10,6 +10,8 @@ export interface ActionInputs {
   jobKeys: string[];
   /** Signal identifiers the caller wants excluded, forwarded to the service as given. */
   ignoreSignals: string[];
+  /** `github.action_ref` — the action's own version, for telemetry. */
+  actionRef: string;
 }
 
 const splitList = (raw: string): string[] =>
@@ -45,5 +47,10 @@ export const readInputs = (): ActionInputs => {
     );
   }
 
-  return { token, jobKeys, ignoreSignals };
+  return {
+    token,
+    jobKeys,
+    ignoreSignals,
+    actionRef: core.getInput("gh-action-ref"),
+  };
 };

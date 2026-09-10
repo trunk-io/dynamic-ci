@@ -57,8 +57,9 @@ describe("requestRecommendations (MSW integration)", () => {
       token: "tok",
       body: request,
       timeoutMs: 1000,
+      maxAttempts: 1,
     });
-    expect(result.jobs[0]?.run).toBe(false);
+    expect(result.response.jobs[0]?.run).toBe(false);
   });
 
   it("sends a Bearer token and JSON body to the endpoint", async () => {
@@ -78,6 +79,7 @@ describe("requestRecommendations (MSW integration)", () => {
       token: "secret-tok",
       body: request,
       timeoutMs: 1000,
+      maxAttempts: 1,
     });
 
     expect(authHeader).toBe("Bearer secret-tok");
@@ -103,6 +105,7 @@ describe("requestRecommendations (MSW integration)", () => {
         token: "tok",
         body: request,
         timeoutMs: 1000,
+        maxAttempts: 1,
       }),
     ).rejects.toThrow(/503/);
   });
@@ -138,10 +141,13 @@ describe("requestRecommendations (MSW integration)", () => {
       token: "tok",
       body: request,
       timeoutMs: 1000,
+      maxAttempts: 1,
     });
 
-    expect(result.jobs[0]?.run).toBe(false);
-    expect(result.jobs[0]?.signals[0]?.type).toBe("a-signal-from-the-future");
+    expect(result.response.jobs[0]?.run).toBe(false);
+    expect(result.response.jobs[0]?.signals[0]?.type).toBe(
+      "a-signal-from-the-future",
+    );
   });
 
   it("throws when the response fails schema validation", async () => {
@@ -156,6 +162,7 @@ describe("requestRecommendations (MSW integration)", () => {
         token: "tok",
         body: request,
         timeoutMs: 1000,
+        maxAttempts: 1,
       }),
     ).rejects.toThrow();
   });
@@ -175,6 +182,7 @@ describe("requestRecommendations (MSW integration)", () => {
         token: "tok",
         body: request,
         timeoutMs: 20,
+        maxAttempts: 1,
       }),
     ).rejects.toThrow(/latency budget/);
   });

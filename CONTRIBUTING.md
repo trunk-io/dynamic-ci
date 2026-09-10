@@ -19,7 +19,9 @@ pnpm install
 | `src/inputs.ts`  | Action inputs, including `ignore-signals` validation.                 |
 | `src/context.ts` | Builds the request from the runner env and the event payload.         |
 | `src/config.ts`  | Endpoint and timeout resolution.                                      |
-| `src/api.ts`     | The one outbound HTTP call, and response validation.                  |
+| `src/api.ts`     | The outbound HTTP call, its retries, and response validation.         |
+| `src/outcome.ts` | Maps a plan or a failure to the telemetry `(status, reason)` pair.    |
+| `src/telemetry/` | Fire-and-forget plan telemetry, and its wire contract.                |
 | `src/outputs.ts` | Job-name normalization and `core.setOutput` calls.                    |
 | `src/report.ts`  | Log lines, annotations, and the job summary.                          |
 | `src/schema/`    | The wire contract. **Synced — see below.**                            |
@@ -68,6 +70,42 @@ using a fresh path per test.
 `pnpm test` also writes `junit.xml`, which CI uploads to Trunk Flaky Tests. Test
 failures do not fail the test step directly — the uploader re-fails the job via
 `previous-step-outcome`, so that quarantined failures can pass while real ones do not.
+
+## Retries
+
+`src/api.ts` retries a failed attempt with exponential backoff (full jitter). Two
+knobs, both env vars so a bad day can be handled without cutting a release:
+
+| Env var                             | Default | Meaning                                      |
+| ----------------------------------- | ------- | -------------------------------------------- |
+| `TRUNK_DYNAMIC_CI_TIMEOUT_MS`       | `30000` | **Per attempt**, not a total budget.         |
+| `TRUNK_DYNAMIC_CI_MAX_ATTEMPTS`     | `3`     | Total attempts, not retries. Clamped to 1–3. |
+| `TRUNK_DYNAMIC_CI_BACKOFF_START_MS` | `1000`  | Backoff base. Exists for tests.              |
+
+Because the timeout is per attempt, a fully unreachable API costs up to
+`timeout x attempts` plus backoff **per job** — about 100s at the defaults — and every
+job in every enabled repo pays it at once. Drop `TRUNK_DYNAMIC_CI_MAX_ATTEMPTS` to `1`
+to cut that. **A 4xx is retried too**, so a wrong or revoked token spends the full
+budget on every job; that is deliberate.
+
+A schema-validation failure is **not** retried: the two sides disagree about the wire
+shape, which is deterministic and clears only on a deploy, so a retry spends the whole
+budget to receive the identical bytes. `retry.vitest.ts` asserts the request _count_,
+which is the only thing that catches a regression here — the throw looks identical.
+
+## Telemetry
+
+Each run reports the plan's outcome to Trunk, for error and load tracking. It is
+fire-and-forget — sent after the verdict is set, failures swallowed to `core.debug`,
+short-deadlined — so it can never change an output or fail the step. Set
+`TRUNK_DISABLE_TELEMETRY=true` to turn it off.
+
+`src/telemetry/protos.ts` defines the message with protobufjs reflection rather than
+generated code, copying the analytics-uploader: protoc's output needs regex surgery to
+become ESM, and protobufjs's `load` uses `XMLHttpRequest`, absent on a runner.
+
+Values that become metric labels (the action ref, the reason) are kept low-cardinality
+here and bounded again server-side.
 
 ## Running locally
 

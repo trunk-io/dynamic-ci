@@ -1,3 +1,5 @@
+import * as z from "zod";
+
 /** Path appended to the public API address to reach the recommendation endpoint. */
 export const DYNAMIC_CI_PATH = "/v2/dynamic-ci/generate-plan";
 
@@ -29,23 +31,103 @@ export const TIMEOUT_MS_ENV = "TRUNK_DYNAMIC_CI_TIMEOUT_MS";
 /** Latency budget: a recommendation must not exceed 30s per job. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
-export const resolveApiUrl = (): string => {
-  const base = process.env[API_ADDRESS_ENV]?.trim();
-  if (!base) {
-    return DEFAULT_API_URL;
-  }
-  // Strip any trailing slash on the base address to avoid a double `//` when the
-  // dynamic-ci path is appended.
-  return `${base.replace(/\/+$/, "")}${DYNAMIC_CI_PATH}`;
-};
+/** Override the number of attempts (1 initial + retries). */
+export const MAX_ATTEMPTS_ENV = "TRUNK_DYNAMIC_CI_MAX_ATTEMPTS";
 
-export const resolveTimeoutMs = (): number => {
-  const raw = process.env[TIMEOUT_MS_ENV];
-  if (!raw) {
-    return DEFAULT_TIMEOUT_MS;
-  }
-  // Number() (not parseInt) so trailing garbage like "30000abc" is rejected to
-  // the default rather than silently truncated to 30000.
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
-};
+/** Total attempts, not retries — `exponential-backoff`'s `numOfAttempts` is a total. */
+export const DEFAULT_MAX_ATTEMPTS = 3;
+
+const MAX_ATTEMPTS_CEILING = 3;
+
+/** Backoff between attempts. Mirrors the uploader's shared config. */
+export const BACKOFF_STARTING_DELAY_MS = 1_000;
+export const BACKOFF_MAX_DELAY_MS = 10_000;
+export const BACKOFF_TIME_MULTIPLE = 2;
+
+/** Shrink the backoff. Exists so the retry tests do not race vitest's timeout. */
+export const BACKOFF_START_MS_ENV = "TRUNK_DYNAMIC_CI_BACKOFF_START_MS";
+
+/** Path on the telemetry host, appended to `telemetry.<api-host>`. */
+export const TELEMETRY_PATH = "/v1/dynamic-ci/plan-metrics";
+
+/** Opt out entirely, matching the uploader's escape hatch. */
+export const DISABLE_TELEMETRY_ENV = "TRUNK_DISABLE_TELEMETRY";
+
+/** Node's fetch defaults to a 300s headers timeout; the uploader uses 1s here. */
+export const TELEMETRY_TIMEOUT_MS = 1_000;
+
+const telemetryUrl = (host: string): string =>
+  `https://telemetry.${host}${TELEMETRY_PATH}`;
+
+export const DEFAULT_TELEMETRY_URL: string = telemetryUrl("api.trunk.io");
+
+// Every schema ends in `.catch(default)`: a runner can set anything, and the action
+// must degrade rather than throw. `Number("")`, `Number(" ")` and `Number("30000abc")`
+// all fail a constraint below and land in the same fallback.
+
+const timeoutMsSchema = z.coerce.number().positive().catch(DEFAULT_TIMEOUT_MS);
+
+const maxAttemptsSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .transform((attempts) => Math.min(attempts, MAX_ATTEMPTS_CEILING))
+  .catch(DEFAULT_MAX_ATTEMPTS);
+
+const backoffStartMsSchema = z.coerce
+  .number()
+  .nonnegative()
+  .catch(BACKOFF_STARTING_DELAY_MS);
+
+const disableTelemetrySchema = z
+  .string()
+  .transform((value) => value.trim().toLowerCase() === "true")
+  .catch(false);
+
+// Deliberately not validated as a URL: a malformed address must fail the fetch (which
+// fails open) rather than fall back to production and quietly send a staging repo's
+// traffic to prod.
+const apiUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  // Strip a trailing slash so appending the path cannot produce a double `//`.
+  .transform((base) => `${base.replace(/\/+$/, "")}${DYNAMIC_CI_PATH}`)
+  .catch(DEFAULT_API_URL);
+
+const telemetryUrlSchema = z
+  .string()
+  .trim()
+  .pipe(z.url())
+  .transform((base) => {
+    const url = new URL(base);
+    // Non-https is the local loop, where `telemetry.localhost` resolves to nothing;
+    // post to the base host itself, as the uploader's client does.
+    return url.protocol === "https:"
+      ? telemetryUrl(url.host)
+      : `${url.origin}${TELEMETRY_PATH}`;
+  })
+  .catch(DEFAULT_TELEMETRY_URL);
+
+export const resolveTimeoutMs = (): number =>
+  timeoutMsSchema.parse(process.env[TIMEOUT_MS_ENV]);
+
+export const resolveMaxAttempts = (): number =>
+  maxAttemptsSchema.parse(process.env[MAX_ATTEMPTS_ENV]);
+
+export const resolveBackoffStartMs = (): number =>
+  backoffStartMsSchema.parse(process.env[BACKOFF_START_MS_ENV]);
+
+export const telemetryDisabled = (): boolean =>
+  disableTelemetrySchema.parse(process.env[DISABLE_TELEMETRY_ENV]);
+
+export const resolveApiUrl = (): string =>
+  apiUrlSchema.parse(process.env[API_ADDRESS_ENV]);
+
+/**
+ * Follows the plan endpoint's base address, so a staging run reports to staging.
+ * A different host from the plan API on purpose: that is what lets an outage of the
+ * plan path still be reported.
+ */
+export const resolveTelemetryUrl = (): string =>
+  telemetryUrlSchema.parse(process.env[API_ADDRESS_ENV]);
