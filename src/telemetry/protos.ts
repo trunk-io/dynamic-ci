@@ -8,6 +8,13 @@ export const Repo: protobuf.Type = new protobuf.Type("Repo")
   .add(new protobuf.Field("owner", 2, "string"))
   .add(new protobuf.Field("name", 3, "string"));
 
+// google.protobuf.Duration, hand-declared for the same reason as everything else in
+// this file: the reflection encoder has no access to the well-known types. Field
+// numbers and types match the upstream definition, so the wire bytes are identical.
+export const Duration: protobuf.Type = new protobuf.Type("Duration")
+  .add(new protobuf.Field("seconds", 1, "int64"))
+  .add(new protobuf.Field("nanos", 2, "int32"));
+
 export const PLAN_STATUS = {
   unspecified: 0,
   success: 1,
@@ -41,6 +48,7 @@ export const PlanRequestMetrics: protobuf.Type = new protobuf.Type(
   .add(new protobuf.Field("status", 3, "int32"))
   .add(new protobuf.Field("reason", 4, "string"))
   .add(new protobuf.Field("attempts", 5, "uint32"))
-  .add(new protobuf.Field("duration_ms", 6, "uint32"))
+  .add(new protobuf.Field("duration", 6, "Duration"))
   .add(new protobuf.Field("job_count", 7, "uint32"))
-  .add(Repo);
+  .add(Repo)
+  .add(Duration);

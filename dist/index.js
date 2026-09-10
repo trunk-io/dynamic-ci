@@ -32095,6 +32095,7 @@ var readInputs = () => {
 // src/telemetry/protos.ts
 var import_protobufjs = __toESM(require_protobufjs(), 1);
 var Repo = new import_protobufjs.default.Type("Repo").add(new import_protobufjs.default.Field("host", 1, "string")).add(new import_protobufjs.default.Field("owner", 2, "string")).add(new import_protobufjs.default.Field("name", 3, "string"));
+var Duration = new import_protobufjs.default.Type("Duration").add(new import_protobufjs.default.Field("seconds", 1, "int64")).add(new import_protobufjs.default.Field("nanos", 2, "int32"));
 var PLAN_STATUS = {
   unspecified: 0,
   success: 1,
@@ -32119,7 +32120,7 @@ var PLAN_REASON = {
 };
 var PlanRequestMetrics = new import_protobufjs.default.Type(
   "PlanRequestMetrics"
-).add(new import_protobufjs.default.Field("action_version", 1, "string")).add(new import_protobufjs.default.Field("repo", 2, "Repo")).add(new import_protobufjs.default.Field("status", 3, "int32")).add(new import_protobufjs.default.Field("reason", 4, "string")).add(new import_protobufjs.default.Field("attempts", 5, "uint32")).add(new import_protobufjs.default.Field("duration_ms", 6, "uint32")).add(new import_protobufjs.default.Field("job_count", 7, "uint32")).add(Repo);
+).add(new import_protobufjs.default.Field("action_version", 1, "string")).add(new import_protobufjs.default.Field("repo", 2, "Repo")).add(new import_protobufjs.default.Field("status", 3, "int32")).add(new import_protobufjs.default.Field("reason", 4, "string")).add(new import_protobufjs.default.Field("attempts", 5, "uint32")).add(new import_protobufjs.default.Field("duration", 6, "Duration")).add(new import_protobufjs.default.Field("job_count", 7, "uint32")).add(Repo).add(Duration);
 
 // src/outcome.ts
 var NOTICE_REASON = {
@@ -32314,6 +32315,15 @@ var TelemetryHttpError = class extends Error {
     this.isClientError = status < HTTP_SERVER_ERROR_FLOOR2;
   }
 };
+var MS_PER_SECOND = 1e3;
+var NANOS_PER_MS = 1e6;
+var durationOf = (durationMs) => {
+  const ms = Math.max(0, Math.round(durationMs));
+  return Duration.create({
+    seconds: Math.floor(ms / MS_PER_SECOND),
+    nanos: ms % MS_PER_SECOND * NANOS_PER_MS
+  });
+};
 var sendPlanTelemetry = async (telemetry) => {
   if (telemetryDisabled()) {
     return;
@@ -32325,7 +32335,7 @@ var sendPlanTelemetry = async (telemetry) => {
       status: telemetry.outcome.status,
       reason: telemetry.outcome.reason,
       attempts: telemetry.attempts,
-      duration_ms: Math.round(telemetry.durationMs),
+      duration: durationOf(telemetry.durationMs),
       job_count: telemetry.jobCount
     });
     const buffer = PlanRequestMetrics.encode(message).finish();

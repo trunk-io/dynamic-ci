@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import type protobuf from "protobufjs";
 import { backOff } from "exponential-backoff";
 import {
   BACKOFF_MAX_DELAY_MS,
@@ -10,7 +11,7 @@ import {
 } from "../config";
 import type { Repo as RepoShape } from "../schema/request";
 import type { PlanOutcome } from "../outcome";
-import { PlanRequestMetrics, Repo } from "./protos";
+import { Duration, PlanRequestMetrics, Repo } from "./protos";
 
 const TELEMETRY_ATTEMPTS = 3;
 const HTTP_SERVER_ERROR_FLOOR = 500;
@@ -24,6 +25,18 @@ class TelemetryHttpError extends Error {
     this.isClientError = status < HTTP_SERVER_ERROR_FLOOR;
   }
 }
+
+const MS_PER_SECOND = 1_000;
+const NANOS_PER_MS = 1_000_000;
+
+/** Wall clock as a `google.protobuf.Duration`; the caller still measures in ms. */
+const durationOf = (durationMs: number): protobuf.Message => {
+  const ms = Math.max(0, Math.round(durationMs));
+  return Duration.create({
+    seconds: Math.floor(ms / MS_PER_SECOND),
+    nanos: (ms % MS_PER_SECOND) * NANOS_PER_MS,
+  });
+};
 
 export interface PlanTelemetry {
   token: string;
@@ -52,7 +65,7 @@ export const sendPlanTelemetry = async (
       status: telemetry.outcome.status,
       reason: telemetry.outcome.reason,
       attempts: telemetry.attempts,
-      duration_ms: Math.round(telemetry.durationMs),
+      duration: durationOf(telemetry.durationMs),
       job_count: telemetry.jobCount,
     });
     const buffer = PlanRequestMetrics.encode(message).finish();

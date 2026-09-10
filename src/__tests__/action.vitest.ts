@@ -62,16 +62,27 @@ let eventPath: string;
 
 const decodeTelemetry = (
   payload: Uint8Array,
-): { status: number; reason: string; attempts: number } => {
+): {
+  status: number;
+  reason: string;
+  attempts: number;
+  durationMs: number;
+} => {
   const decoded = PlanRequestMetrics.decode(payload) as unknown as {
     status?: number;
     reason?: string;
     attempts?: number;
+    // protobufjs decodes int64 as a `Long` object, not a number, so `seconds` is
+    // deliberately untyped here and converted below.
+    duration?: { seconds?: unknown; nanos?: number };
   };
   return {
     status: decoded.status ?? 0,
     reason: decoded.reason ?? "",
     attempts: decoded.attempts ?? 0,
+    durationMs:
+      Number(decoded.duration?.seconds ?? 0) * 1_000 +
+      (decoded.duration?.nanos ?? 0) / 1_000_000,
   };
 };
 
@@ -411,11 +422,16 @@ describe("the action end to end", () => {
       await runAction();
 
       expect(telemetryPosts).toHaveLength(1);
-      expect(decodeTelemetry(telemetryPosts[0] ?? new Uint8Array())).toEqual({
+      const decoded = decodeTelemetry(telemetryPosts[0] ?? new Uint8Array());
+      expect(decoded).toMatchObject({
         status: PLAN_STATUS.success,
         reason: PLAN_REASON.none,
         attempts: 1,
       });
+      // Sent as a `google.protobuf.Duration`, so it has to survive the seconds/nanos
+      // split rather than arriving as a raw millisecond count.
+      expect(Number.isInteger(decoded.durationMs)).toBe(true);
+      expect(decoded.durationMs).toBeGreaterThanOrEqual(0);
     });
 
     it("reports a fail-open with the failure class that caused it", async () => {
