@@ -17,10 +17,10 @@ are, cost, and more.
 > need stability, and read the release notes before upgrading.
 
 A recommendation can be wrong, so the jobs that gate a merge still need to run somewhere.
-If you use [Trunk's Merge Queue](https://docs.trunk.io/merge-queue/merge-queue) that is
-handled for you — the service never skips a job on a merge-queue branch, so you do not
-need to special-case the queue in your workflow. See [Merge queues](#merge-queues) for
-what is and isn't covered.
+If you use [Trunk's Merge Queue](https://docs.trunk.io/merge-queue/merge-queue) or
+GitHub's native merge queue that is handled for you — the service never skips a job on a
+merge-queue branch, so you do not need to special-case the queue in your workflow. See
+[Merge queues](#merge-queues) for what is and isn't covered.
 
 ## Usage
 
@@ -145,16 +145,20 @@ you at [slack.trunk.io](https://slack.trunk.io) rather than printing an empty he
 ## Merge queues
 
 A merge queue validates the exact commit that is about to land, so skipping a job there
-could merge untested code. The service therefore **never skips a job on a Trunk Merge
-Queue branch**: a request whose branch starts with `trunk-merge/` short-circuits to a
-run-everything verdict before any recommendation work happens. It is a branch-name check
-rather than a heuristic, so it is both deterministic and fast.
+could merge untested code. The service therefore **never skips a job on a merge-queue
+branch**: a request whose branch starts with `trunk-merge/` (Trunk Merge Queue) or
+`gh-readonly-queue/` (GitHub's native merge queue) short-circuits to a run-everything
+verdict before any recommendation work happens. It is a branch-name check rather than a
+heuristic, so it is both deterministic and fast.
 
-You therefore do not need to gate the queue yourself. In particular you do not need
-`github.event_name != 'pull_request'` in your conditions — which matters because with
-**draft merge-queue pull requests** enabled, queue batches arrive as `pull_request` events
-on `trunk-merge/*` branches, so the event name cannot tell them apart from real PRs. Use
-the action the same way everywhere and let the branch check do the work.
+You therefore do not need to gate either queue yourself, and in particular you do not need
+`github.event_name != 'pull_request'` or `github.event_name == 'merge_group'` in your
+conditions. The event name is the wrong thing to test in both directions: with **draft
+merge-queue pull requests** enabled, Trunk queue batches arrive as `pull_request` events on
+`trunk-merge/*` branches, so the event name cannot tell them apart from real PRs; and
+GitHub's queue runs `merge_group` events on `gh-readonly-queue/*` branches, which the
+branch check already covers. Use the action the same way everywhere and let the branch
+check do the work.
 
 The guarantee holds in both modes, with slightly different mechanics:
 
@@ -163,15 +167,14 @@ The guarantee holds in both modes, with slightly different mechanics:
   your `!= 'false'` conditions already read as "run". This is one more reason never to
   write `== 'true'`.
 
-**Other merge queues are not covered.** The check matches the `trunk-merge/` prefix only.
-GitHub's native merge queue, for instance, validates on `gh-readonly-queue/*` branches via
-`merge_group` events, and those requests are treated like any other — so gate that
-yourself:
+**Other merge queues are not covered.** The check matches the `trunk-merge/` and
+`gh-readonly-queue/` prefixes only, so a third-party queue that validates on some other
+branch prefix is treated like any other request — gate that one yourself:
 
 ```yaml
 if: >-
   !cancelled() &&
-  (github.event_name == 'merge_group' ||
+  (startsWith(github.ref_name, 'my-queue/') ||
   needs.dynamic-ci-filter.outputs.unit-tests != 'false')
 ```
 
