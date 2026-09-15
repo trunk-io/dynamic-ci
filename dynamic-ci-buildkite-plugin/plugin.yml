@@ -1,0 +1,31 @@
+name: Dynamic CI
+description:
+  Skips the steps your diff does not need, using your own CI history. Marks them
+  skipped at pipeline-upload time, before an agent is acquired.
+author: https://github.com/trunk-io
+
+# `jq` is deliberately absent: the plugin ships its own (see `bin/`), so adopting
+# it does not require adding tooling to an agent image. `curl` and `git` are
+# already implied by any Buildkite checkout.
+requirements:
+  - buildkite-agent
+  - bash
+  - curl
+
+configuration:
+  properties:
+    pipeline:
+      description: Path to the pipeline file to filter and upload. Omit to let
+        `buildkite-agent pipeline upload` apply its own search order.
+      type: string
+    token-env:
+      description:
+        Name of the environment variable holding your Trunk organization API
+        token. Never put the token itself in plugin configuration — configuration
+        is interpolated into the uploaded pipeline and shown in the Buildkite UI.
+      type: string
+      default: TRUNK_TOKEN
+    ignore-signals:
+      description: Comma-separated signal identifiers to exclude from the recommendation.
+      type: string
+  additionalProperties: false

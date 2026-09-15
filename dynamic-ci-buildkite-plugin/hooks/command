@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Trunk Dynamic CI — pipeline mode.
+#
+# Replaces the upload step's command: render the pipeline, ask Trunk which steps
+# to skip, mark those steps, upload the result. The skip is therefore taken
+# before any agent is acquired for the skipped steps.
+#
+# Two things this deliberately does NOT do. It never reads or writes the
+# customer's YAML — `buildkite-agent pipeline upload --dry-run --format json`
+# makes the agent parse it, so there is no second implementation of Buildkite's
+# interpolation rules and no YAML round-trip to mangle comments or anchors. And
+# it never adds anything to the pipeline but `skip`, so the worst a wrong plan
+# can do is stop work happening; it cannot make anything new run.
+#
+# Every failure path uploads the pipeline unmodified. This step is on the
+# critical path of every build, so the plugin must never be what breaks one.
+
+set -euo pipefail
+
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source-path=SCRIPTDIR/..
+# shellcheck source=lib/jq.sh
+source "${PLUGIN_DIR}/lib/jq.sh"
+
+PIPELINE_FILE="${BUILDKITE_PLUGIN_DYNAMIC_CI_PIPELINE-}"
+TOKEN_ENV="${BUILDKITE_PLUGIN_DYNAMIC_CI_TOKEN_ENV:-TRUNK_TOKEN}"
+
+# No path by default: `pipeline upload` has its own search order, and hardcoding
+# `.buildkite/pipeline.yml` would break every customer who uses another one.
+pipeline_args=()
+if [[ -n ${PIPELINE_FILE} ]]; then
+	pipeline_args=("${PIPELINE_FILE}")
+fi
+# `${a[@]+"${a[@]}"}` — expanding an empty array under `set -u` is an error
+# before bash 4.4, and agent images that old are still in the wild.
+
+log() { echo "$1" >&2; }
+
+# The plugin's own config is how we detect the one misconfiguration that is
+# otherwise invisible: Buildkite derives a hook's `BUILDKITE_PLUGIN_<NAME>_`
+# prefix from the plugin's directory or repository name, and a subdirectory
+# plugin is exactly the case where that derivation is easy to get wrong. If no
+# variable with our prefix exists at all, say so and name what did arrive.
+warn_if_no_plugin_config() {
+	if compgen -v | grep -q '^BUILDKITE_PLUGIN_DYNAMIC_CI_'; then
+		return 0
+	fi
+	log "--- :trunk: Dynamic CI saw no BUILDKITE_PLUGIN_DYNAMIC_CI_* configuration."
+	log "    Plugin variables present: $(compgen -v | grep '^BUILDKITE_PLUGIN_' | tr '\n' ' ')"
+	log "    If the prefix above is not DYNAMIC_CI, the plugin's directory name and"
+	log "    this hook disagree — the plan will be requested with defaults only."
+}
+
+# Upload what the agent rendered, byte for byte. `--no-interpolation` is
+# required: the dry-run above already interpolated, and doing it twice would
+# re-expand anything that survived the first pass.
+upload_rendered() {
+	buildkite-agent pipeline upload --no-interpolation <<<"$1"
+}
+
+# The deepest fail-open: we never got a rendered pipeline, so do exactly what the
+# customer's own command would have done.
+upload_plain() {
+	buildkite-agent pipeline upload ${pipeline_args[@]+"${pipeline_args[@]}"}
+}
+
+main() {
+	warn_if_no_plugin_config
+
+	local rendered jq_bin keys plan skips mutated
+
+	if ! rendered="$(buildkite-agent pipeline upload \
+		${pipeline_args[@]+"${pipeline_args[@]}"} --dry-run --format json)"; then
+		log "--- :trunk: Dynamic CI could not render the pipeline — running every step"
+		upload_plain
+		return 0
+	fi
+
+	if ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/bin")"; then
+		log "--- :trunk: Dynamic CI has no usable jq — running every step"
+		upload_rendered "${rendered}"
+		return 0
+	fi
+
+	if ! keys="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/collect-keys.jq" <<<"${rendered}")"; then
+		log "--- :trunk: Dynamic CI could not read the pipeline's step keys — running every step"
+		upload_rendered "${rendered}"
+		return 0
+	fi
+
+	# A pipeline whose steps carry no `key:` cannot be scored at all: Trunk keys a
+	# Buildkite task on `buildkite.step.key`, so a step that never reports one has
+	# no durable identity to attach history to. Say so rather than calling the API
+	# to be told the same thing.
+	if [[ ${keys} == "[]" ]]; then
+		log "--- :trunk: Dynamic CI found no step with a key: attribute — running every step"
+		log "    Add a key: to the steps you want Trunk to decide about."
+		upload_rendered "${rendered}"
+		return 0
+	fi
+
+	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" \
+		"${PLUGIN_DIR}/lib/request-plan.sh" "${keys}")"; then
+		log "--- :trunk: Dynamic CI is unavailable — running every step"
+		upload_rendered "${rendered}"
+		return 0
+	fi
+
+	# jobKey -> reason, for verdicts that say skip. Buildkite caps a `skip` string
+	# at 70 characters, so the reason is truncated here and the full summary stays
+	# in the log above.
+	if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
+		log "--- :trunk: Dynamic CI returned a plan this version cannot read — running every step"
+		upload_rendered "${rendered}"
+		return 0
+	fi
+
+	if ! mutated="$("${jq_bin}" --argjson skips "${skips}" \
+		-f "${PLUGIN_DIR}/lib/apply-skips.jq" <<<"${rendered}")"; then
+		log "--- :trunk: Dynamic CI could not apply its plan — running every step"
+		upload_rendered "${rendered}"
+		return 0
+	fi
+
+	upload_rendered "${mutated}"
+}
+
+main "$@"
