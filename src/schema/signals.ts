@@ -13,6 +13,7 @@ export const SIGNAL_TYPES = [
   "mid-pr-stack",
   "required-check",
   "merge-queue-is-required",
+  "paths-filter",
 ] as const;
 
 export const SIGNAL_TYPE_SCHEMA: z.ZodEnum<{

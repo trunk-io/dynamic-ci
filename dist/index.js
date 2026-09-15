@@ -31832,7 +31832,8 @@ var SIGNAL_TYPES = [
   "merge-failure",
   "mid-pr-stack",
   "required-check",
-  "merge-queue-is-required"
+  "merge-queue-is-required",
+  "paths-filter"
 ];
 var SIGNAL_TYPE_SCHEMA = _enum(SIGNAL_TYPES);
 var RECOMMENDATIONS = [
