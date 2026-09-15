@@ -52,8 +52,40 @@ describe("apply-skips.jq", () => {
           ],
         },
         { wait: null },
+        { key: "downstream", label: "Trigger core", trigger: "core" },
+        {
+          key: "gate-enter",
+          label: "Enter gate",
+          command: "true",
+          concurrency_group: "duration-updater-gate",
+        },
+        {
+          key: "gate-exit",
+          label: "Exit gate",
+          command: "true",
+          concurrency_group: "duration-updater-gate",
+        },
       ],
     });
+  });
+
+  // The guard lives in the jq as well as the key walk, so a replayed or
+  // hand-assembled plan naming a trigger step cannot route around it.
+  it("never skips a trigger step, even when the plan names it", () => {
+    const out = applySkips({ downstream: "Trunk Dynamic CI: would skip" });
+
+    expect(out).toEqual(RENDERED_PIPELINE);
+  });
+
+  // Documents v1's behaviour rather than asserting it is right: the mutation
+  // reasons one step at a time, so a bracketed pair on one concurrency group can
+  // be half-skipped. Both gates are cheap, so the engine should run both — but
+  // nothing here enforces that, and this test is where that shows.
+  it("can skip one bracket of a concurrency pair (known v1 limitation)", () => {
+    const out = applySkips({ "gate-enter": "Trunk Dynamic CI: would skip" });
+
+    expect(stepByKey(out, "gate-enter")).toHaveProperty("skip");
+    expect(stepByKey(out, "gate-exit")).not.toHaveProperty("skip");
   });
 
   // A customer's `skip` is their decision about their own pipeline. `skip: false`

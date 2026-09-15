@@ -16,6 +16,8 @@ describe("collect-keys.jq", () => {
       "fmt",
       "e2e",
       "smoke",
+      "gate-enter",
+      "gate-exit",
     ]);
   });
 
@@ -31,6 +33,15 @@ describe("collect-keys.jq", () => {
   // calling the API to be told there is nothing to score.
   it("returns an empty array for a pipeline with no keyed step", () => {
     expect(collect({ steps: [] })).toEqual([]);
+  });
+
+  // Not merely unscored — not even asked about. A trigger step's outcome is in
+  // the build it launches, so a verdict here could suppress a build whose result
+  // the engine never sees.
+  it("excludes a trigger step even though it has a key", () => {
+    const keys = collect(RENDERED_PIPELINE);
+
+    expect(keys).not.toContain("downstream");
   });
 
   it("recurses through nested groups", () => {
