@@ -29,6 +29,16 @@ const TELEMETRY_URL =
 /** Status/reason are read back as raw protobuf field bytes; see decodeTelemetry. */
 let telemetryPosts: Uint8Array[] = [];
 
+/**
+ * `runAction` drives the real `@actions/core`, so its `::notice`/`::warning`
+ * commands would otherwise be interpreted by the runner executing this suite and
+ * land as annotations on *this* repo's CI. Captured for the whole file, both to
+ * keep the job's own annotation list clean and because the captured text is what
+ * the annotation assertions read.
+ */
+let stdoutChunks: string[] = [];
+const stdout = (): string => stdoutChunks.join("");
+
 const skipUnitTests: DynamicCiResponse = {
   jobs: [
     {
@@ -183,10 +193,18 @@ describe("the action end to end", () => {
     writeFileSync(outputPath, "");
     writeFileSync(summaryPath, "");
     telemetryPosts = [];
+    stdoutChunks = [];
+    vi.spyOn(process.stdout, "write").mockImplementation(
+      (chunk: unknown): boolean => {
+        stdoutChunks.push(String(chunk));
+        return true;
+      },
+    );
     server.reset();
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
@@ -487,28 +505,11 @@ describe("the action end to end", () => {
   // Asserted on stdout: an annotation and a log line are both workflow output,
   // and the `::notice`/`::warning` prefix is all that separates them.
   describe("annotations", () => {
-    const captureStdout = (): { lines: () => string; restore: () => void } => {
-      const chunks: string[] = [];
-      const spy = vi
-        .spyOn(process.stdout, "write")
-        .mockImplementation((chunk: unknown): boolean => {
-          chunks.push(String(chunk));
-          return true;
-        });
-      return { lines: () => chunks.join(""), restore: () => spy.mockRestore() };
-    };
-
     it("writes nothing to the run page by default, and still logs", async () => {
       stubRunnerEnv({ jobKeys: "unit-tests" });
-      const stdout = captureStdout();
+      await runAction();
 
-      try {
-        await runAction();
-      } finally {
-        stdout.restore();
-      }
-
-      const written = stdout.lines();
+      const written = stdout();
       expect(written).toContain(
         "unit-tests: SKIP — Skip — 99% historical pass rate and no impacted files.",
       );
@@ -520,15 +521,9 @@ describe("the action end to end", () => {
 
     it("posts the verdict when enable-annotation is true", async () => {
       stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
-      const stdout = captureStdout();
+      await runAction();
 
-      try {
-        await runAction();
-      } finally {
-        stdout.restore();
-      }
-
-      expect(stdout.lines()).toContain(
+      expect(stdout()).toContain(
         "::notice title=Trunk Dynamic CI Filter::unit-tests: SKIP — Skip — 99%25 historical pass rate and no impacted files.",
       );
     });
@@ -537,15 +532,9 @@ describe("the action end to end", () => {
     // omitted still annotated on the default path.
     it("does not annotate a job the service left out of the plan", async () => {
       stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
-      const stdout = captureStdout();
+      await runAction();
 
-      try {
-        await runAction();
-      } finally {
-        stdout.restore();
-      }
-
-      const written = stdout.lines();
+      const written = stdout();
       expect(written).toContain(
         'No verdict returned for job "integration-tests"; defaulting to run.',
       );
@@ -561,15 +550,9 @@ describe("the action end to end", () => {
         jobKeys: "unit-tests",
         ignoreSignals: "a-signal-from-the-future",
       });
-      const stdout = captureStdout();
+      await runAction();
 
-      try {
-        await runAction();
-      } finally {
-        stdout.restore();
-      }
-
-      const written = stdout.lines();
+      const written = stdout();
       expect(written).toContain("a-signal-from-the-future");
       expect(written).not.toContain("::warning");
     });
@@ -584,15 +567,9 @@ describe("the action end to end", () => {
           }),
       ]);
       stubRunnerEnv({ jobKeys: "unit-tests" });
-      const stdout = captureStdout();
+      await runAction();
 
-      try {
-        await runAction();
-      } finally {
-        stdout.restore();
-      }
-
-      const written = stdout.lines();
+      const written = stdout();
       expect(written).toContain("Trunk Dynamic CI Filter failed open");
       expect(written).not.toContain("::warning");
       expect(readOutputs()).toEqual({ "unit-tests": "true" });

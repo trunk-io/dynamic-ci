@@ -65,7 +65,9 @@ Tests are `*.vitest.ts` files under `src/__tests__/`:
 
 Note that `core.summary` caches its resolved file path on first write, so the
 end-to-end tests share one summary file and truncate it between cases rather than
-using a fresh path per test.
+using a fresh path per test. They also capture `process.stdout` for the whole file:
+they drive the real `@actions/core`, so an uncaptured `::notice`/`::warning` becomes
+an annotation on this repo's own CI run.
 
 `pnpm test` also writes `junit.xml`, which CI uploads to Trunk Flaky Tests. Test
 failures do not fail the test step directly — the uploader re-fails the job via
