@@ -29,15 +29,45 @@ running. Move it to its own step.
 
 ### Options
 
-| Option           | Default       |                                                                              |
-| ---------------- | ------------- | ---------------------------------------------------------------------------- |
-| `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order. |
-| `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token.  |
-| `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.       |
+| Option           | Default       |                                                                                                                                                           |
+| ---------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`           | `pipeline`    | `pipeline` takes over the upload step's command; `filter` leaves your command alone and exports `TRUNK_DYNAMIC_CI_FILTER`; `step` decides about one step. |
+| `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order.                                                                              |
+| `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token.                                                                               |
+| `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.                                                                                    |
 
 **Pass the token by environment, never as plugin configuration.** Plugin
 configuration is interpolated into the uploaded pipeline and is visible in the
 Buildkite UI.
+
+## If your pipeline is generated
+
+Many pipelines are not files — a script prints steps and uploads its own output.
+There is no YAML for the plugin to read and no command for it to take over, so
+use **filter mode** instead: keep your command exactly as it is, and add one
+segment to the pipe.
+
+```yaml
+- key: initialize-pipeline
+  label: ":wrench: Initialize Pipeline"
+  env:
+    TRUNK_TOKEN: ${TRUNK_DYNAMIC_CI_TOKEN}
+  command: |
+    python -m ci.generate_pipeline \
+      | "$TRUNK_DYNAMIC_CI_FILTER" \
+      | buildkite-agent pipeline upload
+  plugins:
+    - trunk-io/dynamic-ci#v1:
+        mode: filter
+```
+
+The plugin contributes one thing here: `TRUNK_DYNAMIC_CI_FILTER`, the path to the
+filter. It reads a pipeline on stdin and writes one on stdout — JSON or YAML —
+and on any failure it writes back **exactly** what it was given, byte for byte.
+
+Filter mode works for a generator in any language, and on JSON input it does
+less work than pipeline mode: the pipeline is already parsed, so nothing is
+rendered and nothing is interpolated that would not have been anyway.
 
 ## Your steps need a `key:`
 

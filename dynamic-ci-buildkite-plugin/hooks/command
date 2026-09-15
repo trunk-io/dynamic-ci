@@ -18,6 +18,24 @@
 set -euo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# A plugin's command hook fires whenever the file exists, and it REPLACES the
+# step's command — so in any mode where the plugin does not own the command, the
+# step has to be handed back explicitly.
+#
+# `BUILDKITE_SHELL` rather than a bare `bash -c`: it is the shell and flags the
+# agent would itself have used (default `/bin/bash -e -c`), so the command runs
+# with the same error handling it would without this plugin installed. A bare
+# `bash -c` silently drops the agent's `-e`, which turns a failing first line of
+# a multi-line command into a passing step.
+if [[ ${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline} != "pipeline" ]]; then
+	if [[ -z ${BUILDKITE_COMMAND-} ]]; then
+		exit 0
+	fi
+	shell="${BUILDKITE_SHELL:-/bin/bash -e -c}"
+	# shellcheck disable=SC2086 # BUILDKITE_SHELL is a command plus flags; word splitting is the point
+	exec ${shell} "${BUILDKITE_COMMAND}"
+fi
 # shellcheck source-path=SCRIPTDIR/..
 # shellcheck source=lib/jq.sh
 source "${PLUGIN_DIR}/lib/jq.sh"

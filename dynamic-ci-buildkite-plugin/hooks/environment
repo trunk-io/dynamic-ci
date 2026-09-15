@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Filter mode's whole contribution at hook time: a path to the filter. The
+# customer's command pipes through it, so the plugin owns nothing else.
+set -euo pipefail
+
+if [[ ${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline} == "filter" ]]; then
+	PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+	export TRUNK_DYNAMIC_CI_FILTER="${PLUGIN_DIR}/lib/filter.sh"
+fi
