@@ -20,6 +20,9 @@ vi.mock("@actions/core", () => ({
 
 const { reportRecommendations } = await import("../report");
 
+const annotating = { annotate: true };
+const silent = { annotate: false };
+
 beforeEach(() => {
   info.mockClear();
   notice.mockClear();
@@ -62,9 +65,18 @@ const response = {
   ],
 } as const satisfies DynamicCiResponse;
 
+const emptyWithNotice = {
+  jobs: [],
+  notice: {
+    code: "ORG_NOT_ENABLED",
+    message:
+      "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on.",
+  },
+} as const satisfies DynamicCiResponse;
+
 describe("reportRecommendations", () => {
   it("omits ABSTAIN signals from the per-signal log lines", async () => {
-    await reportRecommendations(response);
+    await reportRecommendations(response, annotating);
 
     const lines = info.mock.calls.map((call) => String(call[0]));
     expect(
@@ -77,7 +89,7 @@ describe("reportRecommendations", () => {
   });
 
   it("still annotates the job verdict with its summary", async () => {
-    await reportRecommendations(response);
+    await reportRecommendations(response, annotating);
     expect(notice).toHaveBeenCalledWith(
       "unit-tests: RUN — The job must run because a user override forces this job to run.",
       { title: "Trunk Dynamic CI Filter" },
@@ -85,7 +97,7 @@ describe("reportRecommendations", () => {
   });
 
   it("does not warn about a plan that has verdicts and no notice", async () => {
-    await reportRecommendations(response);
+    await reportRecommendations(response, annotating);
     expect(warning).not.toHaveBeenCalled();
   });
 });
@@ -96,17 +108,8 @@ describe("reportRecommendations", () => {
  * so the only evidence anything had happened was an absence.
  */
 describe("a plan with no verdicts", () => {
-  const emptyWithNotice = {
-    jobs: [],
-    notice: {
-      code: "ORG_NOT_ENABLED",
-      message:
-        "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on.",
-    },
-  } as const satisfies DynamicCiResponse;
-
   it("annotates the reason the service gave", async () => {
-    await reportRecommendations(emptyWithNotice);
+    await reportRecommendations(emptyWithNotice, annotating);
 
     expect(warning).toHaveBeenCalledWith(
       "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on. [ORG_NOT_ENABLED]",
@@ -115,7 +118,7 @@ describe("a plan with no verdicts", () => {
   });
 
   it("does not print a recommendations heading with nothing under it", async () => {
-    await reportRecommendations(emptyWithNotice);
+    await reportRecommendations(emptyWithNotice, annotating);
 
     const lines = info.mock.calls.map((call) => String(call[0]));
     expect(lines.some((line) => line.includes("recommendations:"))).toBe(false);
@@ -124,7 +127,7 @@ describe("a plan with no verdicts", () => {
   // A service too old to send a notice, or one that scored nothing at all: the
   // action still has to say that every job is about to run.
   it("points at support when the service sent no notice", async () => {
-    await reportRecommendations({ jobs: [] });
+    await reportRecommendations({ jobs: [] }, annotating);
 
     expect(warning).toHaveBeenCalledWith(
       "No per-job recommendations were returned. Please contact slack.trunk.io for support.",
@@ -154,7 +157,7 @@ describe("a plan that carries both verdicts and a notice", () => {
   } as const satisfies DynamicCiResponse;
 
   it("reports the notice and the verdicts", async () => {
-    await reportRecommendations(withBoth);
+    await reportRecommendations(withBoth, annotating);
 
     expect(warning).toHaveBeenCalledWith(
       expect.stringContaining("[MERGE_QUEUE_BRANCH]"),
@@ -163,6 +166,37 @@ describe("a plan that carries both verdicts and a notice", () => {
     expect(notice).toHaveBeenCalledWith(
       "unit-tests: RUN — Running because this is a Merge Queue branch (never skipped).",
       { title: "Trunk Dynamic CI Filter" },
+    );
+  });
+});
+
+/**
+ * `enable-annotation: false` is the default, so this is what almost every run
+ * does: the same log lines, and nothing on the run's annotation list.
+ */
+describe("with annotations turned off", () => {
+  it("logs the verdicts and its signals without annotating them", async () => {
+    await reportRecommendations(response, silent);
+
+    const lines = info.mock.calls.map((call) => String(call[0]));
+    expect(lines).toContain(
+      "  unit-tests: RUN — The job must run because a user override forces this job to run.",
+    );
+    expect(
+      lines.some((line) => line.includes("[MUST_RUN] force-override")),
+    ).toBe(true);
+    expect(notice).not.toHaveBeenCalled();
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  // A notice is the only account of why a green run skipped nothing, and
+  // `core.warning` is the only thing that would have printed it.
+  it("keeps the plan notice in the logs", async () => {
+    await reportRecommendations(emptyWithNotice, silent);
+
+    expect(warning).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on. [ORG_NOT_ENABLED]",
     );
   });
 });

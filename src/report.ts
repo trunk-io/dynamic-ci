@@ -8,6 +8,32 @@ import type {
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
 
 /**
+ * Whether to post annotations, from the `enable-annotation` input. Nothing else
+ * about reporting depends on it: the log lines and the job summary are written
+ * either way.
+ */
+export interface ReportOptions {
+  annotate: boolean;
+}
+
+/**
+ * A message that has no `core.info` line of its own, since `core.warning` both
+ * logs and annotates. With annotations off it still has to reach the log, so it
+ * degrades to a plain line rather than disappearing with the annotation.
+ */
+export const warnOrLog = (
+  options: ReportOptions,
+  message: string,
+  title?: string,
+): void => {
+  if (options.annotate) {
+    core.warning(message, { title });
+    return;
+  }
+  core.info(message);
+};
+
+/**
  * An empty plan with no notice explaining it. Notices cover every expected
  * cause, so reaching this means something went wrong that the service could not
  * name — hence pointing at support rather than restating the fail-safe.
@@ -143,25 +169,32 @@ const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
 /**
  * The plan-level condition, when the service reports one. A warning rather than
  * an info line: these plans are green and empty, and only a warning reaches the
- * run's annotation list.
+ * run's annotation list — which is also why it is the info line it was competing
+ * with once annotations are off.
  */
-const reportPlanNotice = (response: DynamicCiResponse): void => {
+const reportPlanNotice = (
+  response: DynamicCiResponse,
+  options: ReportOptions,
+): void => {
   if (response.notice) {
-    core.warning(`${response.notice.message} [${response.notice.code}]`, {
-      title: ANNOTATION_TITLE,
-    });
+    warnOrLog(
+      options,
+      `${response.notice.message} [${response.notice.code}]`,
+      ANNOTATION_TITLE,
+    );
     return;
   }
   if (response.jobs.length === 0) {
-    core.warning(NO_VERDICTS_MESSAGE, { title: ANNOTATION_TITLE });
+    warnOrLog(options, NO_VERDICTS_MESSAGE, ANNOTATION_TITLE);
   }
 };
 
-/** Log + annotate the recommendations served by the API. */
+/** Log + (when annotations are on) annotate the recommendations served by the API. */
 export const reportRecommendations = async (
   response: DynamicCiResponse,
+  options: ReportOptions,
 ): Promise<void> => {
-  reportPlanNotice(response);
+  reportPlanNotice(response, options);
 
   // Guarded: an unconditional heading over zero verdicts is the bare
   // `recommendations:` line that started all this.
@@ -169,23 +202,31 @@ export const reportRecommendations = async (
     core.info(`${ANNOTATION_TITLE} recommendations:`);
     for (const job of response.jobs) {
       logVerdict(job);
-      core.notice(`${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`, {
-        title: ANNOTATION_TITLE,
-      });
+      // Dropped outright rather than degraded: `logVerdict` already printed it.
+      if (options.annotate) {
+        core.notice(
+          `${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`,
+          {
+            title: ANNOTATION_TITLE,
+          },
+        );
+      }
     }
   }
 
   await writeSummary(response);
 };
 
-/** Log + annotate that the action failed open (recommending RUN for all jobs). */
+/** Log + (when annotations are on) annotate that the action failed open. */
 export const reportFailOpen = async (
   jobKeys: string[],
   reason: string,
+  options: ReportOptions,
 ): Promise<void> => {
-  core.warning(
+  warnOrLog(
+    options,
     `${ANNOTATION_TITLE} failed open — recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
-    { title: `${ANNOTATION_TITLE} (fail-open)` },
+    `${ANNOTATION_TITLE} (fail-open)`,
   );
   if (!process.env["GITHUB_STEP_SUMMARY"]) {
     return;

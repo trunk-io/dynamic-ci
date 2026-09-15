@@ -12,6 +12,8 @@ export interface ActionInputs {
   ignoreSignals: string[];
   /** `github.action_ref` — the action's own version, for telemetry. */
   actionRef: string;
+  /** Whether to post annotations to the run; logs and the summary ignore it. */
+  enableAnnotation: boolean;
 }
 
 const splitList = (raw: string): string[] =>
@@ -19,6 +21,28 @@ const splitList = (raw: string): string[] =>
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
+
+/**
+ * Whether annotations are turned on. Read on its own, and not via
+ * `core.getBooleanInput`, for two reasons: the unexpected-error path needs the
+ * flag before — and independently of — the required `token`, which `readInputs`
+ * throws without; and `getBooleanInput` throws on any value outside the YAML
+ * boolean set, which would take the gate down over a cosmetic setting. An
+ * unrecognized value is warned about and read as off, matching how
+ * `ignore-signals` treats a value it cannot make sense of.
+ */
+export const readAnnotationEnabled = (): boolean => {
+  const raw = core.getInput("enable-annotation").trim().toLowerCase();
+  if (raw === "true") {
+    return true;
+  }
+  if (raw !== "" && raw !== "false") {
+    core.warning(
+      `enable-annotation: "${raw}" is not "true" or "false"; treating it as false.`,
+    );
+  }
+  return false;
+};
 
 /**
  * Read the action inputs. `job-keys` is a comma-separated list of declarative
@@ -52,5 +76,6 @@ export const readInputs = (): ActionInputs => {
     jobKeys,
     ignoreSignals,
     actionRef: core.getInput("gh-action-ref"),
+    enableAnnotation: readAnnotationEnabled(),
   };
 };

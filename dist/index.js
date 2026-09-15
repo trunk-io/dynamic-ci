@@ -19739,10 +19739,10 @@ Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
       (0, command_1.issueCommand)("error", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
     exports2.error = error2;
-    function warning6(message, properties = {}) {
+    function warning5(message, properties = {}) {
       (0, command_1.issueCommand)("warning", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
-    exports2.warning = warning6;
+    exports2.warning = warning5;
     function notice2(message, properties = {}) {
       (0, command_1.issueCommand)("notice", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
@@ -32074,6 +32074,18 @@ var buildRequest = (inputs) => {
 var core3 = __toESM(require_core(), 1);
 var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
 var splitList = (raw) => raw.split(",").map((entry) => entry.trim()).filter(Boolean);
+var readAnnotationEnabled = () => {
+  const raw = core3.getInput("enable-annotation").trim().toLowerCase();
+  if (raw === "true") {
+    return true;
+  }
+  if (raw !== "" && raw !== "false") {
+    core3.warning(
+      `enable-annotation: "${raw}" is not "true" or "false"; treating it as false.`
+    );
+  }
+  return false;
+};
 var readInputs = () => {
   const token = core3.getInput("token", { required: true });
   core3.setSecret(token);
@@ -32088,7 +32100,8 @@ var readInputs = () => {
     token,
     jobKeys,
     ignoreSignals,
-    actionRef: core3.getInput("gh-action-ref")
+    actionRef: core3.getInput("gh-action-ref"),
+    enableAnnotation: readAnnotationEnabled()
   };
 };
 
@@ -32190,6 +32203,13 @@ var setFailOpenOutputs = (jobKeys) => {
 // src/report.ts
 var core5 = __toESM(require_core(), 1);
 var ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
+var warnOrLog = (options, message, title) => {
+  if (options.annotate) {
+    core5.warning(message, { title });
+    return;
+  }
+  core5.info(message);
+};
 var NO_VERDICTS_MESSAGE = "No per-job recommendations were returned. Please contact slack.trunk.io for support.";
 var verdictLabel = (run2) => run2 ? "RUN" : "SKIP";
 var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` : signal.message;
@@ -32261,34 +32281,42 @@ var writeSummary = async (response) => {
   core5.summary.addRaw(markdown).addEOL();
   await core5.summary.write();
 };
-var reportPlanNotice = (response) => {
+var reportPlanNotice = (response, options) => {
   if (response.notice) {
-    core5.warning(`${response.notice.message} [${response.notice.code}]`, {
-      title: ANNOTATION_TITLE
-    });
+    warnOrLog(
+      options,
+      `${response.notice.message} [${response.notice.code}]`,
+      ANNOTATION_TITLE
+    );
     return;
   }
   if (response.jobs.length === 0) {
-    core5.warning(NO_VERDICTS_MESSAGE, { title: ANNOTATION_TITLE });
+    warnOrLog(options, NO_VERDICTS_MESSAGE, ANNOTATION_TITLE);
   }
 };
-var reportRecommendations = async (response) => {
-  reportPlanNotice(response);
+var reportRecommendations = async (response, options) => {
+  reportPlanNotice(response, options);
   if (response.jobs.length > 0) {
     core5.info(`${ANNOTATION_TITLE} recommendations:`);
     for (const job of response.jobs) {
       logVerdict(job);
-      core5.notice(`${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`, {
-        title: ANNOTATION_TITLE
-      });
+      if (options.annotate) {
+        core5.notice(
+          `${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`,
+          {
+            title: ANNOTATION_TITLE
+          }
+        );
+      }
     }
   }
   await writeSummary(response);
 };
-var reportFailOpen = async (jobKeys, reason) => {
-  core5.warning(
+var reportFailOpen = async (jobKeys, reason, options) => {
+  warnOrLog(
+    options,
     `${ANNOTATION_TITLE} failed open \u2014 recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
-    { title: `${ANNOTATION_TITLE} (fail-open)` }
+    `${ANNOTATION_TITLE} (fail-open)`
   );
   if (!process.env["GITHUB_STEP_SUMMARY"]) {
     return;
@@ -32374,13 +32402,14 @@ var sendPlanTelemetry = async (telemetry) => {
 };
 
 // src/main.ts
-var failOpen = async (jobKeys, reason) => {
+var failOpen = async (jobKeys, reason, options) => {
   setFailOpenOutputs(jobKeys);
-  await reportFailOpen(jobKeys, reason);
+  await reportFailOpen(jobKeys, reason, options);
 };
 var run = async () => {
   const inputs = readInputs();
   const request = buildRequest(inputs);
+  const reportOptions = { annotate: inputs.enableAnnotation };
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
   const maxAttempts = resolveMaxAttempts();
@@ -32396,7 +32425,7 @@ var run = async () => {
       maxAttempts
     });
     setOutputs(result.response, request.jobKeys);
-    await reportRecommendations(result.response);
+    await reportRecommendations(result.response, reportOptions);
     await sendPlanTelemetry({
       token: inputs.token,
       actionRef: inputs.actionRef,
@@ -32409,7 +32438,8 @@ var run = async () => {
   } catch (error2) {
     await failOpen(
       request.jobKeys,
-      error2 instanceof Error ? error2.message : String(error2)
+      error2 instanceof Error ? error2.message : String(error2),
+      reportOptions
     );
     await sendPlanTelemetry({
       token: inputs.token,
@@ -32427,11 +32457,13 @@ var runAction = async () => {
     await run();
   } catch (error2) {
     const reason = error2 instanceof Error ? error2.message : String(error2);
-    core7.warning(
+    const reportOptions = { annotate: readAnnotationEnabled() };
+    warnOrLog(
+      reportOptions,
       `Trunk Dynamic CI Filter failed open due to an unexpected error: ${reason}`
     );
     try {
-      await failOpen([], reason);
+      await failOpen([], reason, reportOptions);
     } catch {
     }
     try {

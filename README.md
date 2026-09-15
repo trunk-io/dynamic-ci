@@ -86,11 +86,12 @@ steps:
 
 ## Inputs
 
-| Input            | Required | Description                                                                                                                                                                               |
-| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `token`          | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
-| `job-keys`       | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
-| `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
+| Input               | Required | Description                                                                                                                                                                               |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token`             | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
+| `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
+| `ignore-signals`    | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
+| `enable-annotation` | no       | Post the recommendation to the run's annotation list. Defaults to `false`; the logs and the job summary are written either way.                                                           |
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
 workflow file, and what `github.job` reports — not by the `name:` it displays under. A
@@ -121,8 +122,9 @@ The action is built so that it can never block your CI:
 - It never calls `core.setFailed`, so the step itself always succeeds. Failing the
   step would defeat the purpose.
 
-Every fail-open is logged as a warning annotation with the reason, and written to the
-job summary, so you can tell a real skip from a degraded one.
+Every fail-open is logged with the reason and written to the job summary, so you can
+tell a real skip from a degraded one. With `enable-annotation: true` it is also a
+warning annotation on the run.
 
 ### When Trunk returns no recommendations
 
@@ -132,8 +134,9 @@ because the engine was unavailable, or because Trunk has not yet enumerated the 
 this workflow. **Every job runs in all four cases**, which is the fail-safe working as
 intended.
 
-When that happens the response carries a `notice`, and the action renders it as a
-warning annotation and in the job summary — for example:
+When that happens the response carries a `notice`, and the action renders it in the
+logs and the job summary (and, with `enable-annotation: true`, as a warning
+annotation) — for example:
 
 > Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to
 > turn it on. `[ORG_NOT_ENABLED]`
@@ -210,6 +213,25 @@ neither side treats an unfamiliar identifier as an error:
 
 Check `SIGNAL_TYPES` for the release you have pinned to see what this version can
 describe, but read the job summary for what actually voted.
+
+## Annotations
+
+By default the action writes nothing to the run's **annotation** list: every verdict,
+the plan notice, and any fail-open are printed in the step's logs and written to the
+job summary, and the annotations only restated them on the run page — where, in
+fan-out mode, one per job crowds out the annotations a failing job actually left.
+
+Set `enable-annotation: true` to get them back:
+
+```yaml
+- uses: trunk-io/dynamic-ci-filter@v1
+  with:
+    token: ${{ secrets.TRUNK_API_TOKEN }}
+    enable-annotation: true
+```
+
+The setting moves **only** the annotations. The log lines and the job summary are
+identical either way, so nothing is lost by leaving it off.
 
 ## Environment variables
 

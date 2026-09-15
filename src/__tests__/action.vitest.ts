@@ -115,15 +115,18 @@ const stubRunnerEnv = ({
   omitToken = false,
   jobKeys = "",
   ignoreSignals = "",
+  enableAnnotation = "false",
 }: {
   token?: string;
   omitToken?: boolean;
   jobKeys?: string;
   ignoreSignals?: string;
+  enableAnnotation?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
+  vi.stubEnv("INPUT_ENABLE-ANNOTATION", enableAnnotation);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -471,6 +474,82 @@ describe("the action end to end", () => {
 
       await expect(runAction()).resolves.toBeUndefined();
       expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    });
+  });
+  /**
+   * Asserted on stdout rather than by mocking `@actions/core`: an annotation and
+   * a log line are both workflow output, and the `::notice`/`::warning` command
+   * prefix is the only thing that separates them.
+   */
+  describe("annotations", () => {
+    const captureStdout = (): { lines: () => string; restore: () => void } => {
+      const chunks: string[] = [];
+      const spy = vi
+        .spyOn(process.stdout, "write")
+        .mockImplementation((chunk: unknown): boolean => {
+          chunks.push(String(chunk));
+          return true;
+        });
+      return { lines: () => chunks.join(""), restore: () => spy.mockRestore() };
+    };
+
+    it("posts none by default, and still logs the verdict", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+      const stdout = captureStdout();
+
+      try {
+        await runAction();
+      } finally {
+        stdout.restore();
+      }
+
+      const written = stdout.lines();
+      expect(written).toContain(
+        "unit-tests: SKIP — Skip — 99% historical pass rate and no impacted files.",
+      );
+      expect(written).not.toContain("::notice");
+      expect(written).not.toContain("::warning");
+      expect(readFileSync(summaryPath, "utf8")).toContain("unit-tests");
+    });
+
+    it("posts the verdict when enable-annotation is true", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
+      const stdout = captureStdout();
+
+      try {
+        await runAction();
+      } finally {
+        stdout.restore();
+      }
+
+      expect(stdout.lines()).toContain(
+        "::notice title=Trunk Dynamic CI Filter::unit-tests: SKIP — Skip — 99%25 historical pass rate and no impacted files.",
+      );
+    });
+
+    it("logs a fail-open reason without annotating it", async () => {
+      server.overrideHandlers([
+        () => http.post(API_URL, () => new HttpResponse(null, { status: 503 })),
+        () =>
+          http.post(TELEMETRY_URL, async ({ request: received }) => {
+            telemetryPosts.push(new Uint8Array(await received.arrayBuffer()));
+            return new HttpResponse(null, { status: 200 });
+          }),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+      const stdout = captureStdout();
+
+      try {
+        await runAction();
+      } finally {
+        stdout.restore();
+      }
+
+      const written = stdout.lines();
+      expect(written).toContain("Trunk Dynamic CI Filter failed open");
+      expect(written).not.toContain("::warning");
+      expect(readOutputs()).toEqual({ "unit-tests": "true" });
+      expect(readFileSync(summaryPath, "utf8")).toContain("fail-open");
     });
   });
 });

@@ -23,7 +23,7 @@ pnpm install
 | `src/outcome.ts` | Maps a plan or a failure to the telemetry `(status, reason)` pair.    |
 | `src/telemetry/` | Fire-and-forget plan telemetry, and its wire contract.                |
 | `src/outputs.ts` | Job-name normalization and `core.setOutput` calls.                    |
-| `src/report.ts`  | Log lines, annotations, and the job summary.                          |
+| `src/report.ts`  | Log lines, the job summary, and the gated annotations.                |
 | `src/schema/`    | The wire contract. **Synced — see below.**                            |
 | `src/__tests__/` | Tests, with shared fixtures in `__fixtures__/` beside them.           |
 | `dist/index.js`  | Committed bundle. Generated; never edit by hand.                      |
