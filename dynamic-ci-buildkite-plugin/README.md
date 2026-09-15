@@ -91,7 +91,16 @@ the critical path of every build; the plugin will not be what breaks one.
 
 ```sh
 pnpm test   # runs this plugin's tests with the rest of the repo's
+
+# the request body, without making a call — the shape the tests validate
+# against the engine's own schema
+lib/request-plan.sh --print-body '["unit-tests"]'
 ```
+
+Point the plugin at another Trunk deployment with `TRUNK_PUBLIC_API_ADDRESS`
+(a base address; the endpoint path is part of the contract and is always
+appended). It is the same variable the test-results uploader and the GitHub
+Action read.
 
 The plugin is vendored alongside the [Dynamic CI GitHub
 Action](https://github.com/trunk-io/dynamic-ci) so both speak one wire contract

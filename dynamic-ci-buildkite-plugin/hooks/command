@@ -99,7 +99,7 @@ main() {
 		return 0
 	fi
 
-	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" \
+	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" TRUNK_DCI_JQ="${jq_bin}" \
 		"${PLUGIN_DIR}/lib/request-plan.sh" "${keys}")"; then
 		log "--- :trunk: Dynamic CI is unavailable — running every step"
 		upload_rendered "${rendered}"
