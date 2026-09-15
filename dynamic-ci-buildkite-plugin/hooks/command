@@ -27,6 +27,9 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source-path=SCRIPTDIR/..
 # shellcheck source=lib/jq.sh
 source "${PLUGIN_DIR}/lib/jq.sh"
+# shellcheck source-path=SCRIPTDIR/..
+# shellcheck source=lib/notice.sh
+source "${PLUGIN_DIR}/lib/notice.sh"
 
 MODE="${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline}"
 PIPELINE_FILE="${BUILDKITE_PLUGIN_DYNAMIC_CI_PIPELINE-}"
@@ -134,6 +137,8 @@ pipeline_mode() {
 	# jobKey -> reason, for verdicts that say skip. Buildkite caps a `skip` string
 	# at 70 characters, so the reason is truncated here and the full summary stays
 	# in the log above.
+	dci_log_notice "${jq_bin}" "${plan}"
+
 	if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
 		log "--- :trunk: Dynamic CI returned a plan this version cannot read — running every step"
 		upload_rendered "${rendered}"
@@ -184,6 +189,8 @@ step_mode() {
 		log "--- :trunk: Dynamic CI is unavailable — running this step"
 		hand_back
 	fi
+
+	dci_log_notice "${jq_bin}" "${plan}"
 
 	if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
 		log "--- :trunk: Dynamic CI returned a plan this version cannot read — running this step"

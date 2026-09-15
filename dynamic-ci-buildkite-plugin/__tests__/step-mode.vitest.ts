@@ -99,6 +99,29 @@ describe("step mode", () => {
     expect(request.jobKeys).toEqual(["unit"]);
   });
 
+  it("prints the plan's notice when it carries one", async () => {
+    const captured: CapturedRequest = {};
+    const plan = {
+      jobs: [],
+      notice: {
+        code: "ORG_NOT_ENABLED",
+        message:
+          "Every job will run: Dynamic CI is not enabled for this organization.",
+      },
+    };
+
+    await withPlanServer(plan, captured, async (address) => {
+      const result = await runHook({
+        ...STEP_ENV,
+        TRUNK_PUBLIC_API_ADDRESS: address,
+      });
+
+      expect(result.stderr).toContain("not enabled for this organization");
+      // An empty plan means no verdict for this step, so it runs.
+      expect(result.ranCommand).toBe(true);
+    });
+  });
+
   it("runs the step's work when the plan says run", async () => {
     const captured: CapturedRequest = {};
 

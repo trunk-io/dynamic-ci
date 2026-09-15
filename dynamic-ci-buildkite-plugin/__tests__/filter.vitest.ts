@@ -4,7 +4,11 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA } from "../../src/schema/request";
 import { PLUGIN_ROOT, vendoredJqPath } from "./support/jq";
-import { AGENT_ENV, withPlanServer } from "./support/plan-server";
+import {
+  AGENT_ENV,
+  type CapturedRequest,
+  withPlanServer,
+} from "./support/plan-server";
 
 const execFileAsync = promisify(execFile);
 
@@ -93,6 +97,30 @@ describe("filter mode", () => {
       captured.received,
     );
     expect(request.jobKeys).toEqual(["unit", "e2e"]);
+  });
+
+  // A plan that skips nothing looks the same whatever the reason — an
+  // organization not enabled, a repo in shadow, a pipeline Trunk has not
+  // ingested. `notice` is the only thing that tells a customer which, and
+  // without it the first build reads as "the plugin did nothing".
+  it("prints the plan's notice when it carries one", async () => {
+    const captured: CapturedRequest = {};
+    const plan = {
+      jobs: [],
+      notice: {
+        code: "REPO_NOT_ENABLED",
+        message:
+          "Every job will run: Dynamic CI is turned off for this repository.",
+      },
+    };
+
+    await withPlanServer(plan, captured, async (address) => {
+      const { stderr } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+      });
+
+      expect(stderr).toContain("turned off for this repository");
+    });
   });
 
   // stdout is the data channel. If any message reached it, the customer's

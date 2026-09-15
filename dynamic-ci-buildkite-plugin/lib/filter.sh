@@ -28,6 +28,9 @@ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=jq.sh
 source "${PLUGIN_DIR}/lib/jq.sh"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=notice.sh
+source "${PLUGIN_DIR}/lib/notice.sh"
 
 buffer="$(mktemp)"
 emitted=false
@@ -97,6 +100,8 @@ if ! plan="$(TRUNK_DCI_JQ="${jq_bin}" \
     log "--- :trunk: Dynamic CI is unavailable — running every step"
     emit_unchanged
 fi
+
+dci_log_notice "${jq_bin}" "${plan}"
 
 if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
     log "--- :trunk: Dynamic CI returned a plan this version cannot read — pipeline unchanged"
