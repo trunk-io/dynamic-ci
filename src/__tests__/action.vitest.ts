@@ -524,6 +524,47 @@ describe("the action end to end", () => {
       );
     });
 
+    // The regression: only `report.ts` was gated at first, so a job the service
+    // omitted still annotated on the default path.
+    it("does not annotate a job the service left out of the plan", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
+      const stdout = captureStdout();
+
+      try {
+        await runAction();
+      } finally {
+        stdout.restore();
+      }
+
+      const written = stdout.lines();
+      expect(written).toContain(
+        'No verdict returned for job "integration-tests"; defaulting to run.',
+      );
+      expect(written).not.toContain("::warning");
+      expect(readOutputs()).toEqual({
+        "unit-tests": "false",
+        "integration-tests": "true",
+      });
+    });
+
+    it("does not annotate an unrecognized ignore-signals value", async () => {
+      stubRunnerEnv({
+        jobKeys: "unit-tests",
+        ignoreSignals: "a-signal-from-the-future",
+      });
+      const stdout = captureStdout();
+
+      try {
+        await runAction();
+      } finally {
+        stdout.restore();
+      }
+
+      const written = stdout.lines();
+      expect(written).toContain("a-signal-from-the-future");
+      expect(written).not.toContain("::warning");
+    });
+
     it("logs a fail-open reason without annotating it", async () => {
       server.overrideHandlers([
         () => http.post(API_URL, () => new HttpResponse(null, { status: 503 })),

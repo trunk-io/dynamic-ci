@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { notice, warn } from "./annotations";
 import type {
   DynamicCiResponse,
   JobVerdict,
@@ -6,27 +7,6 @@ import type {
 } from "./compat";
 
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
-
-/** The `enable-annotation` input. Logs and the job summary ignore it. */
-export interface ReportOptions {
-  annotate: boolean;
-}
-
-/**
- * `core.warning` both logs and annotates, so a message carried by one has no
- * log line of its own to fall back on — hence the degrade rather than a skip.
- */
-export const warnOrLog = (
-  options: ReportOptions,
-  message: string,
-  title?: string,
-): void => {
-  if (options.annotate) {
-    core.warning(message, { title });
-    return;
-  }
-  core.info(message);
-};
 
 /**
  * An empty plan with no notice explaining it. Notices cover every expected
@@ -166,29 +146,24 @@ const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
  * an info line: these plans are green and empty, and only a warning reaches the
  * run's annotation list.
  */
-const reportPlanNotice = (
-  response: DynamicCiResponse,
-  options: ReportOptions,
-): void => {
+const reportPlanNotice = (response: DynamicCiResponse): void => {
   if (response.notice) {
-    warnOrLog(
-      options,
+    warn(
       `${response.notice.message} [${response.notice.code}]`,
       ANNOTATION_TITLE,
     );
     return;
   }
   if (response.jobs.length === 0) {
-    warnOrLog(options, NO_VERDICTS_MESSAGE, ANNOTATION_TITLE);
+    warn(NO_VERDICTS_MESSAGE, ANNOTATION_TITLE);
   }
 };
 
 /** Log + annotate the recommendations served by the API. */
 export const reportRecommendations = async (
   response: DynamicCiResponse,
-  options: ReportOptions,
 ): Promise<void> => {
-  reportPlanNotice(response, options);
+  reportPlanNotice(response);
 
   // Guarded: an unconditional heading over zero verdicts is the bare
   // `recommendations:` line that started all this.
@@ -196,15 +171,10 @@ export const reportRecommendations = async (
     core.info(`${ANNOTATION_TITLE} recommendations:`);
     for (const job of response.jobs) {
       logVerdict(job);
-      // Dropped rather than degraded: `logVerdict` already printed it.
-      if (options.annotate) {
-        core.notice(
-          `${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`,
-          {
-            title: ANNOTATION_TITLE,
-          },
-        );
-      }
+      notice(
+        `${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`,
+        ANNOTATION_TITLE,
+      );
     }
   }
 
@@ -215,10 +185,8 @@ export const reportRecommendations = async (
 export const reportFailOpen = async (
   jobKeys: string[],
   reason: string,
-  options: ReportOptions,
 ): Promise<void> => {
-  warnOrLog(
-    options,
+  warn(
     `${ANNOTATION_TITLE} failed open — recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
     `${ANNOTATION_TITLE} (fail-open)`,
   );

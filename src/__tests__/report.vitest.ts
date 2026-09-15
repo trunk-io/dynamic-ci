@@ -18,12 +18,11 @@ vi.mock("@actions/core", () => ({
   },
 }));
 
+const { setAnnotationsEnabled } = await import("../annotations");
 const { reportRecommendations } = await import("../report");
 
-const annotating = { annotate: true };
-const silent = { annotate: false };
-
 beforeEach(() => {
+  setAnnotationsEnabled(true);
   info.mockClear();
   notice.mockClear();
   warning.mockClear();
@@ -76,7 +75,7 @@ const emptyWithNotice = {
 
 describe("reportRecommendations", () => {
   it("omits ABSTAIN signals from the per-signal log lines", async () => {
-    await reportRecommendations(response, annotating);
+    await reportRecommendations(response);
 
     const lines = info.mock.calls.map((call) => String(call[0]));
     expect(
@@ -89,7 +88,7 @@ describe("reportRecommendations", () => {
   });
 
   it("still annotates the job verdict with its summary", async () => {
-    await reportRecommendations(response, annotating);
+    await reportRecommendations(response);
     expect(notice).toHaveBeenCalledWith(
       "unit-tests: RUN — The job must run because a user override forces this job to run.",
       { title: "Trunk Dynamic CI Filter" },
@@ -97,7 +96,7 @@ describe("reportRecommendations", () => {
   });
 
   it("does not warn about a plan that has verdicts and no notice", async () => {
-    await reportRecommendations(response, annotating);
+    await reportRecommendations(response);
     expect(warning).not.toHaveBeenCalled();
   });
 });
@@ -109,7 +108,7 @@ describe("reportRecommendations", () => {
  */
 describe("a plan with no verdicts", () => {
   it("annotates the reason the service gave", async () => {
-    await reportRecommendations(emptyWithNotice, annotating);
+    await reportRecommendations(emptyWithNotice);
 
     expect(warning).toHaveBeenCalledWith(
       "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on. [ORG_NOT_ENABLED]",
@@ -118,7 +117,7 @@ describe("a plan with no verdicts", () => {
   });
 
   it("does not print a recommendations heading with nothing under it", async () => {
-    await reportRecommendations(emptyWithNotice, annotating);
+    await reportRecommendations(emptyWithNotice);
 
     const lines = info.mock.calls.map((call) => String(call[0]));
     expect(lines.some((line) => line.includes("recommendations:"))).toBe(false);
@@ -127,7 +126,7 @@ describe("a plan with no verdicts", () => {
   // A service too old to send a notice, or one that scored nothing at all: the
   // action still has to say that every job is about to run.
   it("points at support when the service sent no notice", async () => {
-    await reportRecommendations({ jobs: [] }, annotating);
+    await reportRecommendations({ jobs: [] });
 
     expect(warning).toHaveBeenCalledWith(
       "No per-job recommendations were returned. Please contact slack.trunk.io for support.",
@@ -157,7 +156,7 @@ describe("a plan that carries both verdicts and a notice", () => {
   } as const satisfies DynamicCiResponse;
 
   it("reports the notice and the verdicts", async () => {
-    await reportRecommendations(withBoth, annotating);
+    await reportRecommendations(withBoth);
 
     expect(warning).toHaveBeenCalledWith(
       expect.stringContaining("[MERGE_QUEUE_BRANCH]"),
@@ -172,8 +171,12 @@ describe("a plan that carries both verdicts and a notice", () => {
 
 // The default, so this is what almost every run does.
 describe("with annotations turned off", () => {
+  beforeEach(() => {
+    setAnnotationsEnabled(false);
+  });
+
   it("logs the verdicts and its signals without annotating them", async () => {
-    await reportRecommendations(response, silent);
+    await reportRecommendations(response);
 
     const lines = info.mock.calls.map((call) => String(call[0]));
     expect(lines).toContain(
@@ -188,7 +191,7 @@ describe("with annotations turned off", () => {
 
   // `core.warning` is the only thing that would have printed the notice.
   it("keeps the plan notice in the logs", async () => {
-    await reportRecommendations(emptyWithNotice, silent);
+    await reportRecommendations(emptyWithNotice);
 
     expect(warning).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledWith(

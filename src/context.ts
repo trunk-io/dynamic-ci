@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import * as core from "@actions/core";
+import { warn } from "./annotations";
 import type { Repo } from "./schema/request";
 import type { DynamicCiRequest } from "./compat";
 import * as z from "zod";
@@ -42,7 +42,7 @@ const readEvent = (): GitHubEvent => {
   try {
     return GitHubEventSchema.parse(JSON.parse(readFileSync(path, "utf8")));
   } catch (error) {
-    core.warning(`Could not read GITHUB_EVENT_PATH: ${String(error)}`);
+    warn(`Could not read GITHUB_EVENT_PATH: ${String(error)}`);
     return {};
   }
 };

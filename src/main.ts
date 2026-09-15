@@ -1,32 +1,23 @@
 import * as core from "@actions/core";
+import { warn } from "./annotations";
 import { RecommendationError, requestRecommendations } from "./api";
 import { resolveApiUrl, resolveMaxAttempts, resolveTimeoutMs } from "./config";
 import { buildRequest, parseRepo } from "./context";
-import { readAnnotationEnabled, readInputs } from "./inputs";
+import { applyAnnotationSetting, readInputs } from "./inputs";
 import { outcomeForError, outcomeForResponse } from "./outcome";
 import { setFailOpenOutputs, setOutputs } from "./outputs";
-import {
-  reportFailOpen,
-  reportRecommendations,
-  warnOrLog,
-  type ReportOptions,
-} from "./report";
+import { reportFailOpen, reportRecommendations } from "./report";
 import { PLAN_REASON, PLAN_STATUS } from "./telemetry/protos";
 import { sendPlanTelemetry } from "./telemetry";
 
-const failOpen = async (
-  jobKeys: string[],
-  reason: string,
-  options: ReportOptions,
-): Promise<void> => {
+const failOpen = async (jobKeys: string[], reason: string): Promise<void> => {
   setFailOpenOutputs(jobKeys);
-  await reportFailOpen(jobKeys, reason, options);
+  await reportFailOpen(jobKeys, reason);
 };
 
 export const run = async (): Promise<void> => {
   const inputs = readInputs();
   const request = buildRequest(inputs);
-  const reportOptions: ReportOptions = { annotate: inputs.enableAnnotation };
 
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
@@ -48,7 +39,7 @@ export const run = async (): Promise<void> => {
       maxAttempts,
     });
     setOutputs(result.response, request.jobKeys);
-    await reportRecommendations(result.response, reportOptions);
+    await reportRecommendations(result.response);
     await sendPlanTelemetry({
       token: inputs.token,
       actionRef: inputs.actionRef,
@@ -62,7 +53,6 @@ export const run = async (): Promise<void> => {
     await failOpen(
       request.jobKeys,
       error instanceof Error ? error.message : String(error),
-      reportOptions,
     );
     await sendPlanTelemetry({
       token: inputs.token,
@@ -83,14 +73,13 @@ export const runAction = async (): Promise<void> => {
     await run();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    // Read on its own: `readInputs` may be what threw.
-    const reportOptions: ReportOptions = { annotate: readAnnotationEnabled() };
-    warnOrLog(
-      reportOptions,
+    // Applied on its own: `readInputs` may be what threw.
+    applyAnnotationSetting();
+    warn(
       `Trunk Dynamic CI Filter failed open due to an unexpected error: ${reason}`,
     );
     try {
-      await failOpen([], reason, reportOptions);
+      await failOpen([], reason);
     } catch {
       // Reporting itself failed; the outputs are already absent, which means run.
     }

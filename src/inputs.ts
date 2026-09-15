@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { setAnnotationsEnabled, warn } from "./annotations";
 import { SIGNAL_TYPES } from "./schema/signals";
 
 const KNOWN_SIGNALS = new Set<string>(SIGNAL_TYPES);
@@ -12,8 +13,6 @@ export interface ActionInputs {
   ignoreSignals: string[];
   /** `github.action_ref` — the action's own version, for telemetry. */
   actionRef: string;
-  /** Whether to post annotations to the run; logs and the summary ignore it. */
-  enableAnnotation: boolean;
 }
 
 const splitList = (raw: string): string[] =>
@@ -23,22 +22,20 @@ const splitList = (raw: string): string[] =>
     .filter(Boolean);
 
 /**
- * Read separately from `readInputs` because the unexpected-error path needs the
- * flag without the required `token` that `readInputs` throws over, and not via
- * `core.getBooleanInput` because it throws on any non-YAML-boolean value, which
- * would take the gate down over a cosmetic setting.
+ * Arm the annotation gate. Read separately from `readInputs` because the
+ * unexpected-error path needs it without the required `token` that `readInputs`
+ * throws over, and not via `core.getBooleanInput` because that throws on any
+ * non-YAML-boolean value, which would take the gate down over a cosmetic
+ * setting.
  */
-export const readAnnotationEnabled = (): boolean => {
+export const applyAnnotationSetting = (): void => {
   const raw = core.getInput("enable-annotation").trim().toLowerCase();
-  if (raw === "true") {
-    return true;
-  }
-  if (raw !== "" && raw !== "false") {
-    core.warning(
+  setAnnotationsEnabled(raw === "true");
+  if (raw !== "" && raw !== "false" && raw !== "true") {
+    warn(
       `enable-annotation: "${raw}" is not "true" or "false"; treating it as false.`,
     );
   }
-  return false;
 };
 
 /**
@@ -55,6 +52,9 @@ export const readAnnotationEnabled = (): boolean => {
  * rather than failing the whole workflow open.
  */
 export const readInputs = (): ActionInputs => {
+  // First, so that every warning below is subject to it.
+  applyAnnotationSetting();
+
   const token = core.getInput("token", { required: true });
   // Ensure the token is scrubbed from any log output.
   core.setSecret(token);
@@ -63,7 +63,7 @@ export const readInputs = (): ActionInputs => {
 
   const ignoreSignals = splitList(core.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
-    core.warning(
+    warn(
       `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`,
     );
   }
@@ -73,6 +73,5 @@ export const readInputs = (): ActionInputs => {
     jobKeys,
     ignoreSignals,
     actionRef: core.getInput("gh-action-ref"),
-    enableAnnotation: readAnnotationEnabled(),
   };
 };

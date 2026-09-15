@@ -44,7 +44,6 @@ describe("buildRequest", () => {
       jobKeys: ["build"],
       ignoreSignals: [],
       actionRef: "v1",
-      enableAnnotation: false,
     });
     expect(request).toMatchObject({
       commitSha: ENV.sha,
@@ -66,7 +65,6 @@ describe("buildRequest", () => {
       jobKeys: ["build"],
       ignoreSignals: [],
       actionRef: "v1",
-      enableAnnotation: false,
     });
     expect(request.eventName).toBeUndefined();
   });
