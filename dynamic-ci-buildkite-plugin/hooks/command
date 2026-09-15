@@ -77,13 +77,6 @@ warn_if_no_plugin_config() {
 	log "    this hook disagree — the plan will be requested with defaults only."
 }
 
-# Upload what the agent rendered, byte for byte. `--no-interpolation` is
-# required: the dry-run above already interpolated, and doing it twice would
-# re-expand anything that survived the first pass.
-upload_rendered() {
-	buildkite-agent pipeline upload --no-interpolation <<<"$1"
-}
-
 # The deepest fail-open: we never got a rendered pipeline, so do exactly what the
 # customer's own command would have done.
 upload_plain() {
@@ -91,10 +84,18 @@ upload_plain() {
 }
 
 # Pipeline mode: the plugin owns the upload step's command.
+#
+# It runs the SAME algorithm filter mode runs — resolve jq, collect keys, ask for
+# a plan, apply it — by running the filter itself rather than keeping a second
+# copy of it. The two used to be separate implementations of one algorithm, which
+# is two sets of failure paths that can drift apart.
+#
+# What this mode still does that filter mode cannot: it owns BOTH ends of the
+# pipe, so it renders WITH interpolation and uploads with `--no-interpolation`,
+# guaranteeing exactly one interpolation pass. Filter mode has to rely on the
+# customer's own `pipeline upload` for that, and cannot check.
 pipeline_mode() {
-	warn_if_no_plugin_config
-
-	local rendered jq_bin keys plan skips mutated
+	local rendered
 
 	if ! rendered="$(buildkite-agent pipeline upload \
 		${pipeline_args[@]+"${pipeline_args[@]}"} --dry-run --format json)"; then
@@ -103,56 +104,11 @@ pipeline_mode() {
 		return 0
 	fi
 
-	if ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/bin")"; then
-		log "--- :trunk: Dynamic CI has no usable jq — running every step"
-		upload_rendered "${rendered}"
-		return 0
-	fi
-
-	if ! keys="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/collect-keys.jq" <<<"${rendered}")"; then
-		log "--- :trunk: Dynamic CI could not read the pipeline's step keys — running every step"
-		upload_rendered "${rendered}"
-		return 0
-	fi
-
-	# A pipeline whose steps carry no `key:` cannot be scored at all: Trunk keys a
-	# Buildkite task on `buildkite.step.key`, so a step that never reports one has
-	# no durable identity to attach history to. Say so rather than calling the API
-	# to be told the same thing.
-	if [[ ${keys} == "[]" ]]; then
-		log "--- :trunk: Dynamic CI found no step with a key: attribute — running every step"
-		log "    Add a key: to the steps you want Trunk to decide about."
-		upload_rendered "${rendered}"
-		return 0
-	fi
-
-	# shellcheck disable=SC2016 # `$key` is a jq variable, bound by --arg, not a shell one
-	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" TRUNK_DCI_JQ="${jq_bin}" \
-		"${PLUGIN_DIR}/lib/request-plan.sh" "${keys}")"; then
-		log "--- :trunk: Dynamic CI is unavailable — running every step"
-		upload_rendered "${rendered}"
-		return 0
-	fi
-
-	# jobKey -> reason, for verdicts that say skip. Buildkite caps a `skip` string
-	# at 70 characters, so the reason is truncated here and the full summary stays
-	# in the log above.
-	dci_log_notice "${jq_bin}" "${plan}"
-
-	if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
-		log "--- :trunk: Dynamic CI returned a plan this version cannot read — running every step"
-		upload_rendered "${rendered}"
-		return 0
-	fi
-
-	if ! mutated="$("${jq_bin}" --argjson skips "${skips}" \
-		-f "${PLUGIN_DIR}/lib/apply-skips.jq" <<<"${rendered}")"; then
-		log "--- :trunk: Dynamic CI could not apply its plan — running every step"
-		upload_rendered "${rendered}"
-		return 0
-	fi
-
-	upload_rendered "${mutated}"
+	# The filter is already rendered JSON by the time it arrives, so the filter
+	# takes its no-render path. And it always emits a pipeline, whatever goes
+	# wrong inside it, so its output is safe to upload unconditionally.
+	"${PLUGIN_DIR}/lib/filter.sh" <<<"${rendered}" |
+		buildkite-agent pipeline upload --no-interpolation
 }
 
 # Step mode: one step, one verdict. The step has already been dispatched by the

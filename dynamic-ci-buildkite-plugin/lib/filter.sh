@@ -96,6 +96,7 @@ if [[ ${keys} == "[]" ]]; then
 fi
 
 if ! plan="$(TRUNK_DCI_JQ="${jq_bin}" \
+    TRUNK_DCI_TOKEN_ENV="${BUILDKITE_PLUGIN_DYNAMIC_CI_TOKEN_ENV:-TRUNK_TOKEN}" \
     "${PLUGIN_DIR}/lib/request-plan.sh" "${keys}")"; then
     log "--- :trunk: Dynamic CI is unavailable — running every step"
     emit_unchanged
