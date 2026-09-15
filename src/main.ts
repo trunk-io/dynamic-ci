@@ -1,8 +1,9 @@
 import * as core from "@actions/core";
+import { warn } from "./annotations";
 import { RecommendationError, requestRecommendations } from "./api";
 import { resolveApiUrl, resolveMaxAttempts, resolveTimeoutMs } from "./config";
 import { buildRequest, parseRepo } from "./context";
-import { readInputs } from "./inputs";
+import { applyAnnotationSetting, readInputs } from "./inputs";
 import { outcomeForError, outcomeForResponse } from "./outcome";
 import { setFailOpenOutputs, setOutputs } from "./outputs";
 import { reportFailOpen, reportRecommendations } from "./report";
@@ -72,7 +73,9 @@ export const runAction = async (): Promise<void> => {
     await run();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    core.warning(
+    // Applied on its own: `readInputs` may be what threw.
+    applyAnnotationSetting();
+    warn(
       `Trunk Dynamic CI Filter failed open due to an unexpected error: ${reason}`,
     );
     try {

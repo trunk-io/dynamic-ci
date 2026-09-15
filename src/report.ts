@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { annotationsEnabled, notice, warn } from "./annotations";
 import type {
   DynamicCiResponse,
   JobVerdict,
@@ -121,11 +122,11 @@ const summaryBody = (response: DynamicCiResponse): string[] => {
  * Write the job summary as markdown: the plan-level notice if there is one, then
  * a compact at-a-glance verdict table and one collapsible `<details>` section per
  * job holding its per-signal breakdown, so many jobs (fan-out mode) stay
- * scannable. Skipped (logs only) when `GITHUB_STEP_SUMMARY` is unavailable
- * (e.g. tests).
+ * scannable. Skipped (logs only) when annotations are off, or when
+ * `GITHUB_STEP_SUMMARY` is unavailable (e.g. tests).
  */
 const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
-  if (!process.env["GITHUB_STEP_SUMMARY"]) {
+  if (!annotationsEnabled() || !process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   const markdown = [
@@ -147,13 +148,14 @@ const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
  */
 const reportPlanNotice = (response: DynamicCiResponse): void => {
   if (response.notice) {
-    core.warning(`${response.notice.message} [${response.notice.code}]`, {
-      title: ANNOTATION_TITLE,
-    });
+    warn(
+      `${response.notice.message} [${response.notice.code}]`,
+      ANNOTATION_TITLE,
+    );
     return;
   }
   if (response.jobs.length === 0) {
-    core.warning(NO_VERDICTS_MESSAGE, { title: ANNOTATION_TITLE });
+    warn(NO_VERDICTS_MESSAGE, ANNOTATION_TITLE);
   }
 };
 
@@ -169,9 +171,10 @@ export const reportRecommendations = async (
     core.info(`${ANNOTATION_TITLE} recommendations:`);
     for (const job of response.jobs) {
       logVerdict(job);
-      core.notice(`${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`, {
-        title: ANNOTATION_TITLE,
-      });
+      notice(
+        `${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`,
+        ANNOTATION_TITLE,
+      );
     }
   }
 
@@ -183,11 +186,11 @@ export const reportFailOpen = async (
   jobKeys: string[],
   reason: string,
 ): Promise<void> => {
-  core.warning(
+  warn(
     `${ANNOTATION_TITLE} failed open — recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
-    { title: `${ANNOTATION_TITLE} (fail-open)` },
+    `${ANNOTATION_TITLE} (fail-open)`,
   );
-  if (!process.env["GITHUB_STEP_SUMMARY"]) {
+  if (!annotationsEnabled() || !process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   core.summary.addHeading(`${ANNOTATION_TITLE} — fail-open`, 2);

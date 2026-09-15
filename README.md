@@ -86,11 +86,12 @@ steps:
 
 ## Inputs
 
-| Input            | Required | Description                                                                                                                                                                               |
-| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `token`          | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
-| `job-keys`       | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
-| `ignore-signals` | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
+| Input               | Required | Description                                                                                                                                                                               |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token`             | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
+| `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
+| `ignore-signals`    | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
+| `enable-annotation` | no       | Post the recommendation to the run — its annotation list and the job summary. Defaults to `false`; the step's logs are written either way.                                                |
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
 workflow file, and what `github.job` reports — not by the `name:` it displays under. A
@@ -121,8 +122,9 @@ The action is built so that it can never block your CI:
 - It never calls `core.setFailed`, so the step itself always succeeds. Failing the
   step would defeat the purpose.
 
-Every fail-open is logged as a warning annotation with the reason, and written to the
-job summary, so you can tell a real skip from a degraded one.
+Every fail-open is logged with the reason, so you can tell a real skip from a degraded
+one. With `enable-annotation: true` it is also a warning annotation on the run and a
+job summary.
 
 ### When Trunk returns no recommendations
 
@@ -132,8 +134,8 @@ because the engine was unavailable, or because Trunk has not yet enumerated the 
 this workflow. **Every job runs in all four cases**, which is the fail-safe working as
 intended.
 
-When that happens the response carries a `notice`, and the action renders it as a
-warning annotation and in the job summary — for example:
+When that happens the response carries a `notice`, and the action renders it in the
+logs (and, with `enable-annotation: true`, as a warning annotation) — for example:
 
 > Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to
 > turn it on. `[ORG_NOT_ENABLED]`
@@ -184,8 +186,7 @@ If you have feedback on the filtering mechanism in merge queues, reach out to us
 ## Signals
 
 Each verdict is a combination of independent signals, and each signal's contribution
-is shown in the logs and in the job summary. Pass any of these to `ignore-signals` to
-drop it from the tally:
+is shown in the logs. Pass any of these to `ignore-signals` to drop it from the tally:
 
 | Signal                   | What it looks at                                                 |
 | ------------------------ | ---------------------------------------------------------------- |
@@ -204,12 +205,12 @@ this is in beta, and the service ships them before that vendored list catches up
 neither side treats an unfamiliar identifier as an error:
 
 - A signal the service returns that this version does not know is reported in the logs
-  and summary like any other, and the verdict it belongs to is honored.
+  like any other, and the verdict it belongs to is honored.
 - An `ignore-signals` identifier this version does not know is warned about and
   forwarded anyway — so a typo has no effect, rather than taking the gate down.
 
 Check `SIGNAL_TYPES` for the release you have pinned to see what this version can
-describe, but read the job summary for what actually voted.
+describe, but read the step's logs for what actually voted.
 
 ## Environment variables
 

@@ -23,7 +23,7 @@ pnpm install
 | `src/outcome.ts` | Maps a plan or a failure to the telemetry `(status, reason)` pair.    |
 | `src/telemetry/` | Fire-and-forget plan telemetry, and its wire contract.                |
 | `src/outputs.ts` | Job-name normalization and `core.setOutput` calls.                    |
-| `src/report.ts`  | Log lines, annotations, and the job summary.                          |
+| `src/report.ts`  | Log lines, plus the gated annotations and job summary.                |
 | `src/schema/`    | The wire contract. **Synced — see below.**                            |
 | `src/__tests__/` | Tests, with shared fixtures in `__fixtures__/` beside them.           |
 | `dist/index.js`  | Committed bundle. Generated; never edit by hand.                      |
@@ -65,7 +65,9 @@ Tests are `*.vitest.ts` files under `src/__tests__/`:
 
 Note that `core.summary` caches its resolved file path on first write, so the
 end-to-end tests share one summary file and truncate it between cases rather than
-using a fresh path per test.
+using a fresh path per test. They also capture `process.stdout` for the whole file:
+they drive the real `@actions/core`, so an uncaptured `::notice`/`::warning` becomes
+an annotation on this repo's own CI run.
 
 `pnpm test` also writes `junit.xml`, which CI uploads to Trunk Flaky Tests. Test
 failures do not fail the test step directly — the uploader re-fails the job via

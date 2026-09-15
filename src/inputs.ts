@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { setAnnotationsEnabled, warn } from "./annotations";
 import { SIGNAL_TYPES } from "./schema/signals";
 
 const KNOWN_SIGNALS = new Set<string>(SIGNAL_TYPES);
@@ -21,6 +22,23 @@ const splitList = (raw: string): string[] =>
     .filter(Boolean);
 
 /**
+ * Arm the annotation gate. Read separately from `readInputs` because the
+ * unexpected-error path needs it without the required `token` that `readInputs`
+ * throws over, and not via `core.getBooleanInput` because that throws on any
+ * non-YAML-boolean value, which would take the gate down over a cosmetic
+ * setting.
+ */
+export const applyAnnotationSetting = (): void => {
+  const raw = core.getInput("enable-annotation").trim().toLowerCase();
+  setAnnotationsEnabled(raw === "true");
+  if (raw !== "" && raw !== "false" && raw !== "true") {
+    warn(
+      `enable-annotation: "${raw}" is not "true" or "false"; treating it as false.`,
+    );
+  }
+};
+
+/**
  * Read the action inputs. `job-keys` is a comma-separated list of declarative
  * `jobs:` keys — the value `github.job` reports and an `if:` names, not the
  * rendered display name. It is taken only from the explicit input: the current
@@ -34,6 +52,9 @@ const splitList = (raw: string): string[] =>
  * rather than failing the whole workflow open.
  */
 export const readInputs = (): ActionInputs => {
+  // First, so that every warning below is subject to it.
+  applyAnnotationSetting();
+
   const token = core.getInput("token", { required: true });
   // Ensure the token is scrubbed from any log output.
   core.setSecret(token);
@@ -42,7 +63,7 @@ export const readInputs = (): ActionInputs => {
 
   const ignoreSignals = splitList(core.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
-    core.warning(
+    warn(
       `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`,
     );
   }

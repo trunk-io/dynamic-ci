@@ -3,17 +3,22 @@ import type { DynamicCiResponse } from "../schema/response";
 
 const setOutput = vi.fn();
 const warning = vi.fn();
+const info = vi.fn();
 
 vi.mock("@actions/core", () => ({
   setOutput: (name: string, value: string) => setOutput(name, value),
   warning: (message: string) => warning(message),
+  info: (message: string) => info(message),
 }));
 
+const { setAnnotationsEnabled } = await import("../annotations");
 const { setFailOpenOutputs, setOutputs } = await import("../outputs");
 
 beforeEach(() => {
+  setAnnotationsEnabled(true);
   setOutput.mockClear();
   warning.mockClear();
+  info.mockClear();
 });
 
 const response: DynamicCiResponse = {
@@ -40,6 +45,15 @@ describe("setOutputs", () => {
       ["e2e", "true"],
     ]);
     expect(warning).toHaveBeenCalledWith(expect.stringContaining("e2e"));
+  });
+
+  // The regression: this one escaped the `enable-annotation` gate, so it
+  // annotated on the default path.
+  it("logs the missing verdict without annotating it when annotations are off", () => {
+    setAnnotationsEnabled(false);
+    setOutputs(response, ["unit-tests", "e2e"]);
+    expect(warning).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("e2e"));
   });
 
   // The job key is already what an `if:` dereferences, so anything but a

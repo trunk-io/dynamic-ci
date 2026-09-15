@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import { warn } from "./annotations";
 import type { DynamicCiResponse } from "./compat";
 
 /** Set the per-job output under its job key. */
@@ -27,9 +28,7 @@ export const setOutputs = (
   }
   for (const jobKey of requestedJobKeys) {
     if (!decided.has(jobKey)) {
-      core.warning(
-        `No verdict returned for job "${jobKey}"; defaulting to run.`,
-      );
+      warn(`No verdict returned for job "${jobKey}"; defaulting to run.`);
       setJobOutput(jobKey, true);
     }
   }

@@ -30,6 +30,27 @@ export default defineConfig([
     },
   },
   {
+    // `enable-annotation` gates annotations, and a call site that bypasses the
+    // gate posts one the caller turned off without failing anything.
+    files: ["src/**/*.ts"],
+    ignores: ["src/annotations.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "core",
+          property: "warning",
+          message: "Use warn() from src/annotations.ts.",
+        },
+        {
+          object: "core",
+          property: "notice",
+          message: "Use notice() from src/annotations.ts.",
+        },
+      ],
+    },
+  },
+  {
     files: ["src/__tests__/**/*.ts"],
     plugins: { vitest: pluginVitest },
     rules: {

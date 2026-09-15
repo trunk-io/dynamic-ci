@@ -18,9 +18,11 @@ vi.mock("@actions/core", () => ({
   },
 }));
 
+const { setAnnotationsEnabled } = await import("../annotations");
 const { reportRecommendations } = await import("../report");
 
 beforeEach(() => {
+  setAnnotationsEnabled(true);
   info.mockClear();
   notice.mockClear();
   warning.mockClear();
@@ -62,6 +64,15 @@ const response = {
   ],
 } as const satisfies DynamicCiResponse;
 
+const emptyWithNotice = {
+  jobs: [],
+  notice: {
+    code: "ORG_NOT_ENABLED",
+    message:
+      "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on.",
+  },
+} as const satisfies DynamicCiResponse;
+
 describe("reportRecommendations", () => {
   it("omits ABSTAIN signals from the per-signal log lines", async () => {
     await reportRecommendations(response);
@@ -96,15 +107,6 @@ describe("reportRecommendations", () => {
  * so the only evidence anything had happened was an absence.
  */
 describe("a plan with no verdicts", () => {
-  const emptyWithNotice = {
-    jobs: [],
-    notice: {
-      code: "ORG_NOT_ENABLED",
-      message:
-        "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on.",
-    },
-  } as const satisfies DynamicCiResponse;
-
   it("annotates the reason the service gave", async () => {
     await reportRecommendations(emptyWithNotice);
 
@@ -163,6 +165,37 @@ describe("a plan that carries both verdicts and a notice", () => {
     expect(notice).toHaveBeenCalledWith(
       "unit-tests: RUN — Running because this is a Merge Queue branch (never skipped).",
       { title: "Trunk Dynamic CI Filter" },
+    );
+  });
+});
+
+// The default, so this is what almost every run does.
+describe("with annotations turned off", () => {
+  beforeEach(() => {
+    setAnnotationsEnabled(false);
+  });
+
+  it("logs the verdicts and its signals without annotating them", async () => {
+    await reportRecommendations(response);
+
+    const lines = info.mock.calls.map((call) => String(call[0]));
+    expect(lines).toContain(
+      "  unit-tests: RUN — The job must run because a user override forces this job to run.",
+    );
+    expect(
+      lines.some((line) => line.includes("[MUST_RUN] force-override")),
+    ).toBe(true);
+    expect(notice).not.toHaveBeenCalled();
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  // `core.warning` is the only thing that would have printed the notice.
+  it("keeps the plan notice in the logs", async () => {
+    await reportRecommendations(emptyWithNotice);
+
+    expect(warning).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on. [ORG_NOT_ENABLED]",
     );
   });
 });

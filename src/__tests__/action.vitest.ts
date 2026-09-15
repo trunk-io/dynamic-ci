@@ -29,6 +29,16 @@ const TELEMETRY_URL =
 /** Status/reason are read back as raw protobuf field bytes; see decodeTelemetry. */
 let telemetryPosts: Uint8Array[] = [];
 
+/**
+ * `runAction` drives the real `@actions/core`, so its `::notice`/`::warning`
+ * commands would otherwise be interpreted by the runner executing this suite and
+ * land as annotations on *this* repo's CI. Captured for the whole file, both to
+ * keep the job's own annotation list clean and because the captured text is what
+ * the annotation assertions read.
+ */
+let stdoutChunks: string[] = [];
+const stdout = (): string => stdoutChunks.join("");
+
 const skipUnitTests: DynamicCiResponse = {
   jobs: [
     {
@@ -115,15 +125,18 @@ const stubRunnerEnv = ({
   omitToken = false,
   jobKeys = "",
   ignoreSignals = "",
+  enableAnnotation = "false",
 }: {
   token?: string;
   omitToken?: boolean;
   jobKeys?: string;
   ignoreSignals?: string;
+  enableAnnotation?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
+  vi.stubEnv("INPUT_ENABLE-ANNOTATION", enableAnnotation);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -180,10 +193,18 @@ describe("the action end to end", () => {
     writeFileSync(outputPath, "");
     writeFileSync(summaryPath, "");
     telemetryPosts = [];
+    stdoutChunks = [];
+    vi.spyOn(process.stdout, "write").mockImplementation(
+      (chunk: unknown): boolean => {
+        stdoutChunks.push(String(chunk));
+        return true;
+      },
+    );
     server.reset();
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
@@ -292,6 +313,7 @@ describe("the action end to end", () => {
     stubRunnerEnv({
       jobKeys: "unit-tests",
       ignoreSignals: "estimated-cost,a-signal-from-the-future",
+      enableAnnotation: "true",
     });
 
     await runAction();
@@ -329,7 +351,7 @@ describe("the action end to end", () => {
           }),
         ),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
 
     await runAction();
 
@@ -365,7 +387,10 @@ describe("the action end to end", () => {
             }),
         ),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
+    stubRunnerEnv({
+      jobKeys: "unit-tests,integration-tests",
+      enableAnnotation: "true",
+    });
 
     await runAction();
 
@@ -384,7 +409,7 @@ describe("the action end to end", () => {
           return HttpResponse.json(skipUnitTests);
         }),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
     vi.stubEnv("TRUNK_DYNAMIC_CI_TIMEOUT_MS", "20");
 
     await runAction();
@@ -394,7 +419,11 @@ describe("the action end to end", () => {
   });
 
   it("fails open without failing the step when the token is missing", async () => {
-    stubRunnerEnv({ jobKeys: "unit-tests", omitToken: true });
+    stubRunnerEnv({
+      jobKeys: "unit-tests",
+      omitToken: true,
+      enableAnnotation: "true",
+    });
 
     await expect(runAction()).resolves.toBeUndefined();
 
@@ -404,7 +433,7 @@ describe("the action end to end", () => {
   });
 
   it("writes a per-job summary table that omits ABSTAIN signals", async () => {
-    stubRunnerEnv({ jobKeys: "unit-tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
 
     await runAction();
 
@@ -471,6 +500,80 @@ describe("the action end to end", () => {
 
       await expect(runAction()).resolves.toBeUndefined();
       expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    });
+  });
+  // Asserted on stdout: an annotation and a log line are both workflow output,
+  // and the `::notice`/`::warning` prefix is all that separates them.
+  describe("annotations", () => {
+    it("writes nothing to the run page by default, and still logs", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+      await runAction();
+
+      const written = stdout();
+      expect(written).toContain(
+        "unit-tests: SKIP — Skip — 99% historical pass rate and no impacted files.",
+      );
+      expect(written).not.toContain("::notice");
+      expect(written).not.toContain("::warning");
+      // The job summary is the run page too, and it is the whole verdict table.
+      expect(readFileSync(summaryPath, "utf8")).toBe("");
+    });
+
+    it("posts the verdict when enable-annotation is true", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
+      await runAction();
+
+      expect(stdout()).toContain(
+        "::notice title=Trunk Dynamic CI Filter::unit-tests: SKIP — Skip — 99%25 historical pass rate and no impacted files.",
+      );
+    });
+
+    // The regression: only `report.ts` was gated at first, so a job the service
+    // omitted still annotated on the default path.
+    it("does not annotate a job the service left out of the plan", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
+      await runAction();
+
+      const written = stdout();
+      expect(written).toContain(
+        'No verdict returned for job "integration-tests"; defaulting to run.',
+      );
+      expect(written).not.toContain("::warning");
+      expect(readOutputs()).toEqual({
+        "unit-tests": "false",
+        "integration-tests": "true",
+      });
+    });
+
+    it("does not annotate an unrecognized ignore-signals value", async () => {
+      stubRunnerEnv({
+        jobKeys: "unit-tests",
+        ignoreSignals: "a-signal-from-the-future",
+      });
+      await runAction();
+
+      const written = stdout();
+      expect(written).toContain("a-signal-from-the-future");
+      expect(written).not.toContain("::warning");
+    });
+
+    it("logs a fail-open reason without annotating it", async () => {
+      server.overrideHandlers([
+        () => http.post(API_URL, () => new HttpResponse(null, { status: 503 })),
+        () =>
+          http.post(TELEMETRY_URL, async ({ request: received }) => {
+            telemetryPosts.push(new Uint8Array(await received.arrayBuffer()));
+            return new HttpResponse(null, { status: 200 });
+          }),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests" });
+      await runAction();
+
+      const written = stdout();
+      expect(written).toContain("Trunk Dynamic CI Filter failed open");
+      expect(written).not.toContain("::warning");
+      expect(readOutputs()).toEqual({ "unit-tests": "true" });
+      expect(readFileSync(summaryPath, "utf8")).toBe("");
     });
   });
 });
