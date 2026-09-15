@@ -170,10 +170,7 @@ describe("a plan that carries both verdicts and a notice", () => {
   });
 });
 
-/**
- * `enable-annotation: false` is the default, so this is what almost every run
- * does: the same log lines, and nothing on the run's annotation list.
- */
+// The default, so this is what almost every run does.
 describe("with annotations turned off", () => {
   it("logs the verdicts and its signals without annotating them", async () => {
     await reportRecommendations(response, silent);
@@ -189,8 +186,7 @@ describe("with annotations turned off", () => {
     expect(warning).not.toHaveBeenCalled();
   });
 
-  // A notice is the only account of why a green run skipped nothing, and
-  // `core.warning` is the only thing that would have printed it.
+  // `core.warning` is the only thing that would have printed the notice.
   it("keeps the plan notice in the logs", async () => {
     await reportRecommendations(emptyWithNotice, silent);
 

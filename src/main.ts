@@ -83,8 +83,7 @@ export const runAction = async (): Promise<void> => {
     await run();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    // Read on its own: `readInputs` may be what threw, and the flag is not
-    // behind the required token.
+    // Read on its own: `readInputs` may be what threw.
     const reportOptions: ReportOptions = { annotate: readAnnotationEnabled() };
     warnOrLog(
       reportOptions,

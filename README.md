@@ -214,25 +214,6 @@ neither side treats an unfamiliar identifier as an error:
 Check `SIGNAL_TYPES` for the release you have pinned to see what this version can
 describe, but read the job summary for what actually voted.
 
-## Annotations
-
-By default the action writes nothing to the run's **annotation** list: every verdict,
-the plan notice, and any fail-open are printed in the step's logs and written to the
-job summary, and the annotations only restated them on the run page — where, in
-fan-out mode, one per job crowds out the annotations a failing job actually left.
-
-Set `enable-annotation: true` to get them back:
-
-```yaml
-- uses: trunk-io/dynamic-ci-filter@v1
-  with:
-    token: ${{ secrets.TRUNK_API_TOKEN }}
-    enable-annotation: true
-```
-
-The setting moves **only** the annotations. The log lines and the job summary are
-identical either way, so nothing is lost by leaving it off.
-
 ## Environment variables
 
 | Variable                      | Default                | Description                                                                                     |

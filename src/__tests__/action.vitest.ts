@@ -476,11 +476,8 @@ describe("the action end to end", () => {
       expect(readOutputs()).toEqual({ "unit-tests": "false" });
     });
   });
-  /**
-   * Asserted on stdout rather than by mocking `@actions/core`: an annotation and
-   * a log line are both workflow output, and the `::notice`/`::warning` command
-   * prefix is the only thing that separates them.
-   */
+  // Asserted on stdout: an annotation and a log line are both workflow output,
+  // and the `::notice`/`::warning` prefix is all that separates them.
   describe("annotations", () => {
     const captureStdout = (): { lines: () => string; restore: () => void } => {
       const chunks: string[] = [];

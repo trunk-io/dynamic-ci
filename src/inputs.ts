@@ -23,13 +23,10 @@ const splitList = (raw: string): string[] =>
     .filter(Boolean);
 
 /**
- * Whether annotations are turned on. Read on its own, and not via
- * `core.getBooleanInput`, for two reasons: the unexpected-error path needs the
- * flag before — and independently of — the required `token`, which `readInputs`
- * throws without; and `getBooleanInput` throws on any value outside the YAML
- * boolean set, which would take the gate down over a cosmetic setting. An
- * unrecognized value is warned about and read as off, matching how
- * `ignore-signals` treats a value it cannot make sense of.
+ * Read separately from `readInputs` because the unexpected-error path needs the
+ * flag without the required `token` that `readInputs` throws over, and not via
+ * `core.getBooleanInput` because it throws on any non-YAML-boolean value, which
+ * would take the gate down over a cosmetic setting.
  */
 export const readAnnotationEnabled = (): boolean => {
   const raw = core.getInput("enable-annotation").trim().toLowerCase();

@@ -7,19 +7,14 @@ import type {
 
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
 
-/**
- * Whether to post annotations, from the `enable-annotation` input. Nothing else
- * about reporting depends on it: the log lines and the job summary are written
- * either way.
- */
+/** The `enable-annotation` input. Logs and the job summary ignore it. */
 export interface ReportOptions {
   annotate: boolean;
 }
 
 /**
- * A message that has no `core.info` line of its own, since `core.warning` both
- * logs and annotates. With annotations off it still has to reach the log, so it
- * degrades to a plain line rather than disappearing with the annotation.
+ * `core.warning` both logs and annotates, so a message carried by one has no
+ * log line of its own to fall back on — hence the degrade rather than a skip.
  */
 export const warnOrLog = (
   options: ReportOptions,
@@ -169,8 +164,7 @@ const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
 /**
  * The plan-level condition, when the service reports one. A warning rather than
  * an info line: these plans are green and empty, and only a warning reaches the
- * run's annotation list — which is also why it is the info line it was competing
- * with once annotations are off.
+ * run's annotation list.
  */
 const reportPlanNotice = (
   response: DynamicCiResponse,
@@ -189,7 +183,7 @@ const reportPlanNotice = (
   }
 };
 
-/** Log + (when annotations are on) annotate the recommendations served by the API. */
+/** Log + annotate the recommendations served by the API. */
 export const reportRecommendations = async (
   response: DynamicCiResponse,
   options: ReportOptions,
@@ -202,7 +196,7 @@ export const reportRecommendations = async (
     core.info(`${ANNOTATION_TITLE} recommendations:`);
     for (const job of response.jobs) {
       logVerdict(job);
-      // Dropped outright rather than degraded: `logVerdict` already printed it.
+      // Dropped rather than degraded: `logVerdict` already printed it.
       if (options.annotate) {
         core.notice(
           `${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`,
@@ -217,7 +211,7 @@ export const reportRecommendations = async (
   await writeSummary(response);
 };
 
-/** Log + (when annotations are on) annotate that the action failed open. */
+/** Log + annotate that the action failed open (recommending RUN for all jobs). */
 export const reportFailOpen = async (
   jobKeys: string[],
   reason: string,

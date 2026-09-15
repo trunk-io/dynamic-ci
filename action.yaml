@@ -29,11 +29,8 @@ inputs:
     required: false
   enable-annotation:
     description:
-      Post the recommendation to the workflow run's annotation list. Off by
-      default, since the verdicts, the plan notice and any fail-open are always
-      printed to the step's logs and written to the job summary, and the
-      annotations only restate them on the run page. Set it to true to get them
-      back.
+      Post the recommendation to the workflow run's annotation list. The logs
+      and the job summary are written either way.
     required: false
     default: "false"
   gh-action-ref:
