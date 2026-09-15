@@ -20,6 +20,21 @@ export const REPO_SCHEMA: z.ZodObject<{
 });
 export type Repo = z.infer<typeof REPO_SCHEMA>;
 
+export const BUILDKITE_PIPELINE_SCHEMA: z.ZodObject<{
+  buildkiteOrganizationSlug: z.ZodString;
+  buildkitePipelineSlug: z.ZodString;
+}> = z.object({
+  buildkiteOrganizationSlug: z
+    .string()
+    .min(1)
+    .describe("BUILDKITE_ORGANIZATION_SLUG, e.g. acme."),
+  buildkitePipelineSlug: z
+    .string()
+    .min(1)
+    .describe("BUILDKITE_PIPELINE_SLUG, e.g. widgets-pr."),
+});
+export type BuildkitePipeline = z.infer<typeof BUILDKITE_PIPELINE_SCHEMA>;
+
 export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
   repo: typeof REPO_SCHEMA;
   commitSha: z.ZodString;
@@ -78,4 +93,20 @@ export const DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<{
       "Signals to drop from the verdict tally. An unknown id fails validation.",
     ),
 });
+
 export type DynamicCiRequest = z.infer<typeof DYNAMIC_CI_REQUEST_SCHEMA>;
+
+export type PlanRequestCommon = Omit<DynamicCiRequest, "workflowPath">;
+
+export const BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA: z.ZodObject<
+  Omit<(typeof DYNAMIC_CI_REQUEST_SCHEMA)["shape"], "workflowPath"> & {
+    buildkiteOrganizationSlug: z.ZodString;
+    buildkitePipelineSlug: z.ZodString;
+  }
+> = DYNAMIC_CI_REQUEST_SCHEMA.omit({ workflowPath: true }).extend(
+  BUILDKITE_PIPELINE_SCHEMA.shape,
+);
+
+export type BuildkiteDynamicCiRequest = z.infer<
+  typeof BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA
+>;
