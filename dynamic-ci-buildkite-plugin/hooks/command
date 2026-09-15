@@ -1,45 +1,34 @@
 #!/usr/bin/env bash
-# Trunk Dynamic CI — pipeline mode.
+# Trunk Dynamic CI — the plugin's command hook.
 #
-# Replaces the upload step's command: render the pipeline, ask Trunk which steps
-# to skip, mark those steps, upload the result. The skip is therefore taken
-# before any agent is acquired for the skipped steps.
+# Buildkite runs this INSTEAD of the step's command whenever the file exists, so
+# every mode is dispatched from here — including the ones where the plugin does
+# not own the command and has to hand the step back explicitly.
+#
+#   pipeline  the plugin owns the upload step: render, plan, mark, upload. The
+#             skip is taken before an agent is acquired for the skipped steps.
+#   filter    the customer owns the command; `lib/filter.sh` does the work in
+#             their pipe. Nothing to do here but give the step back.
+#   step      the plugin owns one step and decides about that step alone.
 #
 # Two things this deliberately does NOT do. It never reads or writes the
 # customer's YAML — `buildkite-agent pipeline upload --dry-run --format json`
 # makes the agent parse it, so there is no second implementation of Buildkite's
 # interpolation rules and no YAML round-trip to mangle comments or anchors. And
-# it never adds anything to the pipeline but `skip`, so the worst a wrong plan
-# can do is stop work happening; it cannot make anything new run.
+# it never adds anything to a pipeline but `skip`, so the worst a wrong plan can
+# do is stop work happening; it cannot make anything new run.
 #
-# Every failure path uploads the pipeline unmodified. This step is on the
-# critical path of every build, so the plugin must never be what breaks one.
+# Every OPERATIONAL failure runs the work anyway. A CONFIGURATION error fails
+# loudly instead — see the mode dispatch at the foot of this file.
 
 set -euo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-# A plugin's command hook fires whenever the file exists, and it REPLACES the
-# step's command — so in any mode where the plugin does not own the command, the
-# step has to be handed back explicitly.
-#
-# `BUILDKITE_SHELL` rather than a bare `bash -c`: it is the shell and flags the
-# agent would itself have used (default `/bin/bash -e -c`), so the command runs
-# with the same error handling it would without this plugin installed. A bare
-# `bash -c` silently drops the agent's `-e`, which turns a failing first line of
-# a multi-line command into a passing step.
-if [[ ${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline} != "pipeline" ]]; then
-	if [[ -z ${BUILDKITE_COMMAND-} ]]; then
-		exit 0
-	fi
-	shell="${BUILDKITE_SHELL:-/bin/bash -e -c}"
-	# shellcheck disable=SC2086 # BUILDKITE_SHELL is a command plus flags; word splitting is the point
-	exec ${shell} "${BUILDKITE_COMMAND}"
-fi
 # shellcheck source-path=SCRIPTDIR/..
 # shellcheck source=lib/jq.sh
 source "${PLUGIN_DIR}/lib/jq.sh"
 
+MODE="${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline}"
 PIPELINE_FILE="${BUILDKITE_PLUGIN_DYNAMIC_CI_PIPELINE-}"
 TOKEN_ENV="${BUILDKITE_PLUGIN_DYNAMIC_CI_TOKEN_ENV:-TRUNK_TOKEN}"
 
@@ -53,6 +42,22 @@ fi
 # before bash 4.4, and agent images that old are still in the wild.
 
 log() { echo "$1" >&2; }
+
+# Run the command Buildkite would have run without this plugin installed, and
+# never return.
+#
+# `BUILDKITE_SHELL` rather than a bare `bash -c`: it is the shell and flags the
+# agent would itself have used (default `/bin/bash -e -c`). A bare `bash -c`
+# silently drops the agent's `-e`, which turns a failing first line of a
+# multi-line command into a passing step.
+hand_back() {
+	if [[ -z ${BUILDKITE_COMMAND-} ]]; then
+		exit 0
+	fi
+	local shell="${BUILDKITE_SHELL:-/bin/bash -e -c}"
+	# shellcheck disable=SC2086 # BUILDKITE_SHELL is a command plus flags; word splitting is the point
+	exec ${shell} "${BUILDKITE_COMMAND}"
+}
 
 # The plugin's own config is how we detect the one misconfiguration that is
 # otherwise invisible: Buildkite derives a hook's `BUILDKITE_PLUGIN_<NAME>_`
@@ -82,7 +87,8 @@ upload_plain() {
 	buildkite-agent pipeline upload ${pipeline_args[@]+"${pipeline_args[@]}"}
 }
 
-main() {
+# Pipeline mode: the plugin owns the upload step's command.
+pipeline_mode() {
 	warn_if_no_plugin_config
 
 	local rendered jq_bin keys plan skips mutated
@@ -117,6 +123,7 @@ main() {
 		return 0
 	fi
 
+	# shellcheck disable=SC2016 # `$key` is a jq variable, bound by --arg, not a shell one
 	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" TRUNK_DCI_JQ="${jq_bin}" \
 		"${PLUGIN_DIR}/lib/request-plan.sh" "${keys}")"; then
 		log "--- :trunk: Dynamic CI is unavailable — running every step"
@@ -143,4 +150,80 @@ main() {
 	upload_rendered "${mutated}"
 }
 
-main "$@"
+# Step mode: one step, one verdict. The step has already been dispatched by the
+# time this runs, so a skip here means the step does no work — it cannot mean the
+# step never started.
+#
+# **It therefore reports `passed`, not `skipped`**, and that is a real cost, not
+# a cosmetic one: `previous-result-on-pr` reads exactly those conclusions, so a
+# step-mode skip looks like evidence the step passed on this commit. Pipeline and
+# filter mode do not have this problem because the step is marked before dispatch.
+step_mode() {
+	local key="${BUILDKITE_STEP_KEY-}" jq_bin plan skips reason
+
+	# Unlike pipeline mode there is no useful degraded behaviour: the key IS the
+	# request. Running the step while the customer believes Dynamic CI is
+	# deciding about it is the failure worth being loud about.
+	if [[ -z ${key} ]]; then
+		log "--- :trunk: Dynamic CI in step mode needs a key: on this step"
+		log "    Trunk identifies a Buildkite step by its key:, so there is nothing"
+		log "    to ask about without one. Add a key:, or remove the plugin from"
+		log "    this step."
+		return 1
+	fi
+
+	if ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/bin")"; then
+		log "--- :trunk: Dynamic CI has no usable jq — running this step"
+		hand_back
+	fi
+
+	# shellcheck disable=SC2016 # `$key` is a jq variable, bound by --arg, not a shell one
+	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" TRUNK_DCI_JQ="${jq_bin}" \
+		"${PLUGIN_DIR}/lib/request-plan.sh" \
+		"$("${jq_bin}" -c -n --arg key "${key}" '[$key]')")"; then
+		log "--- :trunk: Dynamic CI is unavailable — running this step"
+		hand_back
+	fi
+
+	if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
+		log "--- :trunk: Dynamic CI returned a plan this version cannot read — running this step"
+		hand_back
+	fi
+
+	# Absent from the skip set means run, which is also what an empty plan and an
+	# unrecognised key mean. Every one of them runs the step.
+	# shellcheck disable=SC2016 # `$key` is a jq variable, bound by --arg, not a shell one
+	reason="$("${jq_bin}" -r --arg key "${key}" '.[$key] // empty' <<<"${skips}")"
+	if [[ -z ${reason} ]]; then
+		hand_back
+	fi
+
+	log "--- :trunk: ${reason}"
+	log "    Dynamic CI skipped this step's work. The step reports success."
+	return 0
+}
+
+# A mode this version does not implement is a CONFIGURATION error, and the one
+# case that does not fail open. Fail-open exists for outages — an unreachable
+# API, a missing jq — where running the work is the safe answer. A typo'd or
+# unsupported mode is neither: it surfaces on the customer's very first build,
+# and degrading to "do nothing, say nothing" is how a plugin gets installed,
+# believed, and never skips anything.
+case "${MODE}" in
+pipeline)
+	warn_if_no_plugin_config
+	pipeline_mode
+	;;
+filter)
+	hand_back
+	;;
+step)
+	warn_if_no_plugin_config
+	step_mode
+	;;
+*)
+	log "--- :trunk: Dynamic CI does not support mode \"${MODE}\""
+	log "    Valid modes are: pipeline, filter, step."
+	exit 1
+	;;
+esac

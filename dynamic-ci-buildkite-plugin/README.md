@@ -69,6 +69,35 @@ Filter mode works for a generator in any language, and on JSON input it does
 less work than pipeline mode: the pipeline is already parsed, so nothing is
 rendered and nothing is interpolated that would not have been anyway.
 
+## If you want to try one step first
+
+**Step mode** puts the plugin on a single step, which then asks about itself:
+
+```yaml
+- key: e2e
+  label: ":robot: E2E"
+  command: make e2e
+  env:
+    TRUNK_TOKEN: ${TRUNK_DYNAMIC_CI_TOKEN}
+  plugins:
+    - trunk-io/dynamic-ci#v1:
+        mode: step
+```
+
+Two honest differences from the other modes, because the step has already been
+dispatched by the time Trunk is asked:
+
+- **The saving is smaller.** The agent is acquired, the repository checked out,
+  and plugins set up before anything is skipped. On a long step that is still
+  most of the cost; on a short one it may be nearly all of it.
+- **Buildkite reports the step as passed, not skipped**, because it ran and did
+  no work. Pipeline and filter mode mark the step before dispatch and so report
+  it as genuinely skipped.
+
+A step in this mode **must** have a `key:` — it is the whole request — and the
+plugin fails the step rather than running it if one is missing, so you never get
+a step that looks filtered but is not.
+
 ## Your steps need a `key:`
 
 Trunk identifies a Buildkite step by its declarative `key:`, which is the only

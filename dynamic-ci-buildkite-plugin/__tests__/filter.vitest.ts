@@ -1,22 +1,10 @@
 import { execFile, execFileSync } from "node:child_process";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA } from "../../src/schema/request";
 import { PLUGIN_ROOT, vendoredJqPath } from "./support/jq";
-
-const AGENT_ENV = {
-  BUILDKITE_REPO: "git@github.com:trunk-io/trunk2.git",
-  BUILDKITE_COMMIT: "9f2c1b7c2b4c9d1e0a3f5b6c7d8e9f0a1b2c3d4e",
-  BUILDKITE_BRANCH: "feature/x",
-  BUILDKITE_PULL_REQUEST: "4213",
-  BUILDKITE_BUILD_ID: "01a0a151-99d4-4097-8806-a837f0830d9d",
-  BUILDKITE_ORGANIZATION_SLUG: "trunk",
-  BUILDKITE_PIPELINE_SLUG: "trunk2-pr",
-  TRUNK_TOKEN: "test-token",
-} as const;
+import { AGENT_ENV, withPlanServer } from "./support/plan-server";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,37 +29,6 @@ const runFilter = async (
   });
   child.child.stdin?.end(input);
   return child;
-};
-
-/** A plan endpoint on loopback, so the whole chain including curl is exercised. */
-const withPlanServer = async (
-  plan: unknown,
-  body: { received?: unknown },
-  run: (address: string) => Promise<void>,
-): Promise<void> => {
-  const server: Server = createServer((req, res) => {
-    const parts: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => parts.push(chunk));
-    req.on("end", () => {
-      body.received = JSON.parse(Buffer.concat(parts).toString("utf8"));
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(plan));
-    });
-  });
-
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  try {
-    const address = server.address();
-    if (address === null || typeof address === "string") {
-      throw new Error("the plan server did not bind a port");
-    }
-    const { port }: AddressInfo = address;
-    await run(`http://127.0.0.1:${String(port)}`);
-  } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    });
-  }
 };
 
 const PIPELINE = {
