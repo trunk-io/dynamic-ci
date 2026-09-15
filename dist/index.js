@@ -27966,6 +27966,7 @@ var warn = (message, title) => {
   }
   core.info(message);
 };
+var annotationsEnabled = () => enabled;
 var notice2 = (message, title) => {
   if (enabled) {
     core.notice(message, { title });
@@ -32275,7 +32276,7 @@ var summaryBody = (response) => {
   ];
 };
 var writeSummary = async (response) => {
-  if (!process.env["GITHUB_STEP_SUMMARY"]) {
+  if (!annotationsEnabled() || !process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   const markdown = [
@@ -32318,7 +32319,7 @@ var reportFailOpen = async (jobKeys, reason) => {
     `${ANNOTATION_TITLE} failed open \u2014 recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
     `${ANNOTATION_TITLE} (fail-open)`
   );
-  if (!process.env["GITHUB_STEP_SUMMARY"]) {
+  if (!annotationsEnabled() || !process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   core5.summary.addHeading(`${ANNOTATION_TITLE} \u2014 fail-open`, 2);

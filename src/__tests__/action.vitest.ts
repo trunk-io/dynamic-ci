@@ -295,6 +295,7 @@ describe("the action end to end", () => {
     stubRunnerEnv({
       jobKeys: "unit-tests",
       ignoreSignals: "estimated-cost,a-signal-from-the-future",
+      enableAnnotation: "true",
     });
 
     await runAction();
@@ -332,7 +333,7 @@ describe("the action end to end", () => {
           }),
         ),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
 
     await runAction();
 
@@ -368,7 +369,10 @@ describe("the action end to end", () => {
             }),
         ),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests,integration-tests" });
+    stubRunnerEnv({
+      jobKeys: "unit-tests,integration-tests",
+      enableAnnotation: "true",
+    });
 
     await runAction();
 
@@ -387,7 +391,7 @@ describe("the action end to end", () => {
           return HttpResponse.json(skipUnitTests);
         }),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
     vi.stubEnv("TRUNK_DYNAMIC_CI_TIMEOUT_MS", "20");
 
     await runAction();
@@ -397,7 +401,11 @@ describe("the action end to end", () => {
   });
 
   it("fails open without failing the step when the token is missing", async () => {
-    stubRunnerEnv({ jobKeys: "unit-tests", omitToken: true });
+    stubRunnerEnv({
+      jobKeys: "unit-tests",
+      omitToken: true,
+      enableAnnotation: "true",
+    });
 
     await expect(runAction()).resolves.toBeUndefined();
 
@@ -407,7 +415,7 @@ describe("the action end to end", () => {
   });
 
   it("writes a per-job summary table that omits ABSTAIN signals", async () => {
-    stubRunnerEnv({ jobKeys: "unit-tests" });
+    stubRunnerEnv({ jobKeys: "unit-tests", enableAnnotation: "true" });
 
     await runAction();
 
@@ -490,7 +498,7 @@ describe("the action end to end", () => {
       return { lines: () => chunks.join(""), restore: () => spy.mockRestore() };
     };
 
-    it("posts none by default, and still logs the verdict", async () => {
+    it("writes nothing to the run page by default, and still logs", async () => {
       stubRunnerEnv({ jobKeys: "unit-tests" });
       const stdout = captureStdout();
 
@@ -506,7 +514,8 @@ describe("the action end to end", () => {
       );
       expect(written).not.toContain("::notice");
       expect(written).not.toContain("::warning");
-      expect(readFileSync(summaryPath, "utf8")).toContain("unit-tests");
+      // The job summary is the run page too, and it is the whole verdict table.
+      expect(readFileSync(summaryPath, "utf8")).toBe("");
     });
 
     it("posts the verdict when enable-annotation is true", async () => {
@@ -587,7 +596,7 @@ describe("the action end to end", () => {
       expect(written).toContain("Trunk Dynamic CI Filter failed open");
       expect(written).not.toContain("::warning");
       expect(readOutputs()).toEqual({ "unit-tests": "true" });
-      expect(readFileSync(summaryPath, "utf8")).toContain("fail-open");
+      expect(readFileSync(summaryPath, "utf8")).toBe("");
     });
   });
 });

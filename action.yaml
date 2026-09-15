@@ -29,8 +29,8 @@ inputs:
     required: false
   enable-annotation:
     description:
-      Post the recommendation to the workflow run's annotation list. The logs
-      and the job summary are written either way.
+      Post the recommendation to the workflow run — its annotation list and the
+      job summary. The step's logs are written either way.
     required: false
     default: "false"
   gh-action-ref:

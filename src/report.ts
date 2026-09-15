@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { notice, warn } from "./annotations";
+import { annotationsEnabled, notice, warn } from "./annotations";
 import type {
   DynamicCiResponse,
   JobVerdict,
@@ -122,11 +122,11 @@ const summaryBody = (response: DynamicCiResponse): string[] => {
  * Write the job summary as markdown: the plan-level notice if there is one, then
  * a compact at-a-glance verdict table and one collapsible `<details>` section per
  * job holding its per-signal breakdown, so many jobs (fan-out mode) stay
- * scannable. Skipped (logs only) when `GITHUB_STEP_SUMMARY` is unavailable
- * (e.g. tests).
+ * scannable. Skipped (logs only) when annotations are off, or when
+ * `GITHUB_STEP_SUMMARY` is unavailable (e.g. tests).
  */
 const writeSummary = async (response: DynamicCiResponse): Promise<void> => {
-  if (!process.env["GITHUB_STEP_SUMMARY"]) {
+  if (!annotationsEnabled() || !process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   const markdown = [
@@ -190,7 +190,7 @@ export const reportFailOpen = async (
     `${ANNOTATION_TITLE} failed open — recommending RUN for ${jobKeys.join(", ") || "all jobs in scope"}: ${reason}`,
     `${ANNOTATION_TITLE} (fail-open)`,
   );
-  if (!process.env["GITHUB_STEP_SUMMARY"]) {
+  if (!annotationsEnabled() || !process.env["GITHUB_STEP_SUMMARY"]) {
     return;
   }
   core.summary.addHeading(`${ANNOTATION_TITLE} — fail-open`, 2);
