@@ -50,7 +50,11 @@ pipeline the filter renders without interpolation, so your upload performs the
 single pass. If it does not, nothing interpolates and `$$VAR` reaches the shell,
 which reads `$$` as its own process id — `$$FOO` becomes something like
 `206FOO`. Not an error and not a blank: a plausible string that changes every
-run. The plugin warns when it takes this path.
+run.
+
+The plugin says so when there is something to lose: it stays quiet if your
+pipeline has nothing to interpolate, and if your step's command is visible it
+speaks up only when that command really does pass the flag.
 
 **It is a command, not a path in a variable, on purpose.** Buildkite interpolates
 `${VAR}` in an uploaded pipeline at _upload_ time, while anything a plugin
@@ -117,15 +121,15 @@ gets you a real skip:
         mode: step
 ```
 
-Two honest differences from the other modes, because the step has already been
+Two honest differences from filter mode, because the step has already been
 dispatched by the time Trunk is asked:
 
 - **The saving is smaller.** The agent is acquired, the repository checked out,
   and plugins set up before anything is skipped. On a long step that is still
   most of the cost; on a short one it may be nearly all of it.
 - **Buildkite reports the step as passed, not skipped**, because it ran and did
-  no work. Pipeline and filter mode mark the step before dispatch and so report
-  it as genuinely skipped.
+  no work. Filter mode marks the step before dispatch and so reports it as
+  genuinely skipped.
 
 A step in this mode **must** have a `key:` — it is the whole request — and the
 plugin fails the step rather than running it if one is missing, so you never get

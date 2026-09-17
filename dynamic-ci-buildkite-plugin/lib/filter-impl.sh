@@ -90,11 +90,30 @@ else
     # nothing interpolates and `$$VAR` reaches the shell, which reads `$$` as
     # its own PID — `$$FX_INNER` becomes `206FX_INNER`. Not an error, not a
     # blank: a plausible string that changes every run. Measured, not theorised.
-    log "--- :trunk: Dynamic CI rendered this pipeline without interpolation"
-    # shellcheck disable=SC2016 # backticks quote a command name; single quotes are required
-    log '    Your `buildkite-agent pipeline upload` must NOT pass --no-interpolation,'
-    # shellcheck disable=SC2016 # `$$VAR` is the literal text being explained
-    log '    or nothing will interpolate and $$VAR will resolve to a process id.'
+    #
+    # Two gates before saying any of that, because this used to fire on every
+    # YAML pipeline and a warning everyone sees on every build is a warning
+    # nobody reads. A pipeline with no `$` in it cannot be damaged by a missing
+    # interpolation pass, so there is nothing to warn about; and where there is
+    # something at stake, the step's own command usually settles whether the
+    # mistake was actually made.
+    if [[ ${rendered} == *'$'* ]]; then
+        if [[ ${BUILDKITE_COMMAND-} == *--no-interpolation* ]]; then
+            log "--- :trunk: Dynamic CI: remove --no-interpolation from your pipeline upload"
+            log "    This step's command passes it, and Dynamic CI has already rendered"
+            log "    without interpolation — so nothing will interpolate at all."
+            # shellcheck disable=SC2016 # `$$VAR` is the literal text being explained
+            log '    $$VAR will resolve to a process id rather than to your variable.'
+        elif [[ -n ${BUILDKITE_COMMAND-} ]]; then
+            : # Command is visible and does not pass the flag. Nothing to say.
+        else
+            log "--- :trunk: Dynamic CI rendered this pipeline without interpolation"
+            # shellcheck disable=SC2016 # backticks quote a command name; single quotes are required
+            log '    Your `buildkite-agent pipeline upload` must NOT pass --no-interpolation,'
+            # shellcheck disable=SC2016 # `$$VAR` is the literal text being explained
+            log '    or nothing will interpolate and $$VAR will resolve to a process id.'
+        fi
+    fi
 fi
 
 only_keys="$("${jq_bin}" -c -n \

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA } from "../../src/schema/request";
+import { fakeAgentPath } from "./support/agent";
 import { PLUGIN_ROOT, vendoredJqPath } from "./support/jq";
 import {
   AGENT_ENV,
@@ -171,6 +172,88 @@ describe("filter mode", () => {
     const { stdout } = await runFilter(json);
 
     expect(stdout).toBe(json);
+  });
+});
+
+// The YAML branch renders with `--no-interpolation`, so the customer's own
+// `pipeline upload` owes the single pass. If theirs passes the flag too, nothing
+// interpolates and `$$VAR` reaches the shell, which reads `$$` as its own PID —
+// `$$FX_INNER` becomes `206FX_INNER`. Not an error and not a blank: a plausible
+// string that changes every run.
+//
+// This used to be said on every YAML pipeline, which is how the first customer
+// to try filter mode was told off for a mistake they had not made. A warning
+// everyone sees on every build is a warning nobody reads, so it is now gated on
+// there being something to lose and, where the step's command is visible, on the
+// mistake actually having been made.
+describe("the interpolation warning", () => {
+  const YAML = "steps:\n  - key: unit\n    command: make test\n";
+  const NOTHING_TO_LOSE = { steps: [{ key: "unit", command: "make test" }] };
+  const AT_STAKE = { steps: [{ key: "unit", command: "echo $$FX_INNER" }] };
+
+  const renderAs = async (
+    rendered: unknown,
+    command: string,
+  ): Promise<string> => {
+    const captured: CapturedRequest = {};
+    let stderr = "";
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      ({ stderr } = await runFilter(YAML, {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        PATH: fakeAgentPath(rendered),
+        BUILDKITE_COMMAND: command,
+      }));
+    });
+
+    return stderr;
+  };
+
+  const PIPED =
+    "cat p.yml | trunk-dynamic-ci-filter | buildkite-agent pipeline upload";
+
+  it("says nothing when the pipeline has nothing to interpolate", async () => {
+    expect(await renderAs(NOTHING_TO_LOSE, PIPED)).not.toContain(
+      "interpolation",
+    );
+  });
+
+  it("says nothing when the command is visible and does not pass the flag", async () => {
+    expect(await renderAs(AT_STAKE, PIPED)).not.toContain("interpolation");
+  });
+
+  it("names the mistake when the command actually passes the flag", async () => {
+    expect(await renderAs(AT_STAKE, `${PIPED} --no-interpolation`)).toContain(
+      "remove --no-interpolation",
+    );
+  });
+
+  it("falls back to the advisory when it cannot see the command", async () => {
+    expect(await renderAs(AT_STAKE, "")).toContain(
+      "must NOT pass --no-interpolation",
+    );
+  });
+
+  it("still filters the pipeline on the YAML path", async () => {
+    const captured: CapturedRequest = {};
+    let stdout = "";
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      ({ stdout } = await runFilter(YAML, {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        PATH: fakeAgentPath(NOTHING_TO_LOSE),
+      }));
+    });
+
+    expect(JSON.parse(stdout)).toEqual({
+      steps: [
+        {
+          key: "unit",
+          command: "make test",
+          skip: "Trunk Dynamic CI: passed 40/40",
+        },
+      ],
+    });
   });
 });
 
