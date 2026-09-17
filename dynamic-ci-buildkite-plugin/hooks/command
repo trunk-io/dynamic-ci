@@ -10,16 +10,6 @@
 #                     pipe. Nothing to do here but give the step back.
 #   step              the plugin owns one step and decides about that step alone.
 #
-# There used to be a third, `pipeline`, which took over an upload step and ran
-# the filter itself. It was removed once measurement showed it bought no
-# correctness: over a static file with anchors and merge keys, both modes
-# produced byte-identical uploads, and both performed exactly one interpolation
-# pass. What it did cost was command absorption — the "your upload step must do
-# nothing else" constraint, the `kubernetes`-plugin conflict, and a pipeline
-# whose behaviour was invisible in the customer's own YAML. The one thing it
-# guaranteed (that the interpolation contract could not be got wrong) is now a
-# warning emitted by the filter exactly where that risk lives.
-#
 # Every OPERATIONAL failure runs the work anyway. A CONFIGURATION error fails
 # loudly instead — see the mode dispatch at the foot of this file.
 
@@ -57,21 +47,6 @@ hand_back() {
 	exec ${shell} "${BUILDKITE_COMMAND}"
 }
 
-# The plugin's own config is how we detect the one misconfiguration that is
-# otherwise invisible: Buildkite derives a hook's `BUILDKITE_PLUGIN_<NAME>_`
-# prefix from the plugin's directory or repository name, and a subdirectory
-# plugin is exactly the case where that derivation is easy to get wrong. If no
-# variable with our prefix exists at all, say so and name what did arrive.
-warn_if_no_plugin_config() {
-	if compgen -v | grep -q '^BUILDKITE_PLUGIN_DYNAMIC_CI_'; then
-		return 0
-	fi
-	log "--- :trunk: Dynamic CI saw no BUILDKITE_PLUGIN_DYNAMIC_CI_* configuration."
-	log "    Plugin variables present: $(compgen -v | grep '^BUILDKITE_PLUGIN_' | tr '\n' ' ')"
-	log "    If the prefix above is not DYNAMIC_CI, the plugin's directory name and"
-	log "    this hook disagree — the plan will be requested with defaults only."
-}
-
 # Filter mode does nothing unless the customer pipes through the filter, and a
 # plugin that installs cleanly and silently never skips anything is the failure
 # this design keeps designing away from. The command may call a script that pipes
@@ -90,10 +65,10 @@ warn_if_filter_unused() {
 # time this runs, so a skip here means the step does no work — it cannot mean the
 # step never started.
 #
-# **It therefore reports `passed`, not `skipped`**, and that is a real cost, not
-# a cosmetic one: `previous-result-on-pr` reads exactly those conclusions, so a
-# step-mode skip looks like evidence the step passed on this commit. Filter mode
-# does not have this problem because the step is marked before dispatch.
+# **It therefore reports `passed`, not `skipped`**, which is a real cost rather
+# than a cosmetic one: the step's recorded outcome is a pass that tested nothing.
+# Filter mode does not have this problem, because the step is marked before
+# dispatch and so reports as genuinely skipped.
 step_mode() {
 	local key="${BUILDKITE_STEP_KEY-}" jq_bin plan skips reason
 
@@ -171,19 +146,15 @@ step_mode() {
 # believed, and never skips anything.
 case "${MODE}" in
 filter)
-	warn_if_no_plugin_config
 	warn_if_filter_unused
 	hand_back
 	;;
 step)
-	warn_if_no_plugin_config
 	step_mode
 	;;
 *)
 	log "--- :trunk: Dynamic CI does not support mode \"${MODE}\""
 	log "    Valid modes are: filter, step."
-	# shellcheck disable=SC2016 # backticks quote a command name, not a substitution
-	log '    `pipeline` was removed: pipe your pipeline through trunk-dynamic-ci-filter instead.'
 	exit 1
 	;;
 esac

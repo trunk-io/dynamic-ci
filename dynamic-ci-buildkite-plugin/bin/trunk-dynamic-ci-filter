@@ -7,12 +7,4 @@
 # (buildkite-plugins/library-example-buildkite-plugin). So this directory holds
 # exactly what we mean to expose — the vendored `jq` lives in `vendor/`, off
 # PATH, precisely so it is not exposed by accident.
-#
-# A command rather than a path in an environment variable, because Buildkite
-# interpolates `${VAR}` in an uploaded pipeline **at upload time**, and anything
-# this plugin exports exists only at step runtime. A pipe written
-# `| "${TRUNK_DYNAMIC_CI_FILTER}" |` therefore collapses to `|  |` — a shell
-# syntax error on the customer's first build, reading as the plugin breaking
-# their step. Escaping it (`$$`) works and three audited customers do exactly
-# that for their own variables, but a command name has nothing to escape.
 exec "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/filter-impl.sh" "$@"

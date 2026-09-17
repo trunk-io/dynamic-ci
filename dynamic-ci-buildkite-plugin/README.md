@@ -6,11 +6,8 @@ acquires an agent.
 
 ## Usage
 
-> **Pre-release.** At release this plugin lives in its own public repository,
-> `trunk-io/dynamic-ci-buildkite-plugin`, which is what makes the short
-> reference below resolve — Buildkite appends `-buildkite-plugin` to
-> `trunk-io/dynamic-ci`. Until that split it is a subdirectory here, so
-> reference it the long way:
+> **Pre-release.** The short reference in the examples below does not resolve
+> yet. Until it does, reference the plugin by its full path:
 >
 > ```yaml
 > - https://github.com/trunk-io/dynamic-ci.git/dynamic-ci-buildkite-plugin#main: ~
@@ -66,11 +63,6 @@ The plugin says so when there is something to lose: it stays quiet if your
 pipeline has nothing to interpolate, and if your step's command is visible it
 speaks up only when that command really does pass the flag.
 
-**It is a command, not a path in a variable, on purpose.** Buildkite interpolates
-`${VAR}` in an uploaded pipeline at _upload_ time, while anything a plugin
-exports exists only at _step_ runtime. A pipe written `| "${SOME_PATH}" |` would
-collapse to `|  |`. A command name has nothing to interpolate.
-
 ### Options
 
 | Option           | Default       |                                                                                                                                                                                                                                |
@@ -87,6 +79,30 @@ definition.** Two things are interpolated into the uploaded pipeline at upload
 time and shown in the Buildkite UI: plugin configuration, and `env:` values. So
 put the token in neither. Expose it to the step — Buildkite `secrets:`, or your
 agent's own environment — and point `token-env` at the variable's name.
+
+## Every keyed step is a candidate
+
+Worth being explicit, because it differs from how the GitHub Action works: once
+the plugin is on your upload step, **every step with a `key:` is something Trunk
+may decide to skip.** There is no per-step opt-in to wire up — which is
+convenient, and also means a step you never want skipped needs saying so.
+
+Two ways to say it:
+
+```yaml
+plugins:
+  - trunk-io/dynamic-ci#v1.0.0:
+      exclude-keys: deploy-master,publish-release
+```
+
+`exclude-keys` keeps a step out of Trunk's reach entirely — it still runs, Trunk
+just never decides about it. Good for deploys, release gates, and anything whose
+cost of being wrongly skipped is high.
+
+For a standing policy rather than pipeline configuration, set the job to **Never
+skip** on the repository's Dynamic CI configuration in the Trunk web app. Same
+effect, kept with the rest of your Dynamic CI settings rather than in your
+pipeline, and it survives someone editing the YAML.
 
 ## Trialling it on one step
 
@@ -144,30 +160,6 @@ dispatched by the time Trunk is asked:
 A step in this mode **must** have a `key:` — it is the whole request — and the
 plugin fails the step rather than running it if one is missing, so you never get
 a step that looks filtered but is not.
-
-## Every keyed step is a candidate
-
-Worth being explicit, because it differs from how the GitHub Action works: once
-the plugin is on your upload step, **every step with a `key:` is something Trunk
-may decide to skip.** There is no per-step opt-in to wire up — which is
-convenient, and also means a step you never want skipped needs saying so.
-
-Two ways to say it:
-
-```yaml
-plugins:
-  - trunk-io/dynamic-ci#v1.0.0:
-      exclude-keys: deploy-master,publish-release
-```
-
-`exclude-keys` keeps a step out of Trunk's reach entirely — it still runs, Trunk
-just never decides about it. Good for deploys, release gates, and anything whose
-cost of being wrongly skipped is high.
-
-For a standing policy rather than pipeline configuration, set the job to **Never
-skip** on the repository's Dynamic CI configuration in the Trunk web app. Same
-effect, kept with the rest of your Dynamic CI settings rather than in your
-pipeline, and it survives someone editing the YAML.
 
 ## Your steps need a `key:`
 

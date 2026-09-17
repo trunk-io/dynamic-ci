@@ -4,9 +4,6 @@ description:
   skipped at pipeline-upload time, before an agent is acquired.
 author: https://github.com/trunk-io
 
-# `jq` is deliberately absent: the plugin ships its own (see `bin/`), so adopting
-# it does not require adding tooling to an agent image. `curl` and `git` are
-# already implied by any Buildkite checkout.
 requirements:
   - buildkite-agent
   - bash

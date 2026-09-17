@@ -78,8 +78,13 @@ fi
 if rendered="$("${jq_bin}" -c . "${buffer}" 2>/dev/null)"; then
     :
 else
-    # YAML: the agent parses it, never us. `--no-interpolation` so the customer's
-    # own `pipeline upload` still performs exactly one interpolation pass.
+    # Not JSON, so treat it as YAML — which the AGENT parses, never us. We shell
+    # out to `pipeline upload --dry-run`, which renders and validates without
+    # uploading, and take its JSON.
+    #
+    # `--no-interpolation` because interpolation must happen exactly once and the
+    # customer's own `pipeline upload` is what does it. Rendering it here as well
+    # would substitute every `${VAR}` twice.
     if ! rendered="$(buildkite-agent pipeline upload --dry-run --format json \
         --no-interpolation <"${buffer}" 2>/dev/null)"; then
         log "--- :trunk: Dynamic CI could not read the pipeline — pipeline unchanged"
@@ -91,12 +96,10 @@ else
     # its own PID — `$$FX_INNER` becomes `206FX_INNER`. Not an error, not a
     # blank: a plausible string that changes every run. Measured, not theorised.
     #
-    # Two gates before saying any of that, because this used to fire on every
-    # YAML pipeline and a warning everyone sees on every build is a warning
-    # nobody reads. A pipeline with no `$` in it cannot be damaged by a missing
-    # interpolation pass, so there is nothing to warn about; and where there is
-    # something at stake, the step's own command usually settles whether the
-    # mistake was actually made.
+    # Gated twice, so this stays a warning worth reading. A pipeline with no `$`
+    # in it cannot be damaged by a missing interpolation pass, so there is
+    # nothing to say; and where there is something at stake, the step's own
+    # command usually settles whether the mistake was actually made.
     if [[ ${rendered} == *'$'* ]]; then
         if [[ ${BUILDKITE_COMMAND-} == *--no-interpolation* ]]; then
             log "--- :trunk: Dynamic CI: remove --no-interpolation from your pipeline upload"

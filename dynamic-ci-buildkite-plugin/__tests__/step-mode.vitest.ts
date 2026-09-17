@@ -85,14 +85,10 @@ describe("step mode", () => {
 
       expect(result.status).toBe(0);
       expect(result.ranCommand).toBe(false);
-      // The customer needs to know this was a decision, not a silent no-op —
-      // and that Buildkite will report the step as passed regardless.
       expect(result.stderr).toContain("passed 40/40");
       expect(result.stderr).toContain("reports success");
     });
 
-    // Scoped to this step alone, which is what separates step mode from the
-    // whole-pipeline modes.
     const request = BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA.parse(
       captured.received,
     );
@@ -152,10 +148,9 @@ describe("step mode", () => {
     });
   });
 
-  // One rule across all three modes: only-keys narrows what the plugin
-  // considers. Here that means a step off the list is not decided about — so a
-  // shared plugin block can sit on many steps with the list controlling which
-  // are live.
+  // `only-keys` narrows what the plugin considers in either mode. Here that
+  // means a step off the list is not decided about, so a shared plugin block can
+  // sit on many steps with the list controlling which are live.
   it("runs a step that is not in only-keys without asking", async () => {
     const captured: CapturedRequest = {};
 
@@ -216,9 +211,9 @@ describe("step mode", () => {
     expect(result.stderr).toContain("unavailable");
   });
 
-  // The one place step mode is louder than pipeline mode. There, an unkeyed
-  // step is one of many and runs; here the key IS the request, so running the
-  // step while the customer believes Trunk is deciding about it is the failure.
+  // In filter mode an unkeyed step is one of many and simply runs. Here the key
+  // IS the request, so running the step while the customer believes Trunk is
+  // deciding about it is the failure.
   it("fails loudly on a step with no key rather than running it", async () => {
     const result = await runHook({
       BUILDKITE_PLUGIN_DYNAMIC_CI_MODE: "step",
@@ -232,10 +227,6 @@ describe("step mode", () => {
 });
 
 describe("an unsupported mode", () => {
-  // A configuration error, and the one case that does not fail open. Degrading
-  // to "run the command, say nothing" is how a plugin gets installed, believed,
-  // and never skips anything — which is exactly what `mode: step` did before it
-  // was implemented.
   it("fails loudly rather than silently doing nothing", async () => {
     const result = await runHook({
       BUILDKITE_PLUGIN_DYNAMIC_CI_MODE: "fliter",
@@ -245,8 +236,5 @@ describe("an unsupported mode", () => {
     expect(result.ranCommand).toBe(false);
     expect(result.stderr).toContain("does not support mode");
     expect(result.stderr).toContain("filter, step");
-    // `pipeline` was a real mode once, so the error names it rather than
-    // leaving a customer to wonder why their working config stopped working.
-    expect(result.stderr).toContain("`pipeline` was removed");
   });
 });
