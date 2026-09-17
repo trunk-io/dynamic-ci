@@ -31,6 +31,9 @@ source "${PLUGIN_DIR}/lib/jq.sh"
 # shellcheck source-path=SCRIPTDIR/..
 # shellcheck source=lib/notice.sh
 source "${PLUGIN_DIR}/lib/notice.sh"
+# shellcheck source-path=SCRIPTDIR/..
+# shellcheck source=lib/debug.sh
+source "${PLUGIN_DIR}/lib/debug.sh"
 
 MODE="${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline}"
 PIPELINE_FILE="${BUILDKITE_PLUGIN_DYNAMIC_CI_PIPELINE-}"
@@ -147,7 +150,11 @@ step_mode() {
 		hand_back
 	fi
 
+	dci_debug_block "${jq_bin}" "requested step keys" "[\"${key}\"]"
+
 	dci_log_notice "${jq_bin}" "${plan}"
+
+	dci_debug_block "${jq_bin}" "plan" "${plan}"
 
 	if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then
 		log "--- :trunk: Dynamic CI returned a plan this version cannot read — running this step"

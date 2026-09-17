@@ -35,6 +35,13 @@ configuration:
         is interpolated into the uploaded pipeline and shown in the Buildkite UI.
       type: string
       default: TRUNK_TOKEN
+    debug:
+      description:
+        Print the requested step keys, the request body and the plan to the
+        build log, in collapsed groups. Everything goes to stderr, so it is safe
+        in filter mode. Off by default.
+      type: boolean
+      default: false
     ignore-signals:
       description: Comma-separated signal identifiers to exclude from the recommendation.
       type: string

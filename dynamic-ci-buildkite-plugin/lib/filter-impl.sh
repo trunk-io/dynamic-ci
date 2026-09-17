@@ -31,6 +31,9 @@ source "${PLUGIN_DIR}/lib/jq.sh"
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=notice.sh
 source "${PLUGIN_DIR}/lib/notice.sh"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=debug.sh
+source "${PLUGIN_DIR}/lib/debug.sh"
 
 buffer="$(mktemp)"
 emitted=false
@@ -89,6 +92,8 @@ if ! keys="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/collect-keys.jq" <<<"${rendere
     emit_unchanged
 fi
 
+dci_debug_block "${jq_bin}" "requested step keys" "${keys}"
+
 if [[ ${keys} == "[]" ]]; then
     log "--- :trunk: Dynamic CI found no step with a key: attribute — pipeline unchanged"
     log "    Add a key: to the steps you want Trunk to decide about."
@@ -102,6 +107,7 @@ if ! plan="$(TRUNK_DCI_JQ="${jq_bin}" \
     emit_unchanged
 fi
 
+dci_debug_block "${jq_bin}" "plan" "${plan}"
 dci_log_notice "${jq_bin}" "${plan}"
 
 if ! skips="$("${jq_bin}" -c -f "${PLUGIN_DIR}/lib/plan-to-skips.jq" <<<"${plan}")"; then

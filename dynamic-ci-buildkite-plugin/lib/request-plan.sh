@@ -20,6 +20,9 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=jq.sh
 source "${LIB_DIR}/jq.sh"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=debug.sh
+source "${LIB_DIR}/debug.sh"
 
 DEFAULT_API_ADDRESS="https://api.trunk.io"
 PLAN_PATH="/v2/dynamic-ci/generate-buildkite-plan"
@@ -183,6 +186,11 @@ main() {
 
     local body
     body="$(dci_build_body "${jq_bin}" "${job_keys}" "${host}" "${repo_path}")"
+
+    # The body is what diagnoses a resolution that looked fine and was not: the
+    # wrong pipeline slug, a null baseSha, a repo parsed differently from how
+    # ingestion parsed it. It carries no credential — the token rides a header.
+    dci_debug_block "${jq_bin}" "request body" "${body}"
 
     if [[ ${print_body} == true ]]; then
         echo "${body}"

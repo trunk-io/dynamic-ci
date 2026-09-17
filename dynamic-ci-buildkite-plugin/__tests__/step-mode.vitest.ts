@@ -136,6 +136,22 @@ describe("step mode", () => {
     });
   });
 
+  it("prints the plan to the log under the debug option", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(planFor(false), captured, async (address) => {
+      const result = await runHook({
+        ...STEP_ENV,
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_DEBUG: "true",
+      });
+
+      expect(result.stderr).toContain("debug · plan");
+      expect(result.stderr).toContain("debug · requested step keys");
+      expect(result.stderr).toContain("passed 40/40");
+    });
+  });
+
   // Fail-open: an outage must never be the reason a test did not run.
   it("runs the step's work when the plan is unavailable", async () => {
     const result = await runHook({

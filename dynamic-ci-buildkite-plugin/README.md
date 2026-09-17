@@ -34,6 +34,7 @@ running. Move it to its own step.
 | `mode`           | `pipeline`    | `pipeline` takes over the upload step's command; `filter` leaves your command alone and puts `trunk-dynamic-ci-filter` on PATH; `step` decides about one step.                                                                 |
 | `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order.                                                                                                                                                   |
 | `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token. Expose it to the step (`secrets:`, or your agent's environment) and name it here — never put the token in plugin configuration or an `env:` value. |
+| `debug`          | `false`       | Print the requested step keys, the request body and the plan to the build log, in collapsed groups. All of it goes to stderr, so it is safe in filter mode.                                                                    |
 | `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.                                                                                                                                                         |
 
 **The token must reach the step without passing through the pipeline
@@ -148,6 +149,24 @@ The plugin ships the one tool it needs. `vendor/` holds verified static
 macos-arm64, with their upstream checksums in `bin/SHA256SUMS`; the hook checks
 the checksum before executing. On a platform we do not ship, the plugin says so
 and uploads your pipeline unchanged.
+
+## Working out why nothing skipped
+
+Set `debug: true` and the plugin prints three collapsed groups to the build log:
+the step keys it asked about, the request body it sent, and the plan it got
+back. Between them they answer most questions — whether your steps were seen,
+whether the repository and pipeline resolved to what you expected, whether
+`baseSha` came out null, and what Trunk actually decided.
+
+```yaml
+plugins:
+  - trunk-io/dynamic-ci#v1:
+      debug: true
+```
+
+All of it goes to stderr, so it is safe in filter mode, where stdout carries the
+pipeline being uploaded. None of it contains your token — that travels in a
+request header, never in the body.
 
 ## It fails open
 

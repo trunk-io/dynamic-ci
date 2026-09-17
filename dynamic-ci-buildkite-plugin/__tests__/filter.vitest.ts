@@ -174,6 +174,80 @@ describe("filter mode", () => {
   });
 });
 
+describe("the debug option", () => {
+  it("prints nothing extra when it is off", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      const { stderr } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+      });
+
+      expect(stderr).not.toContain("debug ·");
+    });
+  });
+
+  it("prints the requested keys, the request body and the plan", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      const { stderr } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_DEBUG: "true",
+      });
+
+      expect(stderr).toContain("debug · requested step keys");
+      expect(stderr).toContain("debug · request body");
+      expect(stderr).toContain("debug · plan");
+      // The values, not just the headings.
+      expect(stderr).toContain('"unit"');
+      expect(stderr).toContain("passed 40/40");
+      expect(stderr).toContain("trunk2-pr");
+    });
+  });
+
+  // The whole reason debug output is funnelled through one function. In filter
+  // mode stdout carries the pipeline being uploaded, so a debugging aid that
+  // wrote there would corrupt the build it was meant to help diagnose.
+  it("keeps stdout carrying nothing but the pipeline", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      const { stdout } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_DEBUG: "true",
+      });
+
+      expect(JSON.parse(stdout)).toEqual({
+        steps: [
+          {
+            key: "unit",
+            label: "Unit",
+            command: "make test",
+            skip: "Trunk Dynamic CI: passed 40/40",
+          },
+          { key: "e2e", label: "E2E", command: "make e2e" },
+          { key: "downstream", label: "Trigger", trigger: "core" },
+        ],
+      });
+    });
+  });
+
+  // A YAML boolean reaches the hook as the string "true"; nothing else enables it.
+  it("stays off for any value that is not the string true", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      const { stderr } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_DEBUG: "1",
+      });
+
+      expect(stderr).not.toContain("debug ·");
+    });
+  });
+});
+
 // The interface itself: `hooks/environment` puts the plugin's commands on PATH
 // so the customer's pipe can name one. A command rather than a path in a
 // variable specifically because Buildkite interpolates `${VAR}` in an uploaded
