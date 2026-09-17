@@ -191,7 +191,17 @@ purpose: this is the only part of the plugin that changes what your build does,
 so you should be able to read all of it.
 
 Skipped steps stay visible in the build — use **Show skipped steps** — with the
-recommendation's reason on hover.
+recommendation's reason on hover. The log says the same thing in one place,
+naming every step it marked:
+
+```text
+--- :trunk: Dynamic CI marked 2 step(s) to skip
+    unit-tests — passed on the last 40 runs; no correlated paths changed
+    lint — no correlated paths changed
+```
+
+The reasons there are the full ones, not the 70-character versions Buildkite
+shows on the step.
 
 ## It installs nothing
 

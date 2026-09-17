@@ -167,6 +167,12 @@ if ! mutated="$("${jq_bin}" --argjson skips "${skips}" \
     emit_unchanged
 fi
 
-skipped_count="$("${jq_bin}" -r 'length' <<<"${skips}" 2>/dev/null || echo "?")"
-log "--- :trunk: Dynamic CI marked ${skipped_count} step(s) to skip"
+# Never between here and `emit`: a failure to describe what was done must not
+# stop the pipeline that was already correctly built from going out.
+if summary="$("${jq_bin}" -r --argjson before "${rendered}" --argjson plan "${plan}" \
+    -f "${PLUGIN_DIR}/lib/applied-skips.jq" <<<"${mutated}" 2>/dev/null)"; then
+    log "${summary}"
+else
+    log "--- :trunk: Dynamic CI applied its plan"
+fi
 emit "${mutated}"

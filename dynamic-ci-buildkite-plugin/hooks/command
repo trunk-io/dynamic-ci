@@ -92,8 +92,8 @@ warn_if_filter_unused() {
 #
 # **It therefore reports `passed`, not `skipped`**, and that is a real cost, not
 # a cosmetic one: `previous-result-on-pr` reads exactly those conclusions, so a
-# step-mode skip looks like evidence the step passed on this commit. Pipeline and
-# filter mode do not have this problem because the step is marked before dispatch.
+# step-mode skip looks like evidence the step passed on this commit. Filter mode
+# does not have this problem because the step is marked before dispatch.
 step_mode() {
 	local key="${BUILDKITE_STEP_KEY-}" jq_bin plan skips reason
 

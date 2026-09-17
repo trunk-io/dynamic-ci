@@ -175,6 +175,108 @@ describe("filter mode", () => {
   });
 });
 
+// What the log says it did has to be what it did. The count used to come off
+// the plan, which overcounts: `apply-skips.jq` declines a `trigger:` step and a
+// `skip:` the customer wrote themselves, so the plan's verdicts include steps
+// that are still going to run. A wrong number is easy to miss; a wrong list of
+// step keys is not, which is the other reason to name them.
+describe("the summary of what was marked", () => {
+  const LONG = "passed on the last 40 runs; no correlated paths changed here";
+
+  const summaryFor = async (
+    pipeline: unknown,
+    plan: unknown,
+  ): Promise<string> => {
+    const captured: CapturedRequest = {};
+    let stderr = "";
+
+    await withPlanServer(plan, captured, async (address) => {
+      ({ stderr } = await runFilter(JSON.stringify(pipeline), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+      }));
+    });
+
+    return stderr;
+  };
+
+  it("names each step it marked, with the reason", async () => {
+    const stderr = await summaryFor(PIPELINE, {
+      jobs: [
+        { jobKey: "unit", run: false, summary: LONG, signals: [] },
+        { jobKey: "e2e", run: true, summary: "paths changed", signals: [] },
+      ],
+    });
+
+    expect(stderr).toContain("marked 1 step(s) to skip");
+    expect(stderr).toContain(`unit — ${LONG}`);
+  });
+
+  // The `skip:` attribute is capped at 70 characters, so the reason in the
+  // Buildkite UI is truncated. The log is the place the whole of it survives.
+  it("logs the untruncated summary, not the 70-character skip value", async () => {
+    const stderr = await summaryFor(PIPELINE, {
+      jobs: [{ jobKey: "unit", run: false, summary: LONG, signals: [] }],
+    });
+
+    expect(LONG.length).toBeGreaterThan(70 - "Trunk Dynamic CI: ".length);
+    expect(stderr).toContain(LONG);
+  });
+
+  it("does not name a step the mutation declined to mark", async () => {
+    // PLAN says to skip `downstream`, which is a trigger step. It stays.
+    const stderr = await summaryFor(PIPELINE, PLAN);
+
+    expect(stderr).toContain("marked 1 step(s) to skip");
+    expect(stderr).not.toContain("downstream");
+  });
+
+  it("does not name a step that carried the customer's own skip", async () => {
+    const stderr = await summaryFor(
+      { steps: [{ key: "held", command: "make x", skip: "mine" }] },
+      { jobs: [{ jobKey: "held", run: false, summary: "would", signals: [] }] },
+    );
+
+    expect(stderr).toContain("marked no steps to skip");
+    expect(stderr).not.toContain("held");
+  });
+
+  it("caps a long list rather than burying the rest of the log", async () => {
+    const keys = Array.from({ length: 30 }, (_, i) => `step-${String(i)}`);
+    const stderr = await summaryFor(
+      { steps: keys.map((key) => ({ key, command: "make x" })) },
+      {
+        jobs: keys.map((jobKey) => ({
+          jobKey,
+          run: false,
+          summary: "no correlated paths changed",
+          signals: [],
+        })),
+      },
+    );
+
+    expect(stderr).toContain("marked 30 step(s) to skip");
+    expect(stderr).toContain("step-24 —");
+    expect(stderr).not.toContain("step-25 —");
+    expect(stderr).toContain("… and 5 more");
+  });
+
+  it("keeps the summary off stdout", async () => {
+    const captured: CapturedRequest = {};
+    let stdout = "";
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      ({ stdout } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+      }));
+    });
+
+    expect(stdout).not.toContain("marked");
+    expect(() => {
+      JSON.parse(stdout);
+    }).not.toThrow();
+  });
+});
+
 // The YAML branch renders with `--no-interpolation`, so the customer's own
 // `pipeline upload` owes the single pass. If theirs passes the flag too, nothing
 // interpolates and `$$VAR` reaches the shell, which reads `$$` as its own PID —
