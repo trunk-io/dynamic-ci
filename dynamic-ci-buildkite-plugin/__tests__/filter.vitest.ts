@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA } from "../../src/schema/request";
+import type { DynamicCiResponse } from "../../src/schema/response";
 import { fakeAgentPath } from "./support/agent";
 import { PLUGIN_ROOT, vendoredJqPath } from "./support/jq";
 import {
@@ -86,8 +87,6 @@ describe("filter mode", () => {
     ).not.toThrow();
   });
 
-  // A trigger step is never even asked about, so the plan above naming it is
-  // something only a replay could produce.
   it("does not ask for a verdict on a trigger step", async () => {
     const captured: { received?: unknown } = {};
 
@@ -103,10 +102,6 @@ describe("filter mode", () => {
     expect(request.jobKeys).toEqual(["unit", "e2e"]);
   });
 
-  // A plan that skips nothing looks the same whatever the reason — an
-  // organization not enabled, a repo in shadow, a pipeline Trunk has not
-  // ingested. `notice` is the only thing that tells a customer which, and
-  // without it the first build reads as "the plugin did nothing".
   it("prints the plan's notice when it carries one", async () => {
     const captured: CapturedRequest = {};
     const plan = {
@@ -138,8 +133,6 @@ describe("filter mode", () => {
       });
 
       expect(() => {
-        // Braced so nothing is returned: `JSON.parse` yields `any`, and
-        // returning it from the arrow is an unsafe return.
         JSON.parse(stdout);
       }).not.toThrow();
     });
@@ -175,17 +168,12 @@ describe("filter mode", () => {
   });
 });
 
-// What the log says it did has to be what it did. The count used to come off
-// the plan, which overcounts: `apply-skips.jq` declines a `trigger:` step and a
-// `skip:` the customer wrote themselves, so the plan's verdicts include steps
-// that are still going to run. A wrong number is easy to miss; a wrong list of
-// step keys is not, which is the other reason to name them.
 describe("the summary of what was marked", () => {
   const LONG = "passed on the last 40 runs; no correlated paths changed here";
 
   const summaryFor = async (
     pipeline: unknown,
-    plan: unknown,
+    plan: DynamicCiResponse,
   ): Promise<string> => {
     const captured: CapturedRequest = {};
     let stderr = "";
@@ -223,7 +211,6 @@ describe("the summary of what was marked", () => {
   });
 
   it("does not name a step the mutation declined to mark", async () => {
-    // PLAN says to skip `downstream`, which is a trigger step. It stays.
     const stderr = await summaryFor(PIPELINE, PLAN);
 
     expect(stderr).toContain("marked 1 step(s) to skip");
@@ -277,17 +264,6 @@ describe("the summary of what was marked", () => {
   });
 });
 
-// The YAML branch renders with `--no-interpolation`, so the customer's own
-// `pipeline upload` owes the single pass. If theirs passes the flag too, nothing
-// interpolates and `$$VAR` reaches the shell, which reads `$$` as its own PID —
-// `$$FX_INNER` becomes `206FX_INNER`. Not an error and not a blank: a plausible
-// string that changes every run.
-//
-// This used to be said on every YAML pipeline, which is how the first customer
-// to try filter mode was told off for a mistake they had not made. A warning
-// everyone sees on every build is a warning nobody reads, so it is now gated on
-// there being something to lose and, where the step's command is visible, on the
-// mistake actually having been made.
 describe("the interpolation warning", () => {
   const YAML = "steps:\n  - key: unit\n    command: make test\n";
   const NOTHING_TO_LOSE = { steps: [{ key: "unit", command: "make test" }] };
@@ -359,8 +335,6 @@ describe("the interpolation warning", () => {
   });
 });
 
-// The real answer to "I only want to trial this on one step": a skip taken
-// before dispatch, rather than step mode's run-and-do-nothing.
 describe("the only-keys option", () => {
   it("asks about only the named keys", async () => {
     const captured: CapturedRequest = {};
@@ -378,9 +352,6 @@ describe("the only-keys option", () => {
     expect(request.jobKeys).toEqual(["unit"]);
   });
 
-  // A plan naming a key outside the list cannot arrive in practice — we never
-  // asked — so narrowing is enforced on the request only. This pins that the
-  // narrowed step is still genuinely skipped and its siblings are untouched.
   it("skips the named step and leaves the rest alone", async () => {
     const captured: CapturedRequest = {};
 
@@ -405,15 +376,9 @@ describe("the only-keys option", () => {
     });
   });
 
-  // The "never skip my deploy step" control, and the reason it exists: saying it
-  // through only-keys would mean listing every other step in the pipeline.
   it("never decides about a step in exclude-keys", async () => {
     const captured: CapturedRequest = {};
 
-    // A plan scoped to what was actually asked, as the engine returns. Handing
-    // back a verdict for `unit` here would test the documented asymmetry —
-    // narrowing is enforced on the request, not on the plan — rather than the
-    // option.
     const scoped = {
       jobs: [
         { jobKey: "e2e", run: true, summary: "paths changed", signals: [] },
@@ -435,17 +400,12 @@ describe("the only-keys option", () => {
     expect(request.jobKeys).toEqual(["e2e"]);
   });
 
-  // A stale only-keys and an unkeyed pipeline both end with nothing to ask
-  // about, and sending the customer to look for a missing `key:` when the list
-  // is the problem wastes their afternoon.
   it("says the lists left nothing, not that no step has a key", async () => {
     const { stdout, stderr } = await runFilter(JSON.stringify(PIPELINE), {
       BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "renamed-last-week",
     });
 
     expect(stderr).toContain("no step left to consider");
-    // Both lists are echoed, because either one can be the culprit and the
-    // customer cannot tell which from the message alone.
     expect(stderr).toContain("renamed-last-week");
     expect(stderr).toContain("exclude-keys: <unset>");
     expect(stderr).not.toContain("found no step with a key");
@@ -495,9 +455,6 @@ describe("the debug option", () => {
     });
   });
 
-  // The whole reason debug output is funnelled through one function. In filter
-  // mode stdout carries the pipeline being uploaded, so a debugging aid that
-  // wrote there would corrupt the build it was meant to help diagnose.
   it("keeps stdout carrying nothing but the pipeline", async () => {
     const captured: CapturedRequest = {};
 
@@ -522,7 +479,6 @@ describe("the debug option", () => {
     });
   });
 
-  // A YAML boolean reaches the hook as the string "true"; nothing else enables it.
   it("stays off for any value that is not the string true", async () => {
     const captured: CapturedRequest = {};
 
@@ -537,12 +493,6 @@ describe("the debug option", () => {
   });
 });
 
-// The interface itself: `hooks/environment` puts the plugin's commands on PATH
-// so the customer's pipe can name one. A command rather than a path in a
-// variable specifically because Buildkite interpolates `${VAR}` in an uploaded
-// pipeline at UPLOAD time, while anything this plugin exports exists only at
-// step runtime — so `| "${TRUNK_DYNAMIC_CI_FILTER}" |` collapses to `|  |`, a
-// shell syntax error on the customer's first build.
 describe("the environment hook", () => {
   const inHook = async (
     mode: string,
@@ -583,7 +533,6 @@ describe("the environment hook", () => {
     );
   });
 
-  // Named, not path-interpolated: this is the whole point of the mechanism.
   it("filters a pipeline when invoked by name", async () => {
     const { stdout, status } = await inHook(
       "filter",
@@ -595,8 +544,6 @@ describe("the environment hook", () => {
     expect(JSON.parse(stdout)).toEqual(PIPELINE);
   });
 
-  // An unexpected PATH change is worse than a missing one, so the mode has to
-  // ask for it.
   it("does not touch PATH in the other modes", async () => {
     const { status } = await inHook(
       "step",
@@ -631,8 +578,9 @@ describe("the command hand-back", () => {
     }
   };
 
-  // The hook file exists, so Buildkite runs it INSTEAD of the step's command in
-  // every mode. Filter and step mode therefore have to give the step back.
+  // Buildkite dispatches to a plugin's command hook by the file's existence, not
+  // by our mode option — so shipping one for step mode means filter mode gets it
+  // too, and has to exec the step's own command back.
   it("runs the customer's command in filter mode", () => {
     const { stdout, status } = runHook({
       BUILDKITE_PLUGIN_DYNAMIC_CI_MODE: "filter",
@@ -643,9 +591,6 @@ describe("the command hand-back", () => {
     expect(stdout.trim()).toBe("hello");
   });
 
-  // Why `BUILDKITE_SHELL` and not a bare `bash -c`: the agent's default carries
-  // `-e`, so a failing line of a multi-line command fails the step. Under
-  // `bash -c` the step would pass, turning a real failure into a green build.
   it("honours the agent's shell flags, so a failing line still fails", () => {
     const { status } = runHook({
       BUILDKITE_PLUGIN_DYNAMIC_CI_MODE: "filter",

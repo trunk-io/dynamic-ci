@@ -85,9 +85,6 @@ const printBody = ({
 };
 
 describe("the plan request body", () => {
-  // The point of `--print-body`: the body is hand-built in shell, but the check
-  // that it matches the contract comes from the engine's own schema. A renamed
-  // or mistyped field fails here rather than as a 400 in a customer's build.
   it("satisfies the engine's schema", () => {
     expect(() =>
       BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA.parse(printBody()),
@@ -123,8 +120,6 @@ describe("the plan request body", () => {
     expect(body.runAttempt).toBe(3);
   });
 
-  // The sharp one: off a pull request Buildkite sets the literal string "false",
-  // not an empty value, so a truthiness test would send prNumber 0 or "false".
   it("sends a null prNumber when the build is not a pull request", () => {
     const body = BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA.parse(
       printBody({ env: { BUILDKITE_PULL_REQUEST: "false" } }),
@@ -191,10 +186,6 @@ describe("the plan request body", () => {
   });
 });
 
-// The repo row this request resolves against was created by CI ingestion from
-// ITS parse of the same remote, so a disagreement here finds no repository and
-// fails open invisibly. These are the forms ingestion's own parser was built
-// against.
 describe("the remote parse", () => {
   const repoFor = (remote: string): unknown => {
     const body = printBody({ env: { BUILDKITE_REPO: remote } });

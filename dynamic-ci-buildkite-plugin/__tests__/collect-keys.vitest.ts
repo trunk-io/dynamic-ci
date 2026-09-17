@@ -21,9 +21,6 @@ const collect = (
   });
 
 describe("collect-keys.jq", () => {
-  // The recursion is the point: a flat `.steps[]` misses every grouped step, and
-  // a pipeline whose grouped work is silently never scored looks like a pipeline
-  // Trunk simply has no history for.
   it("collects keys at the top level and inside groups", () => {
     expect(collect(RENDERED_PIPELINE)).toEqual([
       "unit",
@@ -50,9 +47,8 @@ describe("collect-keys.jq", () => {
     expect(collect({ steps: [] })).toEqual([]);
   });
 
-  // Not merely unscored — not even asked about. A trigger step's outcome is in
-  // the build it launches, so a verdict here could suppress a build whose result
-  // the engine never sees.
+  // A trigger step's outcome is in the build it launches, so a verdict here
+  // could suppress a build whose result the engine never sees.
   it("excludes a trigger step even though it has a key", () => {
     const keys = collect(RENDERED_PIPELINE);
 
@@ -73,8 +69,6 @@ describe("collect-keys.jq", () => {
   });
 });
 
-// `only-keys`: the option that makes "trial Dynamic CI on one step" a REAL skip,
-// taken before dispatch, rather than step mode's run-and-do-nothing.
 describe("collect-keys.jq with only-keys", () => {
   it("narrows to the named keys", () => {
     expect(collect(RENDERED_PIPELINE, ["unit", "smoke"])).toEqual([
@@ -103,8 +97,6 @@ describe("collect-keys.jq with only-keys", () => {
   });
 });
 
-// `exclude-keys`: the "never skip this one" control, and the only per-step
-// protection that exists client-side.
 describe("collect-keys.jq with exclude-keys", () => {
   it("drops the named keys and keeps the rest", () => {
     expect(collect(RENDERED_PIPELINE, [], ["unit", "e2e"])).toEqual([

@@ -24,11 +24,7 @@ export const RENDERED_PIPELINE = {
       ],
     },
     { wait: null },
-    // Its outcome lives in the build it launches, so it must never be skipped.
     { key: "downstream", label: "Trigger core", trigger: "core" },
-    // A bracketed pair on one concurrency group: v1 reasons one step at a time
-    // and has no notion of a pair, so this documents the behaviour rather than
-    // asserting the pair is handled.
     {
       key: "gate-enter",
       label: "Enter gate",

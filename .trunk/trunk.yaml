@@ -30,9 +30,6 @@ lint:
     - linters: [ALL]
       paths:
         - dist
-    # Upstream jq releases, verified against `bin/SHA256SUMS` at hook time. They
-    # are opaque to every linter here, and scanning 4MB of binary on each run
-    # only costs time.
     - linters: [ALL]
       paths:
         - dynamic-ci-buildkite-plugin/vendor/jq-*

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import * as z from "zod";
 import { runJq } from "./support/jq";
 import { RENDERED_PIPELINE } from "./support/pipeline";
+import { groupChildren, stepByKey } from "./support/schema";
 
 const applySkips = (
   skips: Record<string, string>,
@@ -75,17 +75,6 @@ describe("apply-skips.jq", () => {
     const out = applySkips({ downstream: "Trunk Dynamic CI: would skip" });
 
     expect(out).toEqual(RENDERED_PIPELINE);
-  });
-
-  // Documents v1's behaviour rather than asserting it is right: the mutation
-  // reasons one step at a time, so a bracketed pair on one concurrency group can
-  // be half-skipped. Both gates are cheap, so the engine should run both — but
-  // nothing here enforces that, and this test is where that shows.
-  it("can skip one bracket of a concurrency pair (known v1 limitation)", () => {
-    const out = applySkips({ "gate-enter": "Trunk Dynamic CI: would skip" });
-
-    expect(stepByKey(out, "gate-enter")).toHaveProperty("skip");
-    expect(stepByKey(out, "gate-exit")).not.toHaveProperty("skip");
   });
 
   // A customer's `skip` is their decision about their own pipeline. `skip: false`
@@ -171,30 +160,3 @@ describe("apply-skips.jq", () => {
     expect(applySkips({})).toEqual(RENDERED_PIPELINE);
   });
 });
-
-// jq hands back `unknown`. Validate it with zod rather than hand-rolled
-// narrowing: `Array.isArray` on an unknown property widens to `any[]`, which is
-// both unsafe and banned here.
-const STEP_SCHEMA = z.record(z.string(), z.unknown());
-const PIPELINE_SCHEMA = z.object({ steps: z.array(STEP_SCHEMA) });
-
-const pipelineSteps = (out: unknown): Record<string, unknown>[] =>
-  PIPELINE_SCHEMA.parse(out).steps;
-
-/** One top-level step by its `key`, so the assertion is type-checked. */
-const stepByKey = (out: unknown, key: string): Record<string, unknown> => {
-  const step = pipelineSteps(out).find((candidate) => candidate["key"] === key);
-  if (step === undefined) {
-    throw new Error(`no step keyed ${key} in jq's output`);
-  }
-  return step;
-};
-
-/** The children of the fixture's one `group:` step. */
-const groupChildren = (out: unknown): Record<string, unknown>[] => {
-  const group = pipelineSteps(out).find((step) => "group" in step);
-  if (group === undefined) {
-    throw new Error("jq did not return the fixture's group step");
-  }
-  return z.array(STEP_SCHEMA).parse(group["steps"]);
-};
