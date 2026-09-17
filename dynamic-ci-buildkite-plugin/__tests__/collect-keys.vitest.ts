@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { runJq } from "./support/jq";
 import { RENDERED_PIPELINE } from "./support/pipeline";
 
-const collect = (input: unknown): unknown =>
-  runJq({ program: "collect-keys.jq", input });
+const collect = (input: unknown, only: readonly string[] = []): unknown =>
+  runJq({
+    program: "collect-keys.jq",
+    input,
+    args: ["--argjson", "only", JSON.stringify(only)],
+  });
 
 describe("collect-keys.jq", () => {
   // The recursion is the point: a flat `.steps[]` misses every grouped step, and
@@ -55,5 +59,35 @@ describe("collect-keys.jq", () => {
         ],
       }),
     ).toEqual(["deep"]);
+  });
+});
+
+// `only-keys`: the option that makes "trial Dynamic CI on one step" a REAL skip,
+// taken before dispatch, rather than step mode's run-and-do-nothing.
+describe("collect-keys.jq with only-keys", () => {
+  it("narrows to the named keys", () => {
+    expect(collect(RENDERED_PIPELINE, ["unit", "smoke"])).toEqual([
+      "unit",
+      "smoke",
+    ]);
+  });
+
+  it("reaches a named key nested in a group", () => {
+    expect(collect(RENDERED_PIPELINE, ["e2e"])).toEqual(["e2e"]);
+  });
+
+  // An empty list is the default and means no restriction — not "consider
+  // nothing", which would silently disable the plugin.
+  it("considers everything when the list is empty", () => {
+    expect(collect(RENDERED_PIPELINE, [])).toEqual(collect(RENDERED_PIPELINE));
+  });
+
+  it("returns nothing when no named key is in the pipeline", () => {
+    expect(collect(RENDERED_PIPELINE, ["nope"])).toEqual([]);
+  });
+
+  // Narrowing cannot promote a step the walk already refuses.
+  it("still excludes a trigger step even when it is named", () => {
+    expect(collect(RENDERED_PIPELINE, ["downstream"])).toEqual([]);
   });
 });

@@ -174,6 +174,67 @@ describe("filter mode", () => {
   });
 });
 
+// The real answer to "I only want to trial this on one step": a skip taken
+// before dispatch, rather than step mode's run-and-do-nothing.
+describe("the only-keys option", () => {
+  it("asks about only the named keys", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "unit",
+      });
+    });
+
+    const request = BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA.parse(
+      captured.received,
+    );
+    expect(request.jobKeys).toEqual(["unit"]);
+  });
+
+  // A plan naming a key outside the list cannot arrive in practice — we never
+  // asked — so narrowing is enforced on the request only. This pins that the
+  // narrowed step is still genuinely skipped and its siblings are untouched.
+  it("skips the named step and leaves the rest alone", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(PLAN, captured, async (address) => {
+      const { stdout } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "unit",
+      });
+
+      expect(JSON.parse(stdout)).toEqual({
+        steps: [
+          {
+            key: "unit",
+            label: "Unit",
+            command: "make test",
+            skip: "Trunk Dynamic CI: passed 40/40",
+          },
+          { key: "e2e", label: "E2E", command: "make e2e" },
+          { key: "downstream", label: "Trigger", trigger: "core" },
+        ],
+      });
+    });
+  });
+
+  // A stale only-keys and an unkeyed pipeline both end with nothing to ask
+  // about, and sending the customer to look for a missing `key:` when the list
+  // is the problem wastes their afternoon.
+  it("says the list matched nothing, not that no step has a key", async () => {
+    const { stdout, stderr } = await runFilter(JSON.stringify(PIPELINE), {
+      BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "renamed-last-week",
+    });
+
+    expect(stderr).toContain("found none of the steps named in only-keys");
+    expect(stderr).toContain("renamed-last-week");
+    expect(stderr).not.toContain("found no step with a key");
+    expect(JSON.parse(stdout)).toEqual(PIPELINE);
+  });
+});
+
 describe("the debug option", () => {
   it("prints nothing extra when it is off", async () => {
     const captured: CapturedRequest = {};

@@ -35,6 +35,13 @@ configuration:
         is interpolated into the uploaded pipeline and shown in the Buildkite UI.
       type: string
       default: TRUNK_TOKEN
+    only-keys:
+      description:
+        Comma-separated step keys to consider, narrowing the plugin to a subset
+        of the pipeline. Every other step runs untouched. Use this to trial
+        Dynamic CI on one expensive step while still getting a real skip, taken
+        before the step is dispatched.
+      type: string
     debug:
       description:
         Print the requested step keys, the request body and the plan to the

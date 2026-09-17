@@ -34,6 +34,7 @@ running. Move it to its own step.
 | `mode`           | `pipeline`    | `pipeline` takes over the upload step's command; `filter` leaves your command alone and puts `trunk-dynamic-ci-filter` on PATH; `step` decides about one step.                                                                 |
 | `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order.                                                                                                                                                   |
 | `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token. Expose it to the step (`secrets:`, or your agent's environment) and name it here — never put the token in plugin configuration or an `env:` value. |
+| `only-keys`      | unset         | Comma-separated step keys to consider. Every other step runs untouched. Works in all three modes.                                                                                                                              |
 | `debug`          | `false`       | Print the requested step keys, the request body and the plan to the build log, in collapsed groups. All of it goes to stderr, so it is safe in filter mode.                                                                    |
 | `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.                                                                                                                                                         |
 
@@ -79,9 +80,33 @@ Filter mode works for a generator in any language, and on JSON input it does
 less work than pipeline mode: the pipeline is already parsed, so nothing is
 rendered and nothing is interpolated that would not have been anyway.
 
+## Trialling it on one step
+
+Narrow the plugin to the steps you name, and leave the rest of the pipeline
+untouched:
+
+```yaml
+- label: ":pipeline: upload"
+  secrets:
+    - TRUNK_TOKEN
+  plugins:
+    - trunk-io/dynamic-ci#v1:
+        only-keys: e2e
+```
+
+This is the way to start small. The named step is marked **before it is
+dispatched**, so it reports as genuinely skipped and no agent is acquired for it
+— which is what step mode below cannot do. `only-keys` works in all three modes;
+in step mode it means "do not decide about this step unless it is on the list",
+so one shared plugin block can sit on many steps while the list controls which
+are live.
+
 ## If you want to try one step first
 
-**Step mode** puts the plugin on a single step, which then asks about itself:
+**Step mode** puts the plugin on a single step, which then asks about itself.
+Reach for it when your pipeline lives entirely in Buildkite's settings editor and
+there is no upload step to attach to — otherwise prefer `only-keys` above, which
+gets you a real skip:
 
 ```yaml
 - key: e2e

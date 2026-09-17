@@ -152,6 +152,41 @@ describe("step mode", () => {
     });
   });
 
+  // One rule across all three modes: only-keys narrows what the plugin
+  // considers. Here that means a step off the list is not decided about — so a
+  // shared plugin block can sit on many steps with the list controlling which
+  // are live.
+  it("runs a step that is not in only-keys without asking", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(planFor(false), captured, async (address) => {
+      const result = await runHook({
+        ...STEP_ENV,
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "something-else",
+      });
+
+      expect(result.ranCommand).toBe(true);
+      expect(result.stderr).toContain("not in only-keys");
+    });
+
+    expect(captured.received).toBeUndefined();
+  });
+
+  it("still decides about a step that is in only-keys", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(planFor(false), captured, async (address) => {
+      const result = await runHook({
+        ...STEP_ENV,
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "other, unit",
+      });
+
+      expect(result.ranCommand).toBe(false);
+    });
+  });
+
   // Fail-open: an outage must never be the reason a test did not run.
   it("runs the step's work when the plan is unavailable", async () => {
     const result = await runHook({

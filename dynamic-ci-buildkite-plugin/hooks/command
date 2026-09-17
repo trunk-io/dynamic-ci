@@ -142,6 +142,16 @@ step_mode() {
 		hand_back
 	fi
 
+	# `only-keys` narrows what the plugin considers, in every mode. Here that
+	# means: if this step is not on the list, do not decide about it. Lets one
+	# shared plugin block (a YAML anchor, say) sit on many steps while the list
+	# controls which are live.
+	local only="${BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS-}"
+	if [[ -n ${only} ]] && ! [[ ",${only//[[:space:]]/}," == *",${key},"* ]]; then
+		log "--- :trunk: ${key} is not in only-keys — running this step"
+		hand_back
+	fi
+
 	# shellcheck disable=SC2016 # `$key` is a jq variable, bound by --arg, not a shell one
 	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" TRUNK_DCI_JQ="${jq_bin}" \
 		"${PLUGIN_DIR}/lib/request-plan.sh" \
