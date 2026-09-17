@@ -414,7 +414,7 @@ describe("the environment hook", () => {
   // ask for it.
   it("does not touch PATH in the other modes", async () => {
     const { status } = await inHook(
-      "pipeline",
+      "step",
       "command -v trunk-dynamic-ci-filter",
     );
 

@@ -16,18 +16,12 @@ configuration:
   properties:
     mode:
       description:
-        How the plugin attaches. `pipeline` (default) takes over the upload
-        step's command. `filter` leaves your command alone and exports
-        `TRUNK_DYNAMIC_CI_FILTER`, a filter to pipe a generated pipeline
-        through — use this when your pipeline is produced by a script rather
-        than declared in a file. `step` decides about one step.
+        How the plugin attaches. `filter` (default) leaves your command alone and
+        puts `trunk-dynamic-ci-filter` on PATH for you to pipe your pipeline
+        through. `step` decides about one individual step.
       type: string
-      enum: [pipeline, filter, step]
-      default: pipeline
-    pipeline:
-      description: Path to the pipeline file to filter and upload. Omit to let
-        `buildkite-agent pipeline upload` apply its own search order.
-      type: string
+      enum: [filter, step]
+      default: filter
     token-env:
       description:
         Name of the environment variable holding your Trunk organization API

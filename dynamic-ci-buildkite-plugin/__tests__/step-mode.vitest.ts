@@ -244,6 +244,9 @@ describe("an unsupported mode", () => {
     expect(result.status).not.toBe(0);
     expect(result.ranCommand).toBe(false);
     expect(result.stderr).toContain("does not support mode");
-    expect(result.stderr).toContain("pipeline, filter, step");
+    expect(result.stderr).toContain("filter, step");
+    // `pipeline` was a real mode once, so the error names it rather than
+    // leaving a customer to wonder why their working config stopped working.
+    expect(result.stderr).toContain("`pipeline` was removed");
   });
 });

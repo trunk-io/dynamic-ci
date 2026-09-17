@@ -2,22 +2,23 @@
 # Trunk Dynamic CI — the plugin's command hook.
 #
 # Buildkite runs this INSTEAD of the step's command whenever the file exists, so
-# every mode is dispatched from here — including the ones where the plugin does
-# not own the command and has to hand the step back explicitly.
+# both modes dispatch from here — including the one where the plugin does not own
+# the command and has to hand the step back.
 #
-#   pipeline  the plugin owns the upload step: render, plan, mark, upload. The
-#             skip is taken before an agent is acquired for the skipped steps.
-#   filter    the customer owns the command; `trunk-dynamic-ci-filter` (put on
-#             PATH by `hooks/environment`) does the work in their pipe. Nothing
-#             to do here but give the step back.
-#   step      the plugin owns one step and decides about that step alone.
+#   filter (default)  the customer owns the command; `trunk-dynamic-ci-filter`
+#                     (put on PATH by `hooks/environment`) does the work in their
+#                     pipe. Nothing to do here but give the step back.
+#   step              the plugin owns one step and decides about that step alone.
 #
-# Two things this deliberately does NOT do. It never reads or writes the
-# customer's YAML — `buildkite-agent pipeline upload --dry-run --format json`
-# makes the agent parse it, so there is no second implementation of Buildkite's
-# interpolation rules and no YAML round-trip to mangle comments or anchors. And
-# it never adds anything to a pipeline but `skip`, so the worst a wrong plan can
-# do is stop work happening; it cannot make anything new run.
+# There used to be a third, `pipeline`, which took over an upload step and ran
+# the filter itself. It was removed once measurement showed it bought no
+# correctness: over a static file with anchors and merge keys, both modes
+# produced byte-identical uploads, and both performed exactly one interpolation
+# pass. What it did cost was command absorption — the "your upload step must do
+# nothing else" constraint, the `kubernetes`-plugin conflict, and a pipeline
+# whose behaviour was invisible in the customer's own YAML. The one thing it
+# guaranteed (that the interpolation contract could not be got wrong) is now a
+# warning emitted by the filter exactly where that risk lives.
 #
 # Every OPERATIONAL failure runs the work anyway. A CONFIGURATION error fails
 # loudly instead — see the mode dispatch at the foot of this file.
@@ -35,18 +36,8 @@ source "${PLUGIN_DIR}/lib/notice.sh"
 # shellcheck source=lib/debug.sh
 source "${PLUGIN_DIR}/lib/debug.sh"
 
-MODE="${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-pipeline}"
-PIPELINE_FILE="${BUILDKITE_PLUGIN_DYNAMIC_CI_PIPELINE-}"
+MODE="${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-filter}"
 TOKEN_ENV="${BUILDKITE_PLUGIN_DYNAMIC_CI_TOKEN_ENV:-TRUNK_TOKEN}"
-
-# No path by default: `pipeline upload` has its own search order, and hardcoding
-# `.buildkite/pipeline.yml` would break every customer who uses another one.
-pipeline_args=()
-if [[ -n ${PIPELINE_FILE} ]]; then
-	pipeline_args=("${PIPELINE_FILE}")
-fi
-# `${a[@]+"${a[@]}"}` — expanding an empty array under `set -u` is an error
-# before bash 4.4, and agent images that old are still in the wild.
 
 log() { echo "$1" >&2; }
 
@@ -81,38 +72,18 @@ warn_if_no_plugin_config() {
 	log "    this hook disagree — the plan will be requested with defaults only."
 }
 
-# The deepest fail-open: we never got a rendered pipeline, so do exactly what the
-# customer's own command would have done.
-upload_plain() {
-	buildkite-agent pipeline upload ${pipeline_args[@]+"${pipeline_args[@]}"}
-}
-
-# Pipeline mode: the plugin owns the upload step's command.
-#
-# It runs the SAME algorithm filter mode runs — resolve jq, collect keys, ask for
-# a plan, apply it — by running the filter itself rather than keeping a second
-# copy of it. The two used to be separate implementations of one algorithm, which
-# is two sets of failure paths that can drift apart.
-#
-# What this mode still does that filter mode cannot: it owns BOTH ends of the
-# pipe, so it renders WITH interpolation and uploads with `--no-interpolation`,
-# guaranteeing exactly one interpolation pass. Filter mode has to rely on the
-# customer's own `pipeline upload` for that, and cannot check.
-pipeline_mode() {
-	local rendered
-
-	if ! rendered="$(buildkite-agent pipeline upload \
-		${pipeline_args[@]+"${pipeline_args[@]}"} --dry-run --format json)"; then
-		log "--- :trunk: Dynamic CI could not render the pipeline — running every step"
-		upload_plain
+# Filter mode does nothing unless the customer pipes through the filter, and a
+# plugin that installs cleanly and silently never skips anything is the failure
+# this design keeps designing away from. The command may call a script that pipes
+# internally, so this warns rather than fails.
+warn_if_filter_unused() {
+	if [[ -z ${BUILDKITE_COMMAND-} ]] || [[ ${BUILDKITE_COMMAND} == *trunk-dynamic-ci-filter* ]]; then
 		return 0
 	fi
-
-	# The filter is already rendered JSON by the time it arrives, so the filter
-	# takes its no-render path. And it always emits a pipeline, whatever goes
-	# wrong inside it, so its output is safe to upload unconditionally.
-	"${PLUGIN_DIR}/lib/filter-impl.sh" <<<"${rendered}" |
-		buildkite-agent pipeline upload --no-interpolation
+	log "--- :trunk: Dynamic CI is in filter mode but this step's command does not"
+	log "    mention trunk-dynamic-ci-filter. Pipe your pipeline through it:"
+	log "      your-generator | trunk-dynamic-ci-filter | buildkite-agent pipeline upload"
+	log "    (Ignore this if the command calls a script that pipes internally.)"
 }
 
 # Step mode: one step, one verdict. The step has already been dispatched by the
@@ -126,7 +97,7 @@ pipeline_mode() {
 step_mode() {
 	local key="${BUILDKITE_STEP_KEY-}" jq_bin plan skips reason
 
-	# Unlike pipeline mode there is no useful degraded behaviour: the key IS the
+	# There is no useful degraded behaviour here: the key IS the
 	# request. Running the step while the customer believes Dynamic CI is
 	# deciding about it is the failure worth being loud about.
 	if [[ -z ${key} ]]; then
@@ -199,11 +170,9 @@ step_mode() {
 # and degrading to "do nothing, say nothing" is how a plugin gets installed,
 # believed, and never skips anything.
 case "${MODE}" in
-pipeline)
-	warn_if_no_plugin_config
-	pipeline_mode
-	;;
 filter)
+	warn_if_no_plugin_config
+	warn_if_filter_unused
 	hand_back
 	;;
 step)
@@ -212,7 +181,9 @@ step)
 	;;
 *)
 	log "--- :trunk: Dynamic CI does not support mode \"${MODE}\""
-	log "    Valid modes are: pipeline, filter, step."
+	log "    Valid modes are: filter, step."
+	# shellcheck disable=SC2016 # backticks quote a command name, not a substitution
+	log '    `pipeline` was removed: pipe your pipeline through trunk-dynamic-ci-filter instead.'
 	exit 1
 	;;
 esac

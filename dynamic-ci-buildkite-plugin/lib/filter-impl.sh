@@ -6,12 +6,12 @@
 # Reads a pipeline on stdin, marks the steps Trunk recommends skipping, and
 # writes the pipeline to stdout. The customer keeps their own command; the plugin
 # contributes only this filter. Works for a pipeline no file describes — a
-# generated one — which pipeline mode cannot attach to at all.
+# generated one — and equally for a pipeline that is a file.
 #
 # Three rules govern this file, and they are not style preferences:
 #
 #   1. STDOUT IS THE DATA CHANNEL. Every message goes to stderr, without
-#      exception. In pipeline mode a stray `echo` is log noise; here it corrupts
+#      exception. Elsewhere a stray `echo` is log noise; here it corrupts
 #      the pipeline being uploaded.
 #   2. `set -e` IS DELIBERATELY ABSENT. Under it, any unhandled non-zero exit
 #      would terminate having written nothing, and the customer's `pipeline
@@ -74,7 +74,7 @@ fi
 
 # Already JSON — the generator case. No render, so nothing is interpolated that
 # would not have been anyway, and this path never touches YAML at all. It is why
-# filter mode is simpler than pipeline mode rather than more complex.
+# a generated pipeline costs less work than a file, not more.
 if rendered="$("${jq_bin}" -c . "${buffer}" 2>/dev/null)"; then
     :
 else
@@ -85,6 +85,16 @@ else
         log "--- :trunk: Dynamic CI could not read the pipeline — pipeline unchanged"
         emit_unchanged
     fi
+    # Rendered WITHOUT interpolation, so the customer's own `pipeline upload`
+    # must perform the single pass. If it carries `--no-interpolation` too,
+    # nothing interpolates and `$$VAR` reaches the shell, which reads `$$` as
+    # its own PID — `$$FX_INNER` becomes `206FX_INNER`. Not an error, not a
+    # blank: a plausible string that changes every run. Measured, not theorised.
+    log "--- :trunk: Dynamic CI rendered this pipeline without interpolation"
+    # shellcheck disable=SC2016 # backticks quote a command name; single quotes are required
+    log '    Your `buildkite-agent pipeline upload` must NOT pass --no-interpolation,'
+    # shellcheck disable=SC2016 # `$$VAR` is the literal text being explained
+    log '    or nothing will interpolate and $$VAR will resolve to a process id.'
 fi
 
 only_keys="$("${jq_bin}" -c -n \
