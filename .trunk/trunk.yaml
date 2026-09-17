@@ -30,6 +30,9 @@ lint:
     - linters: [ALL]
       paths:
         - dist
+    - linters: [ALL]
+      paths:
+        - dynamic-ci-buildkite-plugin/vendor/jq-*
 actions:
   definitions:
     - id: build-pre-commit

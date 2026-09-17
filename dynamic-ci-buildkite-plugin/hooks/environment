@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Filter mode's entire contribution at hook time (and it is the default): put this plugin's commands on
+# PATH, so the customer's pipe can name `trunk-dynamic-ci-filter` directly.
+#
+# Appended rather than prepended, matching Buildkite's own library-plugin
+# example: a plugin should not shadow a command the customer already has.
+set -euo pipefail
+
+if [[ ${BUILDKITE_PLUGIN_DYNAMIC_CI_MODE:-filter} == "filter" ]]; then
+	PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+	export PATH="${PATH}:${PLUGIN_DIR}/bin"
+fi

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# The command filter mode puts on PATH.
+#
+# Everything in this directory is exposed to the customer's build job by
+# `hooks/environment`, following the pattern Buildkite documents for plugins
+# that contribute commands rather than behaviour
+# (buildkite-plugins/library-example-buildkite-plugin). So this directory holds
+# exactly what we mean to expose — the vendored `jq` lives in `vendor/`, off
+# PATH, precisely so it is not exposed by accident.
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/filter-impl.sh" "$@"
