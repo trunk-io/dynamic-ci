@@ -7,8 +7,9 @@
 #
 #   pipeline  the plugin owns the upload step: render, plan, mark, upload. The
 #             skip is taken before an agent is acquired for the skipped steps.
-#   filter    the customer owns the command; `lib/filter.sh` does the work in
-#             their pipe. Nothing to do here but give the step back.
+#   filter    the customer owns the command; `trunk-dynamic-ci-filter` (put on
+#             PATH by `hooks/environment`) does the work in their pipe. Nothing
+#             to do here but give the step back.
 #   step      the plugin owns one step and decides about that step alone.
 #
 # Two things this deliberately does NOT do. It never reads or writes the
@@ -107,7 +108,7 @@ pipeline_mode() {
 	# The filter is already rendered JSON by the time it arrives, so the filter
 	# takes its no-render path. And it always emits a pipeline, whatever goes
 	# wrong inside it, so its output is safe to upload unconditionally.
-	"${PLUGIN_DIR}/lib/filter.sh" <<<"${rendered}" |
+	"${PLUGIN_DIR}/lib/filter-impl.sh" <<<"${rendered}" |
 		buildkite-agent pipeline upload --no-interpolation
 }
 
@@ -133,7 +134,7 @@ step_mode() {
 		return 1
 	fi
 
-	if ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/bin")"; then
+	if ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/vendor")"; then
 		log "--- :trunk: Dynamic CI has no usable jq — running this step"
 		hand_back
 	fi

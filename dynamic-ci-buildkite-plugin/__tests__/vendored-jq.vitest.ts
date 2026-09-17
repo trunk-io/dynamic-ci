@@ -53,7 +53,7 @@ const stagedBinDir = (): { dir: string; name: string } => {
   const name = basename(source);
   const dir = mkdtempSync(join(tmpdir(), "dci-jq-"));
   copyFileSync(source, join(dir, name));
-  const sums = readFileSync(join(PLUGIN_ROOT, "bin/SHA256SUMS"), "utf8");
+  const sums = readFileSync(join(PLUGIN_ROOT, "vendor/SHA256SUMS"), "utf8");
   writeFileSync(join(dir, "SHA256SUMS"), sums);
   return { dir, name };
 };

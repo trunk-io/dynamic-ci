@@ -15,8 +15,8 @@ steps:
   #   - label: ":pipeline: upload"
   #     command: buildkite-agent pipeline upload
   - label: ":pipeline: upload"
-    env:
-      TRUNK_TOKEN: ${TRUNK_DYNAMIC_CI_TOKEN}
+    secrets:
+      - TRUNK_TOKEN
     plugins:
       - trunk-io/dynamic-ci#v1: ~
 ```
@@ -29,16 +29,18 @@ running. Move it to its own step.
 
 ### Options
 
-| Option           | Default       |                                                                                                                                                           |
-| ---------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`           | `pipeline`    | `pipeline` takes over the upload step's command; `filter` leaves your command alone and exports `TRUNK_DYNAMIC_CI_FILTER`; `step` decides about one step. |
-| `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order.                                                                              |
-| `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token.                                                                               |
-| `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.                                                                                    |
+| Option           | Default       |                                                                                                                                                                                                                                |
+| ---------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode`           | `pipeline`    | `pipeline` takes over the upload step's command; `filter` leaves your command alone and puts `trunk-dynamic-ci-filter` on PATH; `step` decides about one step.                                                                 |
+| `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order.                                                                                                                                                   |
+| `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token. Expose it to the step (`secrets:`, or your agent's environment) and name it here — never put the token in plugin configuration or an `env:` value. |
+| `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.                                                                                                                                                         |
 
-**Pass the token by environment, never as plugin configuration.** Plugin
-configuration is interpolated into the uploaded pipeline and is visible in the
-Buildkite UI.
+**The token must reach the step without passing through the pipeline
+definition.** Two things are interpolated into the uploaded pipeline at upload
+time and shown in the Buildkite UI: plugin configuration, and `env:` values. So
+put the token in neither. Expose it to the step — Buildkite `secrets:`, or your
+agent's own environment — and point `token-env` at the variable's name.
 
 ## If your pipeline is generated
 
@@ -50,20 +52,27 @@ segment to the pipe.
 ```yaml
 - key: initialize-pipeline
   label: ":wrench: Initialize Pipeline"
-  env:
-    TRUNK_TOKEN: ${TRUNK_DYNAMIC_CI_TOKEN}
+  secrets:
+    - TRUNK_TOKEN
   command: |
     python -m ci.generate_pipeline \
-      | "$TRUNK_DYNAMIC_CI_FILTER" \
+      | trunk-dynamic-ci-filter \
       | buildkite-agent pipeline upload
   plugins:
     - trunk-io/dynamic-ci#v1:
         mode: filter
 ```
 
-The plugin contributes one thing here: `TRUNK_DYNAMIC_CI_FILTER`, the path to the
-filter. It reads a pipeline on stdin and writes one on stdout — JSON or YAML —
-and on any failure it writes back **exactly** what it was given, byte for byte.
+The plugin contributes one thing here: the `trunk-dynamic-ci-filter` command,
+put on your `PATH` for the duration of the step. It reads a pipeline on stdin —
+JSON or YAML — and writes one on stdout, and on any failure it writes back
+**exactly** what it was given, byte for byte.
+
+**It is a command, not a path in a variable, on purpose.** Buildkite interpolates
+`${VAR}` in an uploaded pipeline at _upload_ time, while anything a plugin
+exports exists only at _step_ runtime. A pipe written `| "${SOME_PATH}" |` would
+therefore collapse to `|  |` — a shell syntax error on your first build. A
+command name has nothing to interpolate.
 
 Filter mode works for a generator in any language, and on JSON input it does
 less work than pipeline mode: the pipeline is already parsed, so nothing is
@@ -77,8 +86,8 @@ rendered and nothing is interpolated that would not have been anyway.
 - key: e2e
   label: ":robot: E2E"
   command: make e2e
-  env:
-    TRUNK_TOKEN: ${TRUNK_DYNAMIC_CI_TOKEN}
+  secrets:
+    - TRUNK_TOKEN
   plugins:
     - trunk-io/dynamic-ci#v1:
         mode: step
@@ -134,7 +143,7 @@ recommendation's reason on hover.
 
 ## It installs nothing
 
-The plugin ships the one tool it needs. `bin/` holds verified static
+The plugin ships the one tool it needs. `vendor/` holds verified static
 [`jq`](https://jqlang.org) binaries for linux-amd64, linux-arm64 and
 macos-arm64, with their upstream checksums in `bin/SHA256SUMS`; the hook checks
 the checksum before executing. On a platform we do not ship, the plugin says so

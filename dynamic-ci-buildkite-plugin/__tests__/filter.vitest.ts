@@ -22,15 +22,18 @@ const runFilter = async (
   input: string,
   env: Readonly<Record<string, string>> = {},
 ): Promise<{ stdout: string; stderr: string }> => {
-  const child = execFileAsync(join(PLUGIN_ROOT, "lib/filter.sh"), {
-    encoding: "utf8",
-    env: {
-      PATH: process.env["PATH"] ?? "",
-      TRUNK_DCI_JQ: vendoredJqPath(),
-      ...AGENT_ENV,
-      ...env,
+  const child = execFileAsync(
+    join(PLUGIN_ROOT, "bin/trunk-dynamic-ci-filter"),
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env["PATH"] ?? "",
+        TRUNK_DCI_JQ: vendoredJqPath(),
+        ...AGENT_ENV,
+        ...env,
+      },
     },
-  });
+  );
   child.child.stdin?.end(input);
   return child;
 };
@@ -168,6 +171,76 @@ describe("filter mode", () => {
     const { stdout } = await runFilter(json);
 
     expect(stdout).toBe(json);
+  });
+});
+
+// The interface itself: `hooks/environment` puts the plugin's commands on PATH
+// so the customer's pipe can name one. A command rather than a path in a
+// variable specifically because Buildkite interpolates `${VAR}` in an uploaded
+// pipeline at UPLOAD time, while anything this plugin exports exists only at
+// step runtime — so `| "${TRUNK_DYNAMIC_CI_FILTER}" |` collapses to `|  |`, a
+// shell syntax error on the customer's first build.
+describe("the environment hook", () => {
+  const inHook = async (
+    mode: string,
+    script: string,
+  ): Promise<{ stdout: string; status: number }> => {
+    const full = `source "${join(PLUGIN_ROOT, "hooks/environment")}"; ${script}`;
+    try {
+      const { stdout } = await execFileAsync("bash", ["-c", full], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env["PATH"] ?? "",
+          BUILDKITE_PLUGIN_DYNAMIC_CI_MODE: mode,
+        },
+      });
+      return { stdout, status: 0 };
+    } catch (error) {
+      const failure: unknown = error;
+      if (
+        typeof failure !== "object" ||
+        failure === null ||
+        !("code" in failure)
+      ) {
+        throw error;
+      }
+      return { stdout: "", status: Number(failure.code) };
+    }
+  };
+
+  it("puts trunk-dynamic-ci-filter on PATH in filter mode", async () => {
+    const { stdout, status } = await inHook(
+      "filter",
+      "command -v trunk-dynamic-ci-filter",
+    );
+
+    expect(status).toBe(0);
+    expect(stdout.trim()).toBe(
+      join(PLUGIN_ROOT, "bin/trunk-dynamic-ci-filter"),
+    );
+  });
+
+  // Named, not path-interpolated: this is the whole point of the mechanism.
+  it("filters a pipeline when invoked by name", async () => {
+    const { stdout, status } = await inHook(
+      "filter",
+      `printf '%s' '${JSON.stringify(PIPELINE)}' | trunk-dynamic-ci-filter`,
+    );
+
+    expect(status).toBe(0);
+    // No token configured, so it fails open — replaying the input exactly.
+    expect(JSON.parse(stdout)).toEqual(PIPELINE);
+  });
+
+  // An unexpected PATH change is worse than a missing one, so the mode has to
+  // ask for it.
+  it("does not touch PATH in the other modes", async () => {
+    const { status } = await inHook(
+      "pipeline",
+      "command -v trunk-dynamic-ci-filter",
+    );
+
+    expect(status).not.toBe(0);
   });
 });
 

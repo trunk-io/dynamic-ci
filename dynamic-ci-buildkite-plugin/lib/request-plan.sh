@@ -164,7 +164,7 @@ main() {
     # hashing the binary a second time.
     if [[ -n ${TRUNK_DCI_JQ-} ]]; then
         jq_bin="${TRUNK_DCI_JQ}"
-    elif ! jq_bin="$(dci_resolve_jq "${LIB_DIR}/../bin")"; then
+    elif ! jq_bin="$(dci_resolve_jq "${LIB_DIR}/../vendor")"; then
         return 1
     fi
 

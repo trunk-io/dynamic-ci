@@ -64,7 +64,7 @@ emit() {
 cat >"${buffer}"
 
 jq_bin="${TRUNK_DCI_JQ-}"
-if [[ -z ${jq_bin} ]] && ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/bin")"; then
+if [[ -z ${jq_bin} ]] && ! jq_bin="$(dci_resolve_jq "${PLUGIN_DIR}/vendor")"; then
     log "--- :trunk: Dynamic CI has no usable jq — pipeline unchanged"
     emit_unchanged
 fi

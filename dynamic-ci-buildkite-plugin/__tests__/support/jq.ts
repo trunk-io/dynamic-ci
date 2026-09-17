@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 
 export const PLUGIN_ROOT: string = resolve(import.meta.dirname, "../..");
 
-/** The vendored binary for this platform — the same resolution `lib/jq.sh` does. */
+/** The vendored binary for this platform, from `vendor/` — as `lib/jq.sh` resolves it. */
 const VENDORED_JQ: Record<string, string> = {
   "linux-x64": "jq-linux-amd64",
   "linux-arm64": "jq-linux-arm64",
@@ -16,7 +16,7 @@ export const vendoredJqPath = (): string => {
   if (name === undefined) {
     throw new Error(`no vendored jq for ${platform}`);
   }
-  return join(PLUGIN_ROOT, "bin", name);
+  return join(PLUGIN_ROOT, "vendor", name);
 };
 
 interface RunJqArgs {

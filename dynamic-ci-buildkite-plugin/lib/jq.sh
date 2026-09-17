@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resolves the `jq` this plugin ships, so adopting the plugin requires the
+# Resolves the `jq` this plugin ships (from `vendor/`, deliberately off PATH), so adopting the plugin requires the
 # customer to install nothing. Sourced by `hooks/command`.
 #
 # Vendored rather than downloaded at hook time: a fetch would put the network on

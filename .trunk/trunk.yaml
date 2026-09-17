@@ -35,7 +35,7 @@ lint:
     # only costs time.
     - linters: [ALL]
       paths:
-        - dynamic-ci-buildkite-plugin/bin/jq-*
+        - dynamic-ci-buildkite-plugin/vendor/jq-*
 actions:
   definitions:
     - id: build-pre-commit
