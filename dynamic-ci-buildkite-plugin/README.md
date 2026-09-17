@@ -6,13 +6,14 @@ acquires an agent.
 
 ## Usage
 
-> **Pre-release.** The short reference below does not resolve yet. Buildkite
-> expands `trunk-io/dynamic-ci#v1` to `github.com/trunk-io/dynamic-ci-buildkite-plugin`,
-> and until this plugin moves to a repository of its own it is a subdirectory
-> here. Use the full form in every snippet below:
+> **Pre-release.** At release this plugin lives in its own public repository,
+> `trunk-io/dynamic-ci-buildkite-plugin`, which is what makes the short
+> reference below resolve — Buildkite appends `-buildkite-plugin` to
+> `trunk-io/dynamic-ci`. Until that split it is a subdirectory here, so
+> reference it the long way:
 >
 > ```yaml
-> - https://github.com/trunk-io/dynamic-ci.git/dynamic-ci-buildkite-plugin#max/buildkite-plugin: ~
+> - https://github.com/trunk-io/dynamic-ci.git/dynamic-ci-buildkite-plugin#main: ~
 > ```
 
 Pipe your pipeline through `trunk-dynamic-ci-filter` on its way to
@@ -30,7 +31,7 @@ steps:
         | trunk-dynamic-ci-filter \
         | buildkite-agent pipeline upload
     plugins:
-      - trunk-io/dynamic-ci#v1: ~
+      - trunk-io/dynamic-ci#v1.0.0: ~
 ```
 
 ```yaml
@@ -46,7 +47,7 @@ steps:
         | trunk-dynamic-ci-filter \
         | buildkite-agent pipeline upload
     plugins:
-      - trunk-io/dynamic-ci#v1: ~
+      - trunk-io/dynamic-ci#v1.0.0: ~
 ```
 
 The plugin contributes one thing: the `trunk-dynamic-ci-filter` command, put on
@@ -101,7 +102,7 @@ untouched:
       | trunk-dynamic-ci-filter \
       | buildkite-agent pipeline upload
   plugins:
-    - trunk-io/dynamic-ci#v1:
+    - trunk-io/dynamic-ci#v1.0.0:
         only-keys: e2e
 ```
 
@@ -126,7 +127,7 @@ gets you a real skip:
   secrets:
     - TRUNK_TOKEN
   plugins:
-    - trunk-io/dynamic-ci#v1:
+    - trunk-io/dynamic-ci#v1.0.0:
         mode: step
 ```
 
@@ -155,7 +156,7 @@ Two ways to say it:
 
 ```yaml
 plugins:
-  - trunk-io/dynamic-ci#v1:
+  - trunk-io/dynamic-ci#v1.0.0:
       exclude-keys: deploy-master,publish-release
 ```
 
@@ -230,7 +231,7 @@ whether the repository and pipeline resolved to what you expected, whether
 
 ```yaml
 plugins:
-  - trunk-io/dynamic-ci#v1:
+  - trunk-io/dynamic-ci#v1.0.0:
       debug: true
 ```
 
