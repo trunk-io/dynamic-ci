@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { runJq } from "./support/jq";
 
 const parse = (raw: string): unknown =>
-  runJq({ program: "only-keys.jq", input: null, args: ["--arg", "raw", raw] });
+  runJq({ program: "key-list.jq", input: null, args: ["--arg", "raw", raw] });
 
-describe("only-keys.jq", () => {
+describe("key-list.jq", () => {
   it("splits a comma-separated list", () => {
     expect(parse("unit,e2e")).toEqual(["unit", "e2e"]);
   });

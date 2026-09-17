@@ -220,17 +220,60 @@ describe("the only-keys option", () => {
     });
   });
 
+  // The "never skip my deploy step" control, and the reason it exists: saying it
+  // through only-keys would mean listing every other step in the pipeline.
+  it("never decides about a step in exclude-keys", async () => {
+    const captured: CapturedRequest = {};
+
+    // A plan scoped to what was actually asked, as the engine returns. Handing
+    // back a verdict for `unit` here would test the documented asymmetry —
+    // narrowing is enforced on the request, not on the plan — rather than the
+    // option.
+    const scoped = {
+      jobs: [
+        { jobKey: "e2e", run: true, summary: "paths changed", signals: [] },
+      ],
+    };
+
+    await withPlanServer(scoped, captured, async (address) => {
+      const { stdout } = await runFilter(JSON.stringify(PIPELINE), {
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_EXCLUDE_KEYS: "unit",
+      });
+
+      expect(JSON.parse(stdout)).toEqual(PIPELINE);
+    });
+
+    const request = BUILDKITE_DYNAMIC_CI_REQUEST_SCHEMA.parse(
+      captured.received,
+    );
+    expect(request.jobKeys).toEqual(["e2e"]);
+  });
+
   // A stale only-keys and an unkeyed pipeline both end with nothing to ask
   // about, and sending the customer to look for a missing `key:` when the list
   // is the problem wastes their afternoon.
-  it("says the list matched nothing, not that no step has a key", async () => {
+  it("says the lists left nothing, not that no step has a key", async () => {
     const { stdout, stderr } = await runFilter(JSON.stringify(PIPELINE), {
       BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS: "renamed-last-week",
     });
 
-    expect(stderr).toContain("found none of the steps named in only-keys");
+    expect(stderr).toContain("no step left to consider");
+    // Both lists are echoed, because either one can be the culprit and the
+    // customer cannot tell which from the message alone.
     expect(stderr).toContain("renamed-last-week");
+    expect(stderr).toContain("exclude-keys: <unset>");
     expect(stderr).not.toContain("found no step with a key");
+    expect(JSON.parse(stdout)).toEqual(PIPELINE);
+  });
+
+  it("skips nothing and says so when exclude-keys covers every step", async () => {
+    const { stdout, stderr } = await runFilter(JSON.stringify(PIPELINE), {
+      BUILDKITE_PLUGIN_DYNAMIC_CI_EXCLUDE_KEYS: "unit,e2e",
+    });
+
+    expect(stderr).toContain("no step left to consider");
+    expect(stderr).toContain("exclude-keys: unit,e2e");
     expect(JSON.parse(stdout)).toEqual(PIPELINE);
   });
 });

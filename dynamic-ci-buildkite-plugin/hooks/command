@@ -152,6 +152,14 @@ step_mode() {
 		hand_back
 	fi
 
+	# Exclusion is checked after the allowlist and therefore wins, matching
+	# `collect-keys.jq`: `exclude-keys` is how a customer says "never skip this".
+	local excluded="${BUILDKITE_PLUGIN_DYNAMIC_CI_EXCLUDE_KEYS-}"
+	if [[ -n ${excluded} ]] && [[ ",${excluded//[[:space:]]/}," == *",${key},"* ]]; then
+		log "--- :trunk: ${key} is in exclude-keys — running this step"
+		hand_back
+	fi
+
 	# shellcheck disable=SC2016 # `$key` is a jq variable, bound by --arg, not a shell one
 	if ! plan="$(TRUNK_DCI_TOKEN_ENV="${TOKEN_ENV}" TRUNK_DCI_JQ="${jq_bin}" \
 		"${PLUGIN_DIR}/lib/request-plan.sh" \

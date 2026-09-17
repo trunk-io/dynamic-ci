@@ -89,9 +89,13 @@ fi
 
 only_keys="$("${jq_bin}" -c -n \
     --arg raw "${BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS-}" \
-    -f "${PLUGIN_DIR}/lib/only-keys.jq")" || only_keys="[]"
+    -f "${PLUGIN_DIR}/lib/key-list.jq")" || only_keys="[]"
+exclude_keys="$("${jq_bin}" -c -n \
+    --arg raw "${BUILDKITE_PLUGIN_DYNAMIC_CI_EXCLUDE_KEYS-}" \
+    -f "${PLUGIN_DIR}/lib/key-list.jq")" || exclude_keys="[]"
 
 if ! keys="$("${jq_bin}" -c --argjson only "${only_keys}" \
+    --argjson exclude "${exclude_keys}" \
     -f "${PLUGIN_DIR}/lib/collect-keys.jq" <<<"${rendered}")"; then
     log "--- :trunk: Dynamic CI could not read the pipeline's step keys — pipeline unchanged"
     emit_unchanged
@@ -102,9 +106,10 @@ dci_debug_block "${jq_bin}" "requested step keys" "${keys}"
 if [[ ${keys} == "[]" ]]; then
     # Two different causes, and conflating them sends a customer looking for a
     # missing `key:` when what they have is a stale `only-keys`.
-    if [[ ${only_keys} != "[]" ]]; then
-        log "--- :trunk: Dynamic CI found none of the steps named in only-keys — pipeline unchanged"
-        log "    only-keys: ${BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS-}"
+    if [[ ${only_keys} != "[]" || ${exclude_keys} != "[]" ]]; then
+        log "--- :trunk: Dynamic CI has no step left to consider — pipeline unchanged"
+        log "    only-keys: ${BUILDKITE_PLUGIN_DYNAMIC_CI_ONLY_KEYS:-<unset>}"
+        log "    exclude-keys: ${BUILDKITE_PLUGIN_DYNAMIC_CI_EXCLUDE_KEYS:-<unset>}"
     else
         log "--- :trunk: Dynamic CI found no step with a key: attribute — pipeline unchanged"
         log "    Add a key: to the steps you want Trunk to decide about."

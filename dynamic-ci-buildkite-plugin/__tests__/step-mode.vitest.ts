@@ -187,6 +187,23 @@ describe("step mode", () => {
     });
   });
 
+  it("runs a step in exclude-keys without asking", async () => {
+    const captured: CapturedRequest = {};
+
+    await withPlanServer(planFor(false), captured, async (address) => {
+      const result = await runHook({
+        ...STEP_ENV,
+        TRUNK_PUBLIC_API_ADDRESS: address,
+        BUILDKITE_PLUGIN_DYNAMIC_CI_EXCLUDE_KEYS: "unit",
+      });
+
+      expect(result.ranCommand).toBe(true);
+      expect(result.stderr).toContain("is in exclude-keys");
+    });
+
+    expect(captured.received).toBeUndefined();
+  });
+
   // Fail-open: an outage must never be the reason a test did not run.
   it("runs the step's work when the plan is unavailable", async () => {
     const result = await runHook({

@@ -35,6 +35,7 @@ running. Move it to its own step.
 | `pipeline`       | unset         | Path to the pipeline file. Omit to use `pipeline upload`'s own search order.                                                                                                                                                   |
 | `token-env`      | `TRUNK_TOKEN` | Name of the environment variable holding your Trunk organization API token. Expose it to the step (`secrets:`, or your agent's environment) and name it here — never put the token in plugin configuration or an `env:` value. |
 | `only-keys`      | unset         | Comma-separated step keys to consider. Every other step runs untouched. Works in all three modes.                                                                                                                              |
+| `exclude-keys`   | unset         | Comma-separated step keys to never skip. Trunk still runs them; it just never decides about them. Applied after `only-keys`, so a key in both is excluded.                                                                     |
 | `debug`          | `false`       | Print the requested step keys, the request body and the plan to the build log, in collapsed groups. All of it goes to stderr, so it is safe in filter mode.                                                                    |
 | `ignore-signals` | unset         | Comma-separated signal identifiers to exclude from the recommendation.                                                                                                                                                         |
 
@@ -132,6 +133,30 @@ dispatched by the time Trunk is asked:
 A step in this mode **must** have a `key:` — it is the whole request — and the
 plugin fails the step rather than running it if one is missing, so you never get
 a step that looks filtered but is not.
+
+## Every keyed step is a candidate
+
+Worth being explicit, because it differs from how the GitHub Action works: once
+the plugin is on your upload step, **every step with a `key:` is something Trunk
+may decide to skip.** There is no per-step opt-in to wire up — which is
+convenient, and also means a step you never want skipped needs saying so.
+
+Two ways to say it:
+
+```yaml
+plugins:
+  - trunk-io/dynamic-ci#v1:
+      exclude-keys: deploy-master,publish-release
+```
+
+`exclude-keys` keeps a step out of Trunk's reach entirely — it still runs, Trunk
+just never decides about it. Good for deploys, release gates, and anything whose
+cost of being wrongly skipped is high.
+
+For a standing policy rather than pipeline configuration, set the job to **Never
+skip** on the repository's Dynamic CI configuration in the Trunk web app. Same
+effect, kept with the rest of your Dynamic CI settings rather than in your
+pipeline, and it survives someone editing the YAML.
 
 ## Your steps need a `key:`
 

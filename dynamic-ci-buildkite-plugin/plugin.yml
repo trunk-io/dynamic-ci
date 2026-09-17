@@ -42,6 +42,13 @@ configuration:
         Dynamic CI on one expensive step while still getting a real skip, taken
         before the step is dispatched.
       type: string
+    exclude-keys:
+      description:
+        Comma-separated step keys to never skip. Trunk still runs them; it just
+        never decides about them. Use this for steps that must always run — a
+        deploy, a release gate — while the rest of the pipeline is considered.
+        Applied after only-keys, so a key in both is excluded.
+      type: string
     debug:
       description:
         Print the requested step keys, the request body and the plan to the
