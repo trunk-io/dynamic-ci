@@ -35,11 +35,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": [
-    "src/**/*.ts",
-    "dynamic-ci-buildkite-plugin/**/*.ts",
-    "esbuild.config.ts",
-    "vitest.config.ts"
-  ],
+  "include": ["src/**/*.ts", "esbuild.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }
