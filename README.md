@@ -257,6 +257,22 @@ Four ways to resolve it:
 
 Prefer the fan-in job: it costs one cheap runner and keeps the pass-rate signals honest.
 
+## Buildkite
+
+This action is for GitHub Actions. The Buildkite equivalent is a plugin, and it
+lives in its own repository:
+[trunk-io/dynamic-ci-buildkite-plugin](https://github.com/trunk-io/dynamic-ci-buildkite-plugin).
+
+It used to be vendored here, in a `dynamic-ci-buildkite-plugin/` subdirectory.
+Buildkite resolves a short plugin reference only for a repository whose name ends
+in `-buildkite-plugin`, so moving it out is what lets customers write
+`trunk-io/dynamic-ci#v1.0.0` instead of the full path to a subdirectory. If you
+were referencing it the long way, that reference still resolves at any commit
+before this one — but it will not receive updates, so move to the short form.
+
+Both speak the same wire contract, synced into each from the same upstream
+definition. They release independently.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
