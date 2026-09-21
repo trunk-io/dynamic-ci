@@ -266,7 +266,7 @@ lives in its own repository:
 It used to be vendored here, in a `dynamic-ci-buildkite-plugin/` subdirectory.
 Buildkite resolves a short plugin reference only for a repository whose name ends
 in `-buildkite-plugin`, so moving it out is what lets customers write
-`trunk-io/dynamic-ci#v1.0.0` instead of the full path to a subdirectory. If you
+`trunk-io/dynamic-ci#v0.1.0` instead of the full path to a subdirectory. If you
 were referencing it the long way, that reference still resolves at any commit
 before this one — but it will not receive updates, so move to the short form.
 
