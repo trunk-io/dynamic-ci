@@ -257,6 +257,12 @@ Four ways to resolve it:
 
 Prefer the fan-in job: it costs one cheap runner and keeps the pass-rate signals honest.
 
+## Buildkite
+
+This action is for GitHub Actions. The Buildkite equivalent is a plugin, and it
+lives in its own repository:
+[trunk-io/dynamic-ci-buildkite-plugin](https://github.com/trunk-io/dynamic-ci-buildkite-plugin).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
