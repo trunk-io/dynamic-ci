@@ -4,329 +4,313 @@
  */
 
 export interface paths {
-  "/v2/dynamic-ci/generate-plan": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/v2/dynamic-ci/generate-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate a CI skip plan
+         * @description Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.
+         *
+         *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
+         *
+         *     The changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.
+         */
+        post: operations["dynamicCi.generatePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Generate a CI skip plan
-     * @description Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.
-     *
-     *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
-     *
-     *     The changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.
-     */
-    post: operations["dynamicCi.generatePlan"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/v2/dynamic-ci/generate-buildkite-plan": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/v2/dynamic-ci/generate-buildkite-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate a CI skip plan for a Buildkite pipeline
+         * @description As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.
+         *
+         *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
+         *
+         *     The changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.
+         */
+        post: operations["dynamicCi.generateBuildkitePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Generate a CI skip plan for a Buildkite pipeline
-     * @description As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.
-     *
-     *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
-     *
-     *     The changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.
-     */
-    post: operations["dynamicCi.generateBuildkitePlan"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    BuildkitePlanRequest: {
-      repo: components["schemas"]["PlanRepo"];
-      /**
-       * @description The commit being built — `BUILDKITE_COMMIT`.
-       * @example 9f2c1b7c2b4c9d1e0a3f5b6c7d8e9f0a1b2c3d4e
-       */
-      commitSha: string;
-      /**
-       * @description The commit to diff against. Null for a non-pull-request event, leaving diff-derived signals without evidence.
-       * @example 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
-       */
-      baseSha: string | null;
-      /** @example feature/widget-cache */
-      branch: string;
-      /**
-       * @description Null for a non-pull-request event.
-       * @example 4213
-       */
-      prNumber: number | null;
-      /**
-       * @description `BUILDKITE_BUILD_ID`, recorded so the plan can later be scored against the build's outcome.
-       * @example 01a0a151-99d4-4097-8806-a837f0830d9d
-       */
-      runId: string;
-      /**
-       * @description Which attempt this is, counting from 1. An agent's `BUILDKITE_RETRY_COUNT` counts from 0, so send it plus one.
-       * @example 1
-       */
-      runAttempt: number;
-      /**
-       * @description `BUILDKITE_BUILD_CREATOR`.
-       * @example octocat
-       */
-      triggeringActor?: string;
-      /**
-       * @description What triggered the build — `BUILDKITE_SOURCE`.
-       * @example webhook
-       */
-      eventName?: string;
-      /**
-       * @description The step `key:` values to decide — what Trunk ingests from `buildkite.step.key`. **Empty means every keyed step in the pipeline** — the usual call.
-       * @default []
-       * @example [
-       *       "unit-tests"
-       *     ]
-       */
-      jobKeys: string[];
-      /**
-       * @description Signals to drop from the tally. An unrecognized identifier is rejected, so a typo surfaces.
-       * @example [
-       *       "estimated-cost"
-       *     ]
-       */
-      ignoreSignals?: components["schemas"]["SignalType"][];
-      /**
-       * @description `BUILDKITE_ORGANIZATION_SLUG` on an agent.
-       * @example acme
-       */
-      buildkiteOrganizationSlug: string;
-      /**
-       * @description `BUILDKITE_PIPELINE_SLUG` on an agent.
-       * @example widgets-pr
-       */
-      buildkitePipelineSlug: string;
+    schemas: {
+        BuildkitePlanRequest: {
+            repo: components["schemas"]["PlanRepo"];
+            /**
+             * @description The commit being built — `BUILDKITE_COMMIT`.
+             * @example 9f2c1b7c2b4c9d1e0a3f5b6c7d8e9f0a1b2c3d4e
+             */
+            commitSha: string;
+            /**
+             * @description The commit to diff against. Null for a non-pull-request event, leaving diff-derived signals without evidence.
+             * @example 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
+             */
+            baseSha: string | null;
+            /** @example feature/widget-cache */
+            branch: string;
+            /**
+             * @description Null for a non-pull-request event.
+             * @example 4213
+             */
+            prNumber: number | null;
+            /**
+             * @description `BUILDKITE_BUILD_ID`, recorded so the plan can later be scored against the build's outcome.
+             * @example 01a0a151-99d4-4097-8806-a837f0830d9d
+             */
+            runId: string;
+            /**
+             * @description Which attempt this is, counting from 1. An agent's `BUILDKITE_RETRY_COUNT` counts from 0, so send it plus one.
+             * @example 1
+             */
+            runAttempt: number;
+            /**
+             * @description `BUILDKITE_BUILD_CREATOR`.
+             * @example octocat
+             */
+            triggeringActor?: string;
+            /**
+             * @description What triggered the build — `BUILDKITE_SOURCE`.
+             * @example webhook
+             */
+            eventName?: string;
+            /**
+             * @description The step `key:` values to decide — what Trunk ingests from `buildkite.step.key`. **Empty means every keyed step in the pipeline** — the usual call.
+             * @default []
+             * @example [
+             *       "unit-tests"
+             *     ]
+             */
+            jobKeys: string[];
+            /**
+             * @description Signals to drop from the tally. An unrecognized identifier is rejected, so a typo surfaces.
+             * @example [
+             *       "estimated-cost"
+             *     ]
+             */
+            ignoreSignals?: components["schemas"]["SignalType"][];
+            /**
+             * @description `BUILDKITE_ORGANIZATION_SLUG` on an agent.
+             * @example acme
+             */
+            buildkiteOrganizationSlug: string;
+            /**
+             * @description `BUILDKITE_PIPELINE_SLUG` on an agent.
+             * @example widgets-pr
+             */
+            buildkitePipelineSlug: string;
+        };
+        CiPlan: {
+            /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported. */
+            jobs: components["schemas"]["JobVerdict"][];
+            notice?: components["schemas"]["PlanNotice"];
+        };
+        CiPlanRequest: {
+            repo: components["schemas"]["PlanRepo"];
+            /**
+             * @description The commit being built (`github.sha`).
+             * @example 9f2c1b7c2b4c9d1e0a3f5b6c7d8e9f0a1b2c3d4e
+             */
+            commitSha: string;
+            /**
+             * @description The commit to diff against. Null for a non-pull-request event, leaving diff-derived signals without evidence.
+             * @example 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
+             */
+            baseSha: string | null;
+            /** @example feature/widget-cache */
+            branch: string;
+            /**
+             * @description Null for a non-pull-request event.
+             * @example 4213
+             */
+            prNumber: number | null;
+            /**
+             * @description `github.run_id`, recorded so the plan can later be scored against the run's outcome.
+             * @example 18342998211
+             */
+            runId: string;
+            /**
+             * @description `github.run_attempt`, which disambiguates re-runs.
+             * @example 1
+             */
+            runAttempt: number;
+            /**
+             * @description `github.triggering_actor`.
+             * @example octocat
+             */
+            triggeringActor?: string;
+            /**
+             * @description `github.event_name`.
+             * @example pull_request
+             */
+            eventName?: string;
+            /**
+             * @description The `jobs:` keys to decide. **Empty means every keyed job in the workflow** — the usual call.
+             * @default []
+             * @example [
+             *       "unit-tests"
+             *     ]
+             */
+            jobKeys: string[];
+            /**
+             * @description Signals to drop from the tally. An unrecognized identifier is rejected, so a typo surfaces.
+             * @example [
+             *       "estimated-cost"
+             *     ]
+             */
+            ignoreSignals?: components["schemas"]["SignalType"][];
+            /**
+             * @description From `github.workflow_ref`; identifies the workflow whose jobs are in scope.
+             * @example .github/workflows/ci.yaml
+             */
+            workflowPath: string;
+        };
+        JobVerdict: {
+            /**
+             * @description The workflow's declarative `jobs:` key — what `github.job` reports and what an `if:` names.
+             * @example unit-tests
+             */
+            jobKey: string;
+            /**
+             * @description Whether this job should run.
+             * @example false
+             */
+            run: boolean;
+            /**
+             * @description One-line rationale for the verdict, safe to show to a user.
+             * @example Skipping: no changed file has ever broken this job.
+             */
+            summary: string;
+            /** @description The audit trail behind `summary`, abstentions included. */
+            signals: components["schemas"]["SignalResult"][];
+        };
+        /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a merge-queue branch, an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
+        PlanNotice: {
+            /**
+             * @description A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`. `MERGE_QUEUE_BRANCH` is retired and no longer sent — merge-queue runs now carry real per-job verdicts. **An open set** — fall back to `message` for a code you do not recognize.
+             * @example ORG_NOT_ENABLED
+             */
+            code: string;
+            /**
+             * @description The condition in prose, safe to show to a user verbatim.
+             * @example Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on.
+             */
+            message: string;
+        };
+        PlanRepo: {
+            /**
+             * @description Disambiguates GitHub.com from a GitHub Enterprise Server host. `github.com` is the only supported value today.
+             * @default github.com
+             * @example github.com
+             */
+            host: string;
+            /** @example acme */
+            owner: string;
+            /** @example widgets */
+            name: string;
+        };
+        /**
+         * @description One signal's contribution. `MUST_RUN` and `NEVER_RUN` are hard verdicts (a single one decides, with `MUST_RUN` winning a tie); `VOTE_RUN` and `VOTE_NO_RUN` are weighted votes. `INCOMPLETE` means the signal applies but lacks evidence — two of them fail the job safe to running. `ABSTAIN` means the signal does not apply at all and is excluded from the tally entirely, which is what makes it different from `INCOMPLETE`.
+         * @example VOTE_NO_RUN
+         * @enum {string}
+         */
+        SignalRecommendation: "MUST_RUN" | "VOTE_RUN" | "VOTE_NO_RUN" | "NEVER_RUN" | "INCOMPLETE" | "ABSTAIN";
+        SignalResult: {
+            type: components["schemas"]["SignalType"];
+            recommendation: components["schemas"]["SignalRecommendation"];
+            /**
+             * @description Human-readable evidence for this signal's contribution.
+             * @example Passed 98% of 240 runs in the last 14 days.
+             */
+            message: string;
+            /**
+             * @description True when `ignoreSignals` excluded this signal from the tally. Its `recommendation` is what it would have contributed.
+             * @example false
+             */
+            ignored: boolean;
+        };
+        /**
+         * @description Which independent signal produced a contribution to a job's verdict. These identifiers are also what `ignoreSignals` accepts.
+         * @example historical-pass-rate
+         * @enum {string}
+         */
+        SignalType: "estimated-cost" | "previous-result-on-pr" | "historical-pass-rate" | "diff-driven-volatility" | "force-override" | "merge-failure" | "mid-pr-stack" | "required-check" | "merge-queue-is-required" | "paths-filter";
     };
-    CiPlan: {
-      /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported. */
-      jobs: components["schemas"]["JobVerdict"][];
-      notice?: components["schemas"]["PlanNotice"];
-    };
-    CiPlanRequest: {
-      repo: components["schemas"]["PlanRepo"];
-      /**
-       * @description The commit being built (`github.sha`).
-       * @example 9f2c1b7c2b4c9d1e0a3f5b6c7d8e9f0a1b2c3d4e
-       */
-      commitSha: string;
-      /**
-       * @description The commit to diff against. Null for a non-pull-request event, leaving diff-derived signals without evidence.
-       * @example 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
-       */
-      baseSha: string | null;
-      /** @example feature/widget-cache */
-      branch: string;
-      /**
-       * @description Null for a non-pull-request event.
-       * @example 4213
-       */
-      prNumber: number | null;
-      /**
-       * @description `github.run_id`, recorded so the plan can later be scored against the run's outcome.
-       * @example 18342998211
-       */
-      runId: string;
-      /**
-       * @description `github.run_attempt`, which disambiguates re-runs.
-       * @example 1
-       */
-      runAttempt: number;
-      /**
-       * @description `github.triggering_actor`.
-       * @example octocat
-       */
-      triggeringActor?: string;
-      /**
-       * @description `github.event_name`.
-       * @example pull_request
-       */
-      eventName?: string;
-      /**
-       * @description The `jobs:` keys to decide. **Empty means every keyed job in the workflow** — the usual call.
-       * @default []
-       * @example [
-       *       "unit-tests"
-       *     ]
-       */
-      jobKeys: string[];
-      /**
-       * @description Signals to drop from the tally. An unrecognized identifier is rejected, so a typo surfaces.
-       * @example [
-       *       "estimated-cost"
-       *     ]
-       */
-      ignoreSignals?: components["schemas"]["SignalType"][];
-      /**
-       * @description From `github.workflow_ref`; identifies the workflow whose jobs are in scope.
-       * @example .github/workflows/ci.yaml
-       */
-      workflowPath: string;
-    };
-    JobVerdict: {
-      /**
-       * @description The workflow's declarative `jobs:` key — what `github.job` reports and what an `if:` names.
-       * @example unit-tests
-       */
-      jobKey: string;
-      /**
-       * @description Whether this job should run.
-       * @example false
-       */
-      run: boolean;
-      /**
-       * @description One-line rationale for the verdict, safe to show to a user.
-       * @example Skipping: no changed file has ever broken this job.
-       */
-      summary: string;
-      /** @description The audit trail behind `summary`, abstentions included. */
-      signals: components["schemas"]["SignalResult"][];
-    };
-    /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a merge-queue branch, an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
-    PlanNotice: {
-      /**
-       * @description A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`. `MERGE_QUEUE_BRANCH` is retired and no longer sent — merge-queue runs now carry real per-job verdicts. **An open set** — fall back to `message` for a code you do not recognize.
-       * @example ORG_NOT_ENABLED
-       */
-      code: string;
-      /**
-       * @description The condition in prose, safe to show to a user verbatim.
-       * @example Every job will run: Dynamic CI is not enabled for this organization. Contact Trunk to turn it on.
-       */
-      message: string;
-    };
-    PlanRepo: {
-      /**
-       * @description Disambiguates GitHub.com from a GitHub Enterprise Server host. `github.com` is the only supported value today.
-       * @default github.com
-       * @example github.com
-       */
-      host: string;
-      /** @example acme */
-      owner: string;
-      /** @example widgets */
-      name: string;
-    };
-    /**
-     * @description One signal's contribution. `MUST_RUN` and `NEVER_RUN` are hard verdicts (a single one decides, with `MUST_RUN` winning a tie); `VOTE_RUN` and `VOTE_NO_RUN` are weighted votes. `INCOMPLETE` means the signal applies but lacks evidence — two of them fail the job safe to running. `ABSTAIN` means the signal does not apply at all and is excluded from the tally entirely, which is what makes it different from `INCOMPLETE`.
-     * @example VOTE_NO_RUN
-     * @enum {string}
-     */
-    SignalRecommendation:
-      | "MUST_RUN"
-      | "VOTE_RUN"
-      | "VOTE_NO_RUN"
-      | "NEVER_RUN"
-      | "INCOMPLETE"
-      | "ABSTAIN";
-    SignalResult: {
-      type: components["schemas"]["SignalType"];
-      recommendation: components["schemas"]["SignalRecommendation"];
-      /**
-       * @description Human-readable evidence for this signal's contribution.
-       * @example Passed 98% of 240 runs in the last 14 days.
-       */
-      message: string;
-      /**
-       * @description True when `ignoreSignals` excluded this signal from the tally. Its `recommendation` is what it would have contributed.
-       * @example false
-       */
-      ignored: boolean;
-    };
-    /**
-     * @description Which independent signal produced a contribution to a job's verdict. These identifiers are also what `ignoreSignals` accepts.
-     * @example historical-pass-rate
-     * @enum {string}
-     */
-    SignalType:
-      | "estimated-cost"
-      | "previous-result-on-pr"
-      | "historical-pass-rate"
-      | "diff-driven-volatility"
-      | "force-override"
-      | "merge-failure"
-      | "mid-pr-stack"
-      | "required-check"
-      | "merge-queue-is-required"
-      | "paths-filter";
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  "dynamicCi.generatePlan": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CiPlanRequest"];
-      };
-    };
-    responses: {
-      /** @description The plan */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    "dynamicCi.generatePlan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["CiPlan"];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CiPlanRequest"];
+            };
         };
-      };
-    };
-  };
-  "dynamicCi.generateBuildkitePlan": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["BuildkitePlanRequest"];
-      };
-    };
-    responses: {
-      /** @description The plan */
-      200: {
-        headers: {
-          [name: string]: unknown;
+        responses: {
+            /** @description The plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CiPlan"];
+                };
+            };
         };
-        content: {
-          "application/json": components["schemas"]["CiPlan"];
-        };
-      };
     };
-  };
+    "dynamicCi.generateBuildkitePlan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildkitePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description The plan */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CiPlan"];
+                };
+            };
+        };
+    };
 }
