@@ -180,7 +180,7 @@ jobs:
         id: ci-filter
         uses: ./
         with:
-          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
