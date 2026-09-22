@@ -59,6 +59,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      # The committed types are generated from the synced contract; a stale or
+      # hand-edited copy would typecheck against a schema nobody is serving.
+      - name: Verify the contract types are fresh
+        run: |
+          pnpm run generate:schema
+          git diff --exit-code src/schema/contract.d.ts
+
       - name: Typecheck
         run: pnpm typecheck
 

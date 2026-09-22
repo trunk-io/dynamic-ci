@@ -199,8 +199,9 @@ is shown in the logs. Pass any of these to `ignore-signals` to drop it from the 
 | `mid-pr-stack`           | Whether another open PR is stacked on top of this one.           |
 | `required-check`         | Whether the PR's base branch requires this job to merge.         |
 
-The identifiers this action version knows about are `SIGNAL_TYPES` in
-[`src/schema/signals.ts`](src/schema/signals.ts). Signals are added and retired while
+The identifiers this action version knows about are the `SignalType` enum in
+[`src/schema/dynamic-ci-contract.json`](src/schema/dynamic-ci-contract.json), which
+`src/compat.ts` reads as `SIGNAL_TYPES`. Signals are added and retired while
 this is in beta, and the service ships them before that vendored list catches up, so
 neither side treats an unfamiliar identifier as an error:
 

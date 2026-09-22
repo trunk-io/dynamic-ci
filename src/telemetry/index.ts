@@ -9,7 +9,7 @@ import {
   resolveTelemetryUrl,
   telemetryDisabled,
 } from "../config";
-import type { Repo as RepoShape } from "../schema/request";
+import type { Repo as RepoShape } from "../compat";
 import type { PlanOutcome } from "../outcome";
 import { Duration, PlanRequestMetrics, Repo } from "./protos";
 

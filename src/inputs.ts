@@ -1,6 +1,6 @@
 import * as core from "@actions/core";
 import { setAnnotationsEnabled, warn } from "./annotations";
-import { SIGNAL_TYPES } from "./schema/signals";
+import { SIGNAL_TYPES } from "./compat";
 
 const KNOWN_SIGNALS = new Set<string>(SIGNAL_TYPES);
 
