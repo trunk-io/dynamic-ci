@@ -24,7 +24,7 @@ pnpm install
 | `src/telemetry/` | Fire-and-forget plan telemetry, and its wire contract.                |
 | `src/outputs.ts` | Job-name normalization and `core.setOutput` calls.                    |
 | `src/report.ts`  | Log lines, plus the gated annotations and job summary.                |
-| `src/schema/`    | The wire contract. **Synced — see below.**                            |
+| `src/schema/`    | The published contract. **Synced — see below.**                       |
 | `src/__tests__/` | Tests, with shared fixtures in `__fixtures__/` beside them.           |
 | `dist/index.js`  | Committed bundle. Generated; never edit by hand.                      |
 
@@ -120,18 +120,25 @@ pnpm local-action
 
 ## The synced schema
 
-`src/schema/` is the request/response contract shared with the Trunk recommendation
-service. **Trunk's internal monorepo is the source of truth; do not hand-edit these
-files here.** A local edit gets overwritten on the next sync, and until then it
-silently disagrees with the service.
+`src/schema/dynamic-ci-contract.json` is Trunk's **published** OpenAPI contract for
+`POST /v2/dynamic-ci/generate-plan`, projected out of its API document. **Trunk's
+monorepo is the source of truth; do not hand-edit it here.** A local edit gets
+overwritten on the next sync, and until then it silently disagrees with the API.
 
-To change the contract: change it upstream, run the sync to regenerate this copy,
-rebuild the bundle, and commit both together. A drift check in CI on the upstream side
-catches a contract change that never made it here.
+`src/schema/contract.d.ts` is generated from it by `pnpm generate:schema`
+(`openapi-typescript`) and committed; CI regenerates and diffs it. Neither file is
+imported directly — [`src/compat.ts`](src/compat.ts) is the contract as the action
+uses it, and widens the two display-only signal enums to plain strings so an
+additive change upstream is not a whole-response parse failure. Widen there, never
+in `src/schema`, which stays an exact mirror of what Trunk publishes.
 
-One deliberate difference: the upstream copy carries reserved test-level filter fields
-that this action does not implement. Zod ignores unknown response keys, so a service
-response still carrying them parses fine here.
+`compat.ts` asserts, at the type level and in **both** directions, that its schema
+matches the contract with exactly that widening applied — so a field added or
+dropped upstream is a `pnpm typecheck` failure on the sync PR rather than a value
+silently stripped at parse time.
+
+To change the contract: change it upstream. The sync regenerates this copy and the
+bundle in the same commit and opens a pull request here.
 
 ## Releases
 

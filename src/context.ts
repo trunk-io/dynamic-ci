@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { warn } from "./annotations";
-import type { Repo } from "./schema/request";
-import type { DynamicCiRequest } from "./compat";
+import type { DynamicCiRequest, Repo } from "./compat";
 import * as z from "zod";
 import type { ActionInputs } from "./inputs";
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DynamicCiResponse } from "../schema/response";
+import type { DynamicCiResponse } from "../compat";
 
 const setOutput = vi.fn();
 const warning = vi.fn();

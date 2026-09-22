@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node esbuild.config.ts",
     "clean": "rm -rf dist",
+    "generate:schema": "openapi-typescript src/schema/dynamic-ci-contract.json -o src/schema/contract.d.ts",
     "lint": "eslint",
     "local-action": "local-action . src/local-action.ts .env",
     "test": "vitest run",
@@ -26,6 +27,7 @@
     "esbuild": "0.27.2",
     "eslint": "9.35.0",
     "msw": "2.11.1",
+    "openapi-typescript": "7.13.0",
     "typescript": "5.9.2",
     "typescript-eslint": "8.67.0",
     "vitest": "3.2.4"

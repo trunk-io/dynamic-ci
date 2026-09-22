@@ -1,19 +1,28 @@
-# `src/schema` — synced wire contract
+# `src/schema` — the synced wire contract
 
-These files are the request/response contract the action speaks to the Trunk
-recommendation service. **They are synced from Trunk's internal monorepo, which is
-the source of truth — do not hand-edit them here.** A local edit will be
-overwritten by the next sync, and worse, will silently disagree with the service.
+`dynamic-ci-contract.json` is Trunk's **published** OpenAPI contract for the
+endpoint this action calls, `POST /v2/dynamic-ci/generate-plan`. **It is synced
+from Trunk's monorepo, which is the source of truth — do not hand-edit it here.**
+A local edit will be overwritten by the next sync, and worse, will silently
+disagree with the API.
 
-To change the contract: change it in the monorepo, then re-run the sync so this
-copy and the committed `dist/index.js` are regenerated together.
+`contract.d.ts` is generated from it by `pnpm generate:schema`
+(`openapi-typescript`) and committed; CI regenerates and diffs it.
 
-The action does not import these directly: [`src/compat.ts`](../compat.ts) extends them
-to widen the signal-identifier enums, because the service adds signals between syncs and
-a closed enum would make that additive change fail the whole response. It re-exports the
-same names, so consumers differ only in the import path. Widen there, never here — this
-copy must keep matching the monorepo.
+To change the contract: change it upstream. The sync regenerates this copy and
+the committed `dist/index.js` together, since the action runs the bundle.
 
-`response.ts` intentionally omits the reserved test-level filter fields that exist
-in the monorepo copy — test-level recommendations are not part of this action.
-Zod ignores unknown keys, so a service response still carrying them parses fine.
+The action does not import either file directly:
+[`src/compat.ts`](../compat.ts) is the contract as the action uses it, and widens
+the signal-identifier enums to plain strings. Trunk adds signals between syncs,
+and a closed enum would make that additive change fail the whole response —
+discarding every job's verdict, at which point the action fails open and the gate
+silently stops gating. Widen there, never here; this copy must keep matching what
+Trunk publishes. `compat.ts` asserts that match at the type level, in both
+directions, so a field added or dropped upstream is a typecheck failure on the
+sync PR rather than a value quietly stripped.
+
+The document carries request bodies and `200` responses only. Error envelopes are
+deliberately absent: the action branches on the HTTP status, and the error code
+enum spans every Trunk API product, so carrying it would raise a pull request
+here every time an unrelated product added one.
