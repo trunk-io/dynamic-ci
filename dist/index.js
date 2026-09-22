@@ -31828,7 +31828,7 @@ var dynamic_ci_contract_default = {
   info: {
     title: "Trunk API",
     version: "2.0.0",
-    description: "Payload contract for Trunk's Dynamic CI plan endpoints, projected from the Trunk API v2 OpenAPI document. Generated \u2014 see ts/apps/public-api/openapi/CLAUDE.md in trunk-io/trunk2."
+    description: "Payload contract for Trunk's Dynamic CI plan endpoints, projected from the Trunk API v2 OpenAPI document. Generated \u2014 do not edit by hand."
   },
   servers: [
     {
@@ -31847,18 +31847,6 @@ var dynamic_ci_contract_default = {
   paths: {
     "/v2/dynamic-ci/generate-plan": {
       post: {
-        responses: {
-          "200": {
-            description: "The plan",
-            content: {
-              "application/json": {
-                schema: {
-                  $ref: "#/components/schemas/CiPlan"
-                }
-              }
-            }
-          }
-        },
         operationId: "dynamicCi.generatePlan",
         summary: "Generate a CI skip plan",
         description: "Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run \u2014 that is the contract, not an error. Treat any non-200 the same way.\n\nThe changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.",
@@ -31871,11 +31859,7 @@ var dynamic_ci_contract_default = {
               }
             }
           }
-        }
-      }
-    },
-    "/v2/dynamic-ci/generate-buildkite-plan": {
-      post: {
+        },
         responses: {
           "200": {
             description: "The plan",
@@ -31887,7 +31871,11 @@ var dynamic_ci_contract_default = {
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/v2/dynamic-ci/generate-buildkite-plan": {
+      post: {
         operationId: "dynamicCi.generateBuildkitePlan",
         summary: "Generate a CI skip plan for a Buildkite pipeline",
         description: "As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run \u2014 that is the contract, not an error. Treat any non-200 the same way.\n\nThe changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.",
@@ -31897,6 +31885,18 @@ var dynamic_ci_contract_default = {
             "application/json": {
               schema: {
                 $ref: "#/components/schemas/BuildkitePlanRequest"
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "The plan",
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/CiPlan"
+                }
               }
             }
           }
