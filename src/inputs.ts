@@ -13,6 +13,8 @@ export interface ActionInputs {
   ignoreSignals: string[];
   /** `github.action_ref` — the action's own version, for telemetry. */
   actionRef: string;
+  /** Reads the pull request's files when the checkout cannot. Empty disables it. */
+  githubToken: string;
 }
 
 const splitList = (raw: string): string[] =>
@@ -73,5 +75,6 @@ export const readInputs = (): ActionInputs => {
     jobKeys,
     ignoreSignals,
     actionRef: core.getInput("gh-action-ref"),
+    githubToken: core.getInput("github-token"),
   };
 };

@@ -44,6 +44,12 @@ jobs:
       unit-tests: ${{ steps.ci-filter.outputs.unit-tests }}
       integration-tests: ${{ steps.ci-filter.outputs.integration-tests }}
     steps:
+      # Check out first, with full history, so the action can read the changed files.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
       - name: Run Dynamic CI Filter
         id: ci-filter
         uses: trunk-io/dynamic-ci-filter@v1
@@ -71,6 +77,9 @@ the runner has already booted by the time the verdict arrives.
 ```yaml
 steps:
   - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+      filter: blob:none
 
   - name: Run Dynamic CI Filter
     id: ci-filter

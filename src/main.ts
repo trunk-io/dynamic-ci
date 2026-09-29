@@ -2,6 +2,7 @@ import * as core from "@actions/core";
 import { warn } from "./annotations";
 import { RecommendationError, requestRecommendations } from "./api";
 import { resolveApiUrl, resolveMaxAttempts, resolveTimeoutMs } from "./config";
+import type { ChangedFilesSource } from "./changed-files";
 import { buildRequest, parseRepo } from "./context";
 import { applyAnnotationSetting, readInputs } from "./inputs";
 import { outcomeForError, outcomeForResponse } from "./outcome";
@@ -10,6 +11,11 @@ import { reportFailOpen, reportRecommendations } from "./report";
 import { PLAN_REASON, PLAN_STATUS } from "./telemetry/protos";
 import { sendPlanTelemetry } from "./telemetry";
 
+const CHANGED_FILES_SOURCE_LABEL = {
+  checkout: "the checkout",
+  api: "the GitHub API",
+} as const satisfies Record<ChangedFilesSource, string>;
+
 const failOpen = async (jobKeys: string[], reason: string): Promise<void> => {
   setFailOpenOutputs(jobKeys);
   await reportFailOpen(jobKeys, reason);
@@ -17,7 +23,7 @@ const failOpen = async (jobKeys: string[], reason: string): Promise<void> => {
 
 export const run = async (): Promise<void> => {
   const inputs = readInputs();
-  const request = buildRequest(inputs);
+  const { request, changedFilesSource } = await buildRequest(inputs);
 
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
@@ -28,6 +34,13 @@ export const run = async (): Promise<void> => {
       ? request.jobKeys.join(", ")
       : `all jobs in workflow "${request.workflowPath}"`;
   core.info(`Requesting recommendations from ${apiUrl} for: ${scope}`);
+  if (request.changedFiles === undefined || changedFilesSource === undefined) {
+    core.info("Changed files: not sent; Trunk will fetch the diff.");
+  } else {
+    core.info(
+      `Changed files: ${String(request.changedFiles.totalFiles)} from ${CHANGED_FILES_SOURCE_LABEL[changedFilesSource]}.`,
+    );
+  }
 
   const startedAt = Date.now();
   try {

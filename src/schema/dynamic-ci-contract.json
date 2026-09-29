@@ -24,7 +24,7 @@
       "post": {
         "operationId": "dynamicCi.generatePlan",
         "summary": "Generate a CI skip plan",
-        "description": "Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nThe changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.",
+        "description": "Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
         "requestBody": {
           "required": true,
           "content": {
@@ -53,7 +53,7 @@
       "post": {
         "operationId": "dynamicCi.generateBuildkitePlan",
         "summary": "Generate a CI skip plan for a Buildkite pipeline",
-        "description": "As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nThe changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.",
+        "description": "As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
         "requestBody": {
           "required": true,
           "content": {
@@ -158,6 +158,9 @@
             "description": "Signals to drop from the tally. An unrecognized identifier is rejected, so a typo surfaces.",
             "example": ["estimated-cost"]
           },
+          "changedFiles": {
+            "$ref": "#/components/schemas/ChangedFiles"
+          },
           "buildkiteOrganizationSlug": {
             "type": "string",
             "minLength": 1,
@@ -184,6 +187,100 @@
           "buildkiteOrganizationSlug",
           "buildkitePipelineSlug"
         ]
+      },
+      "ChangedFile": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "example": "src/cache.ts"
+          },
+          "previousPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "The old path, for a `renamed` or `copied` file.",
+            "example": "src/lru.ts"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChangedFileStatus"
+          },
+          "additions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Lines added. 0 for a binary file.",
+            "example": 12
+          },
+          "deletions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Lines removed. 0 for a binary file.",
+            "example": 3
+          }
+        },
+        "required": ["path", "status", "additions", "deletions"]
+      },
+      "ChangedFileStatus": {
+        "type": "string",
+        "enum": [
+          "added",
+          "modified",
+          "removed",
+          "renamed",
+          "copied",
+          "changed",
+          "unchanged"
+        ],
+        "description": "How the file changed. The values GitHub reports, so its `status` can be passed through. `changed` (a type change, such as a file becoming a symlink) is read as `modified`.",
+        "example": "modified"
+      },
+      "ChangedFiles": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "The commit or ref the diff was taken from.",
+            "example": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
+          },
+          "totalFiles": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many files changed, before the 200-file cap.",
+            "example": 1
+          },
+          "totalAdditions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Lines added across every changed file, before the cap.",
+            "example": 12
+          },
+          "totalDeletions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Lines removed across every changed file, before the cap.",
+            "example": 3
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangedFile"
+            },
+            "maxItems": 200,
+            "description": "The first 200 changed files. Must hold exactly `min(totalFiles, 200)` entries."
+          }
+        },
+        "required": [
+          "base",
+          "totalFiles",
+          "totalAdditions",
+          "totalDeletions",
+          "files"
+        ],
+        "description": "The files changed between `base` and `commitSha`, diffed from their merge base (`base...commitSha`). No file contents. **Omit it if you cannot compute the diff; never send an empty list in its place.** An empty list says nothing changed, which is the strongest evidence to skip. When it is absent, Trunk fetches the diff through your GitHub App installation."
       },
       "CiPlan": {
         "type": "object",
@@ -265,6 +362,9 @@
             "maxItems": 64,
             "description": "Signals to drop from the tally. An unrecognized identifier is rejected, so a typo surfaces.",
             "example": ["estimated-cost"]
+          },
+          "changedFiles": {
+            "$ref": "#/components/schemas/ChangedFiles"
           },
           "workflowPath": {
             "type": "string",

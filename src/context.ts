@@ -3,6 +3,11 @@ import { warn } from "./annotations";
 import type { DynamicCiRequest, Repo } from "./compat";
 import * as z from "zod";
 import type { ActionInputs } from "./inputs";
+import {
+  type ChangedFilesSource,
+  type PullRequestDiff,
+  resolveChangedFiles,
+} from "./changed-files";
 
 /** The subset of the GitHub event payload we read (unknown keys are stripped). */
 const GitHubEventSchema = z.object({
@@ -10,6 +15,9 @@ const GitHubEventSchema = z.object({
   pull_request: z
     .object({
       number: z.number().optional(),
+      changed_files: z.number().optional(),
+      additions: z.number().optional(),
+      deletions: z.number().optional(),
       base: z
         .object({ sha: z.string().optional(), ref: z.string().optional() })
         .optional(),
@@ -28,6 +36,9 @@ interface GitHubEvent {
   number?: number;
   pull_request?: {
     number?: number;
+    changed_files?: number;
+    additions?: number;
+    deletions?: number;
     base?: { sha?: string; ref?: string };
     head?: { sha?: string; ref?: string };
   };
@@ -88,21 +99,60 @@ const resolveRunAttempt = (): number => {
   return Number.isFinite(attempt) && attempt > 0 ? attempt : 1;
 };
 
+const pullRequestDiff = (
+  event: GitHubEvent,
+  prNumber: number | null,
+): PullRequestDiff | undefined => {
+  const pr = event.pull_request;
+  const baseSha = pr?.base?.sha;
+  const headSha = pr?.head?.sha;
+  if (pr === undefined || prNumber === null || !baseSha || !headSha) {
+    return undefined;
+  }
+  return {
+    number: prNumber,
+    baseSha,
+    headSha,
+    ...(pr.changed_files === undefined
+      ? {}
+      : { changedFiles: pr.changed_files }),
+    ...(pr.additions === undefined ? {} : { additions: pr.additions }),
+    ...(pr.deletions === undefined ? {} : { deletions: pr.deletions }),
+  };
+};
+
+export interface BuiltRequest {
+  request: DynamicCiRequest;
+  /** Absent when `changedFiles` was not sent and Trunk will fetch the diff. */
+  changedFilesSource?: ChangedFilesSource;
+}
+
 /**
  * Assemble the request payload from action inputs plus the GitHub context
- * (env vars + event payload). The changed file set is deliberately omitted —
- * the service derives the diff from `baseSha`/`commitSha`, so we never assume
- * the repo is fully checked out on the runner.
+ * (env vars + event payload), and the changed files where they can be read.
  */
-export const buildRequest = (inputs: ActionInputs): DynamicCiRequest => {
+export const buildRequest = async (
+  inputs: ActionInputs,
+): Promise<BuiltRequest> => {
   const event = readEvent();
   const baseSha = event.pull_request?.base?.sha ?? null;
   const headSha =
     event.pull_request?.head?.sha || process.env["GITHUB_SHA"] || "";
   const prNumber = event.pull_request?.number ?? event.number ?? null;
+  const repo = parseRepo();
+  const pr = pullRequestDiff(event, prNumber);
+  const resolved =
+    pr === undefined
+      ? undefined
+      : await resolveChangedFiles({
+          pr,
+          repo,
+          githubToken: inputs.githubToken,
+          cwd: process.env["GITHUB_WORKSPACE"] || process.cwd(),
+        });
 
-  return {
-    repo: parseRepo(),
+  const request: DynamicCiRequest = {
+    repo,
     commitSha: headSha,
     baseSha,
     branch: resolveBranch(event),
@@ -120,5 +170,9 @@ export const buildRequest = (inputs: ActionInputs): DynamicCiRequest => {
     ...(inputs.ignoreSignals.length > 0
       ? { ignoreSignals: inputs.ignoreSignals }
       : {}),
+    ...(resolved === undefined ? {} : { changedFiles: resolved.changedFiles }),
   };
+  return resolved === undefined
+    ? { request }
+    : { request, changedFilesSource: resolved.source };
 };

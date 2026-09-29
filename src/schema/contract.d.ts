@@ -19,7 +19,7 @@ export interface paths {
          *
          *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
          *
-         *     The changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.
+         *     Send the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.
          */
         post: operations["dynamicCi.generatePlan"];
         delete?: never;
@@ -43,7 +43,7 @@ export interface paths {
          *
          *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
          *
-         *     The changed file set is not sent: Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation.
+         *     Send the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.
          */
         post: operations["dynamicCi.generateBuildkitePlan"];
         delete?: never;
@@ -110,6 +110,7 @@ export interface components {
              *     ]
              */
             ignoreSignals?: components["schemas"]["SignalType"][];
+            changedFiles?: components["schemas"]["ChangedFiles"];
             /**
              * @description `BUILDKITE_ORGANIZATION_SLUG` on an agent.
              * @example acme
@@ -120,6 +121,57 @@ export interface components {
              * @example widgets-pr
              */
             buildkitePipelineSlug: string;
+        };
+        ChangedFile: {
+            /** @example src/cache.ts */
+            path: string;
+            /**
+             * @description The old path, for a `renamed` or `copied` file.
+             * @example src/lru.ts
+             */
+            previousPath?: string;
+            status: components["schemas"]["ChangedFileStatus"];
+            /**
+             * @description Lines added. 0 for a binary file.
+             * @example 12
+             */
+            additions: number;
+            /**
+             * @description Lines removed. 0 for a binary file.
+             * @example 3
+             */
+            deletions: number;
+        };
+        /**
+         * @description How the file changed. The values GitHub reports, so its `status` can be passed through. `changed` (a type change, such as a file becoming a symlink) is read as `modified`.
+         * @example modified
+         * @enum {string}
+         */
+        ChangedFileStatus: "added" | "modified" | "removed" | "renamed" | "copied" | "changed" | "unchanged";
+        /** @description The files changed between `base` and `commitSha`, diffed from their merge base (`base...commitSha`). No file contents. **Omit it if you cannot compute the diff; never send an empty list in its place.** An empty list says nothing changed, which is the strongest evidence to skip. When it is absent, Trunk fetches the diff through your GitHub App installation. */
+        ChangedFiles: {
+            /**
+             * @description The commit or ref the diff was taken from.
+             * @example 1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
+             */
+            base: string;
+            /**
+             * @description How many files changed, before the 200-file cap.
+             * @example 1
+             */
+            totalFiles: number;
+            /**
+             * @description Lines added across every changed file, before the cap.
+             * @example 12
+             */
+            totalAdditions: number;
+            /**
+             * @description Lines removed across every changed file, before the cap.
+             * @example 3
+             */
+            totalDeletions: number;
+            /** @description The first 200 changed files. Must hold exactly `min(totalFiles, 200)` entries. */
+            files: components["schemas"]["ChangedFile"][];
         };
         CiPlan: {
             /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported. */
@@ -180,6 +232,7 @@ export interface components {
              *     ]
              */
             ignoreSignals?: components["schemas"]["SignalType"][];
+            changedFiles?: components["schemas"]["ChangedFiles"];
             /**
              * @description From `github.workflow_ref`; identifies the workflow whose jobs are in scope.
              * @example .github/workflows/ci.yaml

@@ -33,6 +33,12 @@ inputs:
       job summary. The step's logs are written either way.
     required: false
     default: "false"
+  github-token:
+    description:
+      Token for reading the pull request's changed files when the checkout does
+      not have both commits. Needs the pull-requests read permission.
+    required: false
+    default: ${{ github.token }}
   gh-action-ref:
     description:
       The ref of the action being used. Defaults to the value GitHub resolves for
