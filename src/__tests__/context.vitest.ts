@@ -36,14 +36,15 @@ describe("resolveWorkflowPath", () => {
 });
 
 describe("buildRequest", () => {
-  it("populates workflow + run identity from the runner env", () => {
+  it("populates workflow + run identity from the runner env", async () => {
     stubRunnerEnv();
     vi.stubEnv("GITHUB_EVENT_NAME", "workflow_dispatch");
-    const request = buildRequest({
+    const { request } = await buildRequest({
       token: "t",
       jobKeys: ["build"],
       ignoreSignals: [],
       actionRef: "v1",
+      githubToken: "",
     });
     expect(request).toMatchObject({
       commitSha: ENV.sha,
@@ -57,14 +58,15 @@ describe("buildRequest", () => {
     });
   });
 
-  it("omits eventName when the runner did not set GITHUB_EVENT_NAME", () => {
+  it("omits eventName when the runner did not set GITHUB_EVENT_NAME", async () => {
     stubRunnerEnv();
     vi.stubEnv("GITHUB_EVENT_NAME", "");
-    const request = buildRequest({
+    const { request } = await buildRequest({
       token: "t",
       jobKeys: ["build"],
       ignoreSignals: [],
       actionRef: "v1",
+      githubToken: "",
     });
     expect(request.eventName).toBeUndefined();
   });

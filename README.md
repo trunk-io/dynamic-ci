@@ -43,7 +43,17 @@ jobs:
     outputs:
       unit-tests: ${{ steps.ci-filter.outputs.unit-tests }}
       integration-tests: ${{ steps.ci-filter.outputs.integration-tests }}
+    # Lets the action read the changed files when the checkout cannot.
+    permissions:
+      pull-requests: read
     steps:
+      # Full history, so the changed files come from git. Without it the action
+      # asks GitHub instead. `blob:none` keeps a large repository's clone fast.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
       - name: Run Dynamic CI Filter
         id: ci-filter
         uses: trunk-io/dynamic-ci-filter@v1
@@ -92,6 +102,7 @@ steps:
 | `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
 | `ignore-signals`    | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
 | `enable-annotation` | no       | Post the recommendation to the run — its annotation list and the job summary. Defaults to `false`; the step's logs are written either way.                                                |
+| `github-token`      | no       | Reads the pull request's changed files when the checkout lacks both commits, as the default depth-1 checkout does. Defaults to `github.token`; needs `pull-requests: read`.               |
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
 workflow file, and what `github.job` reports — not by the `name:` it displays under. A

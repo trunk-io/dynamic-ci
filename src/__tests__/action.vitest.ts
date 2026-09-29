@@ -120,6 +120,14 @@ const readOutputs = (): Record<string, string> => {
   return outputs;
 };
 
+const PR_EVENT = {
+  pull_request: {
+    number: 42,
+    base: { sha: "base-sha", ref: "main" },
+    head: { sha: "head-sha", ref: "feature/x" },
+  },
+};
+
 const stubRunnerEnv = ({
   token = "test-token",
   omitToken = false,
@@ -165,16 +173,7 @@ describe("the action end to end", () => {
     outputPath = join(workspace, "outputs.txt");
     summaryPath = join(workspace, "summary.md");
     eventPath = join(workspace, "event.json");
-    writeFileSync(
-      eventPath,
-      JSON.stringify({
-        pull_request: {
-          number: 42,
-          base: { sha: "base-sha", ref: "main" },
-          head: { sha: "head-sha", ref: "feature/x" },
-        },
-      }),
-    );
+    writeFileSync(eventPath, JSON.stringify(PR_EVENT));
 
     server = createServer([
       () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
@@ -248,6 +247,64 @@ describe("the action end to end", () => {
       eventName: "pull_request",
       workflowPath: ".github/workflows/pr.yaml",
       jobKeys: ["unit-tests"],
+    });
+  });
+
+  it("sends the pull request's changed files when it can read them", async () => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+      () =>
+        http.get(
+          "https://api.github.test/repos/trunk-io/example/pulls/42/files",
+          () =>
+            HttpResponse.json([
+              {
+                filename: "a.ts",
+                status: "modified",
+                additions: 3,
+                deletions: 1,
+              },
+            ]),
+        ),
+    ]);
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        pull_request: {
+          number: 42,
+          changed_files: 1,
+          additions: 3,
+          deletions: 1,
+          base: { sha: "base-sha", ref: "main" },
+          head: { sha: "head-sha", ref: "feature/x" },
+        },
+      }),
+    );
+    stubRunnerEnv({ jobKeys: "unit-tests" });
+    vi.stubEnv("INPUT_GITHUB-TOKEN", "gh-token");
+    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
+
+    try {
+      await runAction();
+    } finally {
+      writeFileSync(eventPath, JSON.stringify(PR_EVENT));
+    }
+
+    expect(body).toMatchObject({
+      changedFiles: {
+        base: "base-sha",
+        totalFiles: 1,
+        totalAdditions: 3,
+        totalDeletions: 1,
+        files: [
+          { path: "a.ts", status: "modified", additions: 3, deletions: 1 },
+        ],
+      },
     });
   });
 

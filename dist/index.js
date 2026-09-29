@@ -24493,12 +24493,12 @@ var require_converter = __commonJS({
       return gen;
     }
     converter.fromObject = function fromObject(mtype) {
-      var fields = mtype.fieldsArray;
+      var fields2 = mtype.fieldsArray;
       var gen = util.codegen(["d", "q"])("if(d instanceof C)")("return d")("if(!util.isObject(d))")("throw TypeError(%j)", mtype.fullName + ": object expected")("if(q===undefined)q=0")("if(q>util.recursionLimit)")('throw Error("max depth exceeded")');
-      if (!fields.length) return gen("return new C");
+      if (!fields2.length) return gen("return new C");
       gen("var m=new C");
-      for (var i = 0; i < fields.length; ++i) {
-        var field = fields[i].resolve(), prop = util.safeProp(field.name), implicitPresence = !field.hasPresence && !field.repeated && !field.map && (field.resolvedType instanceof Enum || types.basic[field.type] !== void 0);
+      for (var i = 0; i < fields2.length; ++i) {
+        var field = fields2[i].resolve(), prop = util.safeProp(field.name), implicitPresence = !field.hasPresence && !field.repeated && !field.map && (field.resolvedType instanceof Enum || types.basic[field.type] !== void 0);
         if (field.map) {
           gen("if(d%s){", prop)("if(!util.isObject(d%s))", prop)("throw TypeError(%j)", field.fullName + ": object expected")("m%s={}", prop)("for(var ks=Object.keys(d%s),i=0;i<ks.length;++i){", prop);
           gen('if(ks[i]==="__proto__")')("util.makeProp(m%s,ks[i])", prop);
@@ -24579,14 +24579,14 @@ var require_converter = __commonJS({
       return gen;
     }
     converter.toObject = function toObject(mtype) {
-      var fields = mtype.fieldsArray.slice().sort(util.compareFieldsById);
-      if (!fields.length)
+      var fields2 = mtype.fieldsArray.slice().sort(util.compareFieldsById);
+      if (!fields2.length)
         return util.codegen()("return {}");
       var gen = util.codegen(["m", "o", "q"])("if(!o)")("o={}")("if(q===undefined)q=0")("if(q>util.recursionLimit)")('throw Error("max depth exceeded")')("var d={}");
       var repeatedFields = [], mapFields = [], normalFields = [], i = 0;
-      for (; i < fields.length; ++i)
-        if (!fields[i].partOf)
-          (fields[i].resolve().repeated ? repeatedFields : fields[i].map ? mapFields : normalFields).push(fields[i]);
+      for (; i < fields2.length; ++i)
+        if (!fields2[i].partOf)
+          (fields2[i].resolve().repeated ? repeatedFields : fields2[i].map ? mapFields : normalFields).push(fields2[i]);
       if (repeatedFields.length) {
         gen("if(o.arrays||o.defaults){");
         for (i = 0; i < repeatedFields.length; ++i) gen("d%s=[]", util.safeProp(repeatedFields[i].name));
@@ -24612,8 +24612,8 @@ var require_converter = __commonJS({
         gen("}");
       }
       var hasKs2 = false;
-      for (i = 0; i < fields.length; ++i) {
-        var field = fields[i], index = mtype._fieldsArray.indexOf(field), prop = util.safeProp(field.name);
+      for (i = 0; i < fields2.length; ++i) {
+        var field = fields2[i], index = mtype._fieldsArray.indexOf(field), prop = util.safeProp(field.name);
         if (field.map) {
           if (!hasKs2) {
             hasKs2 = true;
@@ -24940,9 +24940,9 @@ var require_type = __commonJS({
       i = 0;
       while (i < oneofs.length)
         oneofs[i++].resolve();
-      var fields = this.fieldsArray, i = 0;
-      while (i < fields.length)
-        fields[i++].resolve();
+      var fields2 = this.fieldsArray, i = 0;
+      while (i < fields2.length)
+        fields2[i++].resolve();
       return this;
     };
     Type.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
@@ -26395,12 +26395,12 @@ var require_encoder = __commonJS({
     function encoder(mtype) {
       var gen = util.codegen(["m", "w", "q"])("if(!w)")("w=Writer.create()")("if(q===undefined)q=0")("if(q>util.recursionLimit)")('throw Error("max depth exceeded")');
       var i, ref;
-      var fields = (
+      var fields2 = (
         /* initializes */
         mtype.fieldsArray.slice().sort(util.compareFieldsById)
       );
-      for (var i = 0; i < fields.length; ++i) {
-        var field = fields[i].resolve(), index = mtype._fieldsArray.indexOf(field), type = field.resolvedType instanceof Enum ? "int32" : field.type, wireType = types.basic[type];
+      for (var i = 0; i < fields2.length; ++i) {
+        var field = fields2[i].resolve(), index = mtype._fieldsArray.indexOf(field), type = field.resolvedType instanceof Enum ? "int32" : field.type, wireType = types.basic[type];
         ref = "m" + util.safeProp(field.name);
         if (field.map) {
           gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)){", ref, field.name)("for(var ks=Object.keys(%s),i=0;i<ks.length;++i){", ref);
@@ -32500,10 +32500,187 @@ var requestRecommendations = async ({
 
 // src/context.ts
 var import_node_fs = require("node:fs");
+
+// src/changed-files.ts
+var import_node_child_process = require("node:child_process");
+var MAX_CHANGED_FILES = 200;
+var API_PAGE_SIZE = 100;
+var API_TIMEOUT_MS = 1e4;
+var GIT_TIMEOUT_MS = 3e4;
+var GIT_STATUS = {
+  A: "added",
+  M: "modified",
+  D: "removed",
+  R: "renamed",
+  C: "copied",
+  T: "modified"
+};
+var fields = (raw) => {
+  const parts = raw.split("\0");
+  return parts.at(-1) === "" ? parts.slice(0, -1) : parts;
+};
+var lineCount = (raw) => {
+  if (raw === "-") {
+    return 0;
+  }
+  const count = Number(raw);
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`unreadable line count ${String(raw)}`);
+  }
+  return count;
+};
+var parseGitDiff = (status, numstat, base) => {
+  const counts = /* @__PURE__ */ new Map();
+  const numstatFields = fields(numstat);
+  for (let i = 0; i < numstatFields.length; ) {
+    const [added, deleted, ...rest] = (numstatFields[i] ?? "").split("	");
+    const lines = {
+      additions: lineCount(added),
+      deletions: lineCount(deleted)
+    };
+    const path = rest.join("	");
+    if (path === "") {
+      counts.set(numstatFields[i + 2] ?? "", lines);
+      i += 3;
+    } else {
+      counts.set(path, lines);
+      i += 1;
+    }
+  }
+  const files = [];
+  const statusFields = fields(status);
+  for (let i = 0; i < statusFields.length; ) {
+    const code = (statusFields[i] ?? "").slice(0, 1);
+    const moved = code === "R" || code === "C";
+    const path = statusFields[i + (moved ? 2 : 1)] ?? "";
+    const mapped = GIT_STATUS[code];
+    const lines = counts.get(path);
+    if (mapped === void 0 || lines === void 0) {
+      throw new Error(`cannot read the diff entry for ${path}`);
+    }
+    files.push({
+      path,
+      ...moved ? { previousPath: statusFields[i + 1] ?? "" } : {},
+      status: mapped,
+      ...lines
+    });
+    i += moved ? 3 : 2;
+  }
+  if (files.length !== counts.size) {
+    throw new Error("the name-status and numstat listings disagree");
+  }
+  const sorted = files.toSorted(
+    (a, b) => a.path < b.path ? -1 : Number(a.path > b.path)
+  );
+  return {
+    base,
+    totalFiles: sorted.length,
+    totalAdditions: sorted.reduce((sum, file) => sum + file.additions, 0),
+    totalDeletions: sorted.reduce((sum, file) => sum + file.deletions, 0),
+    files: sorted.slice(0, MAX_CHANGED_FILES)
+  };
+};
+var git = (cwd, args) => (0, import_node_child_process.execFileSync)("git", [...args], {
+  cwd,
+  encoding: "utf8",
+  maxBuffer: 64 * 1024 * 1024,
+  timeout: GIT_TIMEOUT_MS,
+  stdio: ["ignore", "pipe", "ignore"]
+});
+var fromCheckout = (pr, cwd) => {
+  try {
+    git(cwd, ["merge-base", pr.baseSha, pr.headSha]);
+    const range = `${pr.baseSha}...${pr.headSha}`;
+    const flags = ["diff", "-z", "-M", "--no-ext-diff", "--no-textconv"];
+    return parseGitDiff(
+      git(cwd, [...flags, "--name-status", range]),
+      git(cwd, [...flags, "--numstat", range]),
+      pr.baseSha
+    );
+  } catch {
+    return void 0;
+  }
+};
+var PULL_FILES_SCHEMA = array(
+  object({
+    filename: string2(),
+    status: _enum([
+      "added",
+      "modified",
+      "removed",
+      "renamed",
+      "copied",
+      "changed",
+      "unchanged"
+    ]),
+    additions: number2(),
+    deletions: number2(),
+    previous_filename: string2().optional()
+  })
+);
+var fromApi = async (pr, repo, githubToken) => {
+  const { changedFiles: totalFiles, additions, deletions } = pr;
+  if (githubToken === "" || totalFiles === void 0 || additions === void 0 || deletions === void 0 || totalFiles > API_PAGE_SIZE) {
+    return void 0;
+  }
+  try {
+    const apiUrl = process.env["GITHUB_API_URL"] ?? "https://api.github.com";
+    const response = await fetch(
+      `${apiUrl}/repos/${repo.owner}/${repo.name}/pulls/${String(pr.number)}/files?per_page=${String(API_PAGE_SIZE)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          Accept: "application/vnd.github+json"
+        },
+        signal: AbortSignal.timeout(API_TIMEOUT_MS)
+      }
+    );
+    if (!response.ok) {
+      return void 0;
+    }
+    const files = PULL_FILES_SCHEMA.parse(await response.json());
+    if (files.length !== totalFiles) {
+      return void 0;
+    }
+    return {
+      base: pr.baseSha,
+      totalFiles,
+      totalAdditions: additions,
+      totalDeletions: deletions,
+      files: files.map((file) => ({
+        path: file.filename,
+        ...file.previous_filename === void 0 ? {} : { previousPath: file.previous_filename },
+        status: file.status,
+        additions: file.additions,
+        deletions: file.deletions
+      }))
+    };
+  } catch {
+    return void 0;
+  }
+};
+var resolveChangedFiles = async ({
+  pr,
+  repo,
+  githubToken,
+  cwd
+}) => {
+  const checkout = fromCheckout(pr, cwd);
+  if (checkout !== void 0) {
+    return { changedFiles: checkout, source: "checkout" };
+  }
+  const api = await fromApi(pr, repo, githubToken);
+  return api === void 0 ? void 0 : { changedFiles: api, source: "api" };
+};
+
+// src/context.ts
 var GitHubEventSchema = object({
   number: number2().optional(),
   pull_request: object({
     number: number2().optional(),
+    changed_files: number2().optional(),
+    additions: number2().optional(),
+    deletions: number2().optional(),
     base: object({ sha: string2().optional(), ref: string2().optional() }).optional(),
     head: object({ sha: string2().optional(), ref: string2().optional() }).optional()
   }).optional()
@@ -32539,13 +32716,37 @@ var resolveRunAttempt = () => {
   const attempt = Number.parseInt(process.env["GITHUB_RUN_ATTEMPT"] ?? "", 10);
   return Number.isFinite(attempt) && attempt > 0 ? attempt : 1;
 };
-var buildRequest = (inputs) => {
+var pullRequestDiff = (event, prNumber) => {
+  const pr = event.pull_request;
+  const baseSha = pr?.base?.sha;
+  const headSha = pr?.head?.sha;
+  if (pr === void 0 || prNumber === null || !baseSha || !headSha) {
+    return void 0;
+  }
+  return {
+    number: prNumber,
+    baseSha,
+    headSha,
+    ...pr.changed_files === void 0 ? {} : { changedFiles: pr.changed_files },
+    ...pr.additions === void 0 ? {} : { additions: pr.additions },
+    ...pr.deletions === void 0 ? {} : { deletions: pr.deletions }
+  };
+};
+var buildRequest = async (inputs) => {
   const event = readEvent();
   const baseSha = event.pull_request?.base?.sha ?? null;
   const headSha = event.pull_request?.head?.sha || process.env["GITHUB_SHA"] || "";
   const prNumber = event.pull_request?.number ?? event.number ?? null;
-  return {
-    repo: parseRepo(),
+  const repo = parseRepo();
+  const pr = pullRequestDiff(event, prNumber);
+  const resolved = pr === void 0 ? void 0 : await resolveChangedFiles({
+    pr,
+    repo,
+    githubToken: inputs.githubToken,
+    cwd: process.env["GITHUB_WORKSPACE"] || process.cwd()
+  });
+  const request = {
+    repo,
     commitSha: headSha,
     baseSha,
     branch: resolveBranch(event),
@@ -32556,8 +32757,10 @@ var buildRequest = (inputs) => {
     ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
     workflowPath: resolveWorkflowPath(),
     jobKeys: inputs.jobKeys,
-    ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {}
+    ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
+    ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles }
   };
+  return resolved === void 0 ? { request } : { request, changedFilesSource: resolved.source };
 };
 
 // src/inputs.ts
@@ -32588,7 +32791,8 @@ var readInputs = () => {
     token,
     jobKeys,
     ignoreSignals,
-    actionRef: core3.getInput("gh-action-ref")
+    actionRef: core3.getInput("gh-action-ref"),
+    githubToken: core3.getInput("github-token")
   };
 };
 
@@ -32874,18 +33078,29 @@ var sendPlanTelemetry = async (telemetry) => {
 };
 
 // src/main.ts
+var CHANGED_FILES_SOURCE_LABEL = {
+  checkout: "the checkout",
+  api: "the GitHub API"
+};
 var failOpen = async (jobKeys, reason) => {
   setFailOpenOutputs(jobKeys);
   await reportFailOpen(jobKeys, reason);
 };
 var run = async () => {
   const inputs = readInputs();
-  const request = buildRequest(inputs);
+  const { request, changedFilesSource } = await buildRequest(inputs);
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
   const maxAttempts = resolveMaxAttempts();
   const scope = request.jobKeys.length > 0 ? request.jobKeys.join(", ") : `all jobs in workflow "${request.workflowPath}"`;
   core7.info(`Requesting recommendations from ${apiUrl} for: ${scope}`);
+  if (request.changedFiles === void 0 || changedFilesSource === void 0) {
+    core7.info("Changed files: not sent; Trunk will fetch the diff.");
+  } else {
+    core7.info(
+      `Changed files: ${String(request.changedFiles.totalFiles)} from ${CHANGED_FILES_SOURCE_LABEL[changedFilesSource]}.`
+    );
+  }
   const startedAt = Date.now();
   try {
     const result = await requestRecommendations({
