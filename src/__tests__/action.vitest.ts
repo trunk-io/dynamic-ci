@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { delay, http, HttpResponse } from "msw";
+import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from "undici";
 import {
   afterAll,
   afterEach,
@@ -250,7 +251,48 @@ describe("the action end to end", () => {
     });
   });
 
-  it("sends the pull request's changed files when it can read them", async () => {
+  // @actions/github calls undici's own fetch, which msw cannot see.
+  const withGitHub = async (
+    status: number,
+    files: unknown,
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    const original = getGlobalDispatcher();
+    const github = new MockAgent();
+    github.disableNetConnect();
+    github
+      .get("https://api.github.test")
+      .intercept({
+        path: /^\/repos\/trunk-io\/example\/pulls\/42\/files/,
+        method: "GET",
+      })
+      .reply(status, JSON.stringify(files), {
+        headers: { "content-type": "application/json" },
+      });
+    setGlobalDispatcher(github);
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        pull_request: {
+          ...PR_EVENT.pull_request,
+          changed_files: 1,
+          additions: 3,
+          deletions: 1,
+        },
+      }),
+    );
+    vi.stubEnv("INPUT_GITHUB-TOKEN", "gh-token");
+    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
+    try {
+      await run();
+    } finally {
+      setGlobalDispatcher(original);
+      await github.close();
+      writeFileSync(eventPath, JSON.stringify(PR_EVENT));
+    }
+  };
+
+  const captureBody = (): { body: () => unknown } => {
     let body: unknown;
     server.overrideHandlers([
       () =>
@@ -258,44 +300,21 @@ describe("the action end to end", () => {
           body = await request.json();
           return HttpResponse.json(skipUnitTests);
         }),
-      () =>
-        http.get(
-          "https://api.github.test/repos/trunk-io/example/pulls/42/files",
-          () =>
-            HttpResponse.json([
-              {
-                filename: "a.ts",
-                status: "modified",
-                additions: 3,
-                deletions: 1,
-              },
-            ]),
-        ),
     ]);
-    writeFileSync(
-      eventPath,
-      JSON.stringify({
-        pull_request: {
-          number: 42,
-          changed_files: 1,
-          additions: 3,
-          deletions: 1,
-          base: { sha: "base-sha", ref: "main" },
-          head: { sha: "head-sha", ref: "feature/x" },
-        },
-      }),
-    );
+    return { body: () => body };
+  };
+
+  it("sends the pull request's changed files when it can read them", async () => {
+    const captured = captureBody();
     stubRunnerEnv({ jobKeys: "unit-tests" });
-    vi.stubEnv("INPUT_GITHUB-TOKEN", "gh-token");
-    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
 
-    try {
-      await runAction();
-    } finally {
-      writeFileSync(eventPath, JSON.stringify(PR_EVENT));
-    }
+    await withGitHub(
+      200,
+      [{ filename: "a.ts", status: "modified", additions: 3, deletions: 1 }],
+      runAction,
+    );
 
-    expect(body).toMatchObject({
+    expect(captured.body()).toMatchObject({
       changedFiles: {
         base: "base-sha",
         totalFiles: 1,
@@ -306,6 +325,18 @@ describe("the action end to end", () => {
         ],
       },
     });
+  });
+
+  // Omitted, never empty: an empty list reads as "nothing changed".
+  it("still asks for a plan, without changed files, when GitHub fails", async () => {
+    const captured = captureBody();
+    stubRunnerEnv({ jobKeys: "unit-tests" });
+
+    await withGitHub(500, { message: "boom" }, runAction);
+
+    expect(captured.body()).toMatchObject({ commitSha: "head-sha" });
+    expect(captured.body()).not.toHaveProperty("changedFiles");
+    expect(readOutputs()).toEqual({ "unit-tests": "false" });
   });
 
   it("fans out over the workflow when job-keys is unset", async () => {

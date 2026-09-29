@@ -2,17 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { http, HttpResponse, type JsonBodyType } from "msw";
 import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import { createServer } from "./__fixtures__/msw";
+  getGlobalDispatcher,
+  MockAgent,
+  setGlobalDispatcher,
+  type Dispatcher,
+} from "undici";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fromApi,
   fromCheckout,
@@ -22,28 +18,35 @@ import {
 } from "../changed-files";
 
 const REPO = { host: "github.com", owner: "acme", name: "widgets" };
-const FILES_URL = "https://api.github.test/repos/acme/widgets/pulls/7/files";
+const GITHUB_API = "https://api.github.test";
 
-let pullFiles: JsonBodyType = [];
-let pullFilesStatus = 200;
-const server = createServer([
-  () =>
-    http.get(FILES_URL, () =>
-      HttpResponse.json(pullFiles, { status: pullFilesStatus }),
-    ),
-]);
+// @actions/github calls undici's own fetch, which msw cannot see, so GitHub is
+// faked at undici's dispatcher instead.
+let original: Dispatcher;
+let github: MockAgent;
+const pullFilesReturns = (status: number, body: unknown): void => {
+  github
+    .get(GITHUB_API)
+    .intercept({
+      path: /^\/repos\/acme\/widgets\/pulls\/7\/files/,
+      method: "GET",
+    })
+    .reply(status, JSON.stringify(body), {
+      headers: { "content-type": "application/json" },
+    });
+};
 
-beforeAll(() => {
-  server.start();
+beforeEach(() => {
+  original = getGlobalDispatcher();
+  github = new MockAgent();
+  github.disableNetConnect();
+  setGlobalDispatcher(github);
+  vi.stubEnv("GITHUB_API_URL", GITHUB_API);
 });
-afterEach(() => {
-  server.reset();
-  pullFiles = [];
-  pullFilesStatus = 200;
+afterEach(async () => {
+  setGlobalDispatcher(original);
+  await github.close();
   vi.unstubAllEnvs();
-});
-afterAll(() => {
-  server.close();
 });
 
 /** `main` with three files, and a branch that edits, renames, deletes and adds. */
@@ -105,10 +108,12 @@ const pr = (overrides: Partial<PullRequestDiff> = {}): PullRequestDiff => ({
 });
 
 describe("from the checkout", () => {
-  it("lists every change against the merge base, renames included", () => {
+  it("lists every change against the merge base, renames included", async () => {
     const { dir, base, head } = repoWithChanges();
 
-    expect(fromCheckout(pr({ baseSha: base, headSha: head }), dir)).toEqual({
+    expect(
+      await fromCheckout(pr({ baseSha: base, headSha: head }), dir),
+    ).toEqual({
       base,
       totalFiles: 4,
       totalAdditions: 5,
@@ -133,9 +138,9 @@ describe("from the checkout", () => {
     });
   });
 
-  it("caps the list at 200 and keeps the totals over every file", () => {
+  it("caps the list at 200 and keeps the totals over every file", async () => {
     const { dir, base, head } = repoWithChanges(250);
-    const diff = fromCheckout(pr({ baseSha: base, headSha: head }), dir);
+    const diff = await fromCheckout(pr({ baseSha: base, headSha: head }), dir);
 
     expect(diff).toMatchObject({
       totalFiles: 254,
@@ -146,15 +151,15 @@ describe("from the checkout", () => {
   });
 
   // The default depth-1 checkout: the head is there, the base is not.
-  it("is undefined when a commit is missing", () => {
+  it("is undefined when a commit is missing", async () => {
     const { dir, head } = repoWithChanges();
 
-    expect(fromCheckout(pr({ headSha: head }), dir)).toBeUndefined();
+    expect(await fromCheckout(pr({ headSha: head }), dir)).toBeUndefined();
   });
 
-  it("is undefined outside a git repository", () => {
+  it("is undefined outside a git repository", async () => {
     expect(
-      fromCheckout(pr(), mkdtempSync(join(tmpdir(), "dci-nogit-"))),
+      await fromCheckout(pr(), mkdtempSync(join(tmpdir(), "dci-nogit-"))),
     ).toBeUndefined();
   });
 
@@ -174,13 +179,11 @@ describe("from the API", () => {
     changes: 3,
   });
 
-  const fetchFiles = (overrides: Partial<PullRequestDiff> = {}) => {
-    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
-    return fromApi(pr(overrides), REPO, "gh-token");
-  };
+  const fetchFiles = (overrides: Partial<PullRequestDiff> = {}) =>
+    fromApi(pr(overrides), REPO, "gh-token");
 
   it("maps one page of pull request files onto the contract", async () => {
-    pullFiles = [
+    pullFilesReturns(200, [
       apiFile(0),
       {
         filename: "src/new.ts",
@@ -190,7 +193,7 @@ describe("from the API", () => {
         deletions: 0,
         changes: 3,
       },
-    ];
+    ]);
 
     expect(await fetchFiles()).toEqual({
       base: "b".repeat(40),
@@ -210,24 +213,21 @@ describe("from the API", () => {
     });
   });
 
-  // One page cannot hold every file the contract requires, so no request is
-  // made at all; msw would fail the test on an unhandled one.
+  // disableNetConnect fails any request that is made, so this proves none is.
   it("leaves a pull request of more than 100 files to the server", async () => {
     expect(await fetchFiles({ changedFiles: 101 })).toBeUndefined();
   });
 
   it.each([
-    ["the token lacks pull-requests: read", () => (pullFilesStatus = 403)],
-    [
-      "the page disagrees with the event's count",
-      () => (pullFiles = [apiFile(0)]),
-    ],
+    ["the token lacks pull-requests: read", 403, { message: "Forbidden" }],
+    ["the page disagrees with the event's count", 200, [apiFile(0)]],
     [
       "a status the contract does not know",
-      () => (pullFiles = [{ ...apiFile(0), status: "mystery" }, apiFile(1)]),
+      200,
+      [{ ...apiFile(0), status: "mystery" }, apiFile(1)],
     ],
-  ])("is undefined when %s", async (_name, arrange) => {
-    arrange();
+  ])("is undefined when %s", async (_name, status, body) => {
+    pullFilesReturns(status, body);
 
     expect(await fetchFiles()).toBeUndefined();
   });
@@ -252,11 +252,10 @@ describe("the resolver", () => {
   });
 
   it("falls back to the API", async () => {
-    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
-    pullFiles = [
+    pullFilesReturns(200, [
       { filename: "a.ts", status: "added", additions: 5, deletions: 0 },
       { filename: "b.ts", status: "removed", additions: 0, deletions: 1 },
-    ];
+    ]);
 
     expect(
       await resolveChangedFiles({
@@ -271,8 +270,7 @@ describe("the resolver", () => {
   // An empty list would read as "nothing changed"; the omitted field sends the
   // server to GitHub instead.
   it("is undefined, never an empty list, when neither can answer", async () => {
-    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
-    pullFilesStatus = 403;
+    pullFilesReturns(403, { message: "Forbidden" });
 
     expect(
       await resolveChangedFiles({

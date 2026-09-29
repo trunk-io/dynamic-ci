@@ -1,5 +1,6 @@
-import { execFileSync } from "node:child_process";
-import * as z from "zod";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { getOctokit } from "@actions/github";
 import type { components } from "./schema/contract.js";
 import type { Repo } from "./compat";
 
@@ -112,50 +113,47 @@ export const parseGitDiff = (
   };
 };
 
-const git = (cwd: string, args: readonly string[]): string =>
-  execFileSync("git", [...args], {
-    cwd,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-    timeout: GIT_TIMEOUT_MS,
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+const execFileAsync = promisify(execFile);
 
-export const fromCheckout = (
+const CONTRACT_STATUSES: ReadonlySet<string> = new Set<ChangedFileStatus>([
+  "added",
+  "modified",
+  "removed",
+  "renamed",
+  "copied",
+  "changed",
+  "unchanged",
+]);
+
+// Not simple-git: its diffSummary returns quoted paths and `old => new` renames,
+// and never status and line counts together. `-z` output needs no unquoting.
+const git = async (cwd: string, args: readonly string[]): Promise<string> =>
+  (
+    await execFileAsync("git", [...args], {
+      cwd,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: GIT_TIMEOUT_MS,
+    })
+  ).stdout;
+
+export const fromCheckout = async (
   pr: PullRequestDiff,
   cwd: string,
-): ChangedFiles | undefined => {
+): Promise<ChangedFiles | undefined> => {
   try {
-    git(cwd, ["merge-base", pr.baseSha, pr.headSha]);
+    await git(cwd, ["merge-base", pr.baseSha, pr.headSha]);
     const range = `${pr.baseSha}...${pr.headSha}`;
     const flags = ["diff", "-z", "-M", "--no-ext-diff", "--no-textconv"];
-    return parseGitDiff(
+    const [status, numstat] = await Promise.all([
       git(cwd, [...flags, "--name-status", range]),
       git(cwd, [...flags, "--numstat", range]),
-      pr.baseSha,
-    );
+    ]);
+    return parseGitDiff(status, numstat, pr.baseSha);
   } catch {
     return undefined;
   }
 };
-
-const PULL_FILES_SCHEMA = z.array(
-  z.object({
-    filename: z.string(),
-    status: z.enum([
-      "added",
-      "modified",
-      "removed",
-      "renamed",
-      "copied",
-      "changed",
-      "unchanged",
-    ]),
-    additions: z.number(),
-    deletions: z.number(),
-    previous_filename: z.string().optional(),
-  }),
-);
 
 // One page: the contract needs every file up to the cap, so bigger PRs go to the server.
 export const fromApi = async (
@@ -174,22 +172,20 @@ export const fromApi = async (
     return undefined;
   }
   try {
-    const apiUrl = process.env["GITHUB_API_URL"] ?? "https://api.github.com";
-    const response = await fetch(
-      `${apiUrl}/repos/${repo.owner}/${repo.name}/pulls/${String(pr.number)}/files?per_page=${String(API_PAGE_SIZE)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: "application/vnd.github+json",
-        },
-        signal: AbortSignal.timeout(API_TIMEOUT_MS),
-      },
-    );
-    if (!response.ok) {
-      return undefined;
-    }
-    const files = PULL_FILES_SCHEMA.parse(await response.json());
-    if (files.length !== totalFiles) {
+    const octokit = getOctokit(githubToken, {
+      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com",
+    });
+    const { data: files } = await octokit.rest.pulls.listFiles({
+      owner: repo.owner,
+      repo: repo.name,
+      pull_number: pr.number,
+      per_page: API_PAGE_SIZE,
+      request: { signal: AbortSignal.timeout(API_TIMEOUT_MS) },
+    });
+    if (
+      files.length !== totalFiles ||
+      files.some((file) => !CONTRACT_STATUSES.has(file.status))
+    ) {
       return undefined;
     }
     return {
@@ -223,7 +219,7 @@ export const resolveChangedFiles = async ({
   githubToken: string;
   cwd: string;
 }): Promise<ResolvedChangedFiles | undefined> => {
-  const checkout = fromCheckout(pr, cwd);
+  const checkout = await fromCheckout(pr, cwd);
   if (checkout !== undefined) {
     return { changedFiles: checkout, source: "checkout" };
   }
