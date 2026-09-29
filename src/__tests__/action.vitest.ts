@@ -74,12 +74,14 @@ let eventPath: string;
 const decodeTelemetry = (
   payload: Uint8Array,
 ): {
+  actionVersion: string;
   status: number;
   reason: string;
   attempts: number;
   durationMs: number;
 } => {
   const decoded = PlanRequestMetrics.decode(payload) as unknown as {
+    action_version?: string;
     status?: number;
     reason?: string;
     attempts?: number;
@@ -88,6 +90,7 @@ const decodeTelemetry = (
     duration?: { seconds?: unknown; nanos?: number };
   };
   return {
+    actionVersion: decoded.action_version ?? "",
     status: decoded.status ?? 0,
     reason: decoded.reason ?? "",
     attempts: decoded.attempts ?? 0,
@@ -550,6 +553,29 @@ describe("the action end to end", () => {
       expect(Number.isInteger(decoded.durationMs)).toBe(true);
       expect(decoded.durationMs).toBeGreaterThanOrEqual(0);
     });
+
+    it.each([
+      ["a tag", "v1", "github/v1"],
+      ["a branch", "main", "github/main"],
+      [
+        "a pinned sha, cut to 7",
+        "c2d139612d7055e073c96388c9cf4d3ae40375e9",
+        "github/c2d1396",
+      ],
+      ["no ref", "", "github/unknown"],
+    ])(
+      "labels its version as github/<ref> for %s",
+      async (_name, ref, label) => {
+        stubRunnerEnv({ jobKeys: "unit-tests" });
+        vi.stubEnv("INPUT_GH-ACTION-REF", ref);
+
+        await runAction();
+
+        expect(
+          decodeTelemetry(telemetryPosts[0] ?? new Uint8Array()).actionVersion,
+        ).toBe(label);
+      },
+    );
 
     it("reports a fail-open with the failure class that caused it", async () => {
       server.overrideHandlers([
