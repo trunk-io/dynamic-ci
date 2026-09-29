@@ -56697,13 +56697,15 @@ var durationOf = (durationMs) => {
     nanos: ms % MS_PER_SECOND * NANOS_PER_MS
   });
 };
+var FULL_SHA = /^[0-9a-f]{40}$/i;
+var actionVersionLabel = (ref) => `github/${FULL_SHA.test(ref) ? ref.slice(0, 7) : ref || "unknown"}`;
 var sendPlanTelemetry = async (telemetry) => {
   if (telemetryDisabled()) {
     return;
   }
   try {
     const message = PlanRequestMetrics.create({
-      action_version: telemetry.actionRef || "unknown",
+      action_version: actionVersionLabel(telemetry.actionRef),
       repo: Repo.create(telemetry.repo),
       status: telemetry.outcome.status,
       reason: telemetry.outcome.reason,

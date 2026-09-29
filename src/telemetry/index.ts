@@ -38,6 +38,13 @@ const durationOf = (durationMs: number): protobuf.Message => {
   });
 };
 
+const FULL_SHA = /^[0-9a-f]{40}$/i;
+
+// Prefixed so the Buildkite plugin's `buildkite/<ref>` shares the label without
+// colliding; a pinned sha is cut to 7 characters to fit the server's 32.
+export const actionVersionLabel = (ref: string): string =>
+  `github/${FULL_SHA.test(ref) ? ref.slice(0, 7) : ref || "unknown"}`;
+
 export interface PlanTelemetry {
   token: string;
   actionRef: string;
@@ -60,7 +67,7 @@ export const sendPlanTelemetry = async (
   }
   try {
     const message = PlanRequestMetrics.create({
-      action_version: telemetry.actionRef || "unknown",
+      action_version: actionVersionLabel(telemetry.actionRef),
       repo: Repo.create(telemetry.repo),
       status: telemetry.outcome.status,
       reason: telemetry.outcome.reason,
