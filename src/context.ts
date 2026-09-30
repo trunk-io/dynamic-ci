@@ -24,6 +24,7 @@ const GitHubEventSchema = z.object({
       head: z
         .object({ sha: z.string().optional(), ref: z.string().optional() })
         .optional(),
+      labels: z.array(z.object({ name: z.string() })).optional(),
     })
     .optional(),
 });
@@ -41,6 +42,7 @@ interface GitHubEvent {
     deletions?: number;
     base?: { sha?: string; ref?: string };
     head?: { sha?: string; ref?: string };
+    labels?: { name: string }[];
   };
 }
 
@@ -165,6 +167,9 @@ export const buildRequest = async (
     ...(process.env["GITHUB_EVENT_NAME"]
       ? { eventName: process.env["GITHUB_EVENT_NAME"] }
       : {}),
+    ...(event.pull_request?.labels === undefined
+      ? {}
+      : { prLabels: event.pull_request.labels.map(({ name }) => name) }),
     workflowPath: resolveWorkflowPath(),
     jobKeys: inputs.jobKeys,
     ...(inputs.ignoreSignals.length > 0

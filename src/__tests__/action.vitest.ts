@@ -307,6 +307,62 @@ describe("the action end to end", () => {
     return { body: () => body };
   };
 
+  const withEvent = async (
+    event: unknown,
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    writeFileSync(eventPath, JSON.stringify(event));
+    try {
+      await run();
+    } finally {
+      writeFileSync(eventPath, JSON.stringify(PR_EVENT));
+    }
+  };
+
+  it("sends the pull request's label names", async () => {
+    const captured = captureBody();
+    stubRunnerEnv({ jobKeys: "unit-tests" });
+
+    await withEvent(
+      {
+        pull_request: {
+          ...PR_EVENT.pull_request,
+          labels: [
+            { id: 1, name: "Ready for CI", color: "0e8a16" },
+            { id: 2, name: "bug", color: "d73a4a" },
+          ],
+        },
+      },
+      runAction,
+    );
+
+    expect(captured.body()).toMatchObject({
+      prLabels: ["Ready for CI", "bug"],
+    });
+  });
+
+  it("sends an empty label list for an unlabelled pull request", async () => {
+    const captured = captureBody();
+    stubRunnerEnv({ jobKeys: "unit-tests" });
+
+    await withEvent(
+      { pull_request: { ...PR_EVENT.pull_request, labels: [] } },
+      runAction,
+    );
+
+    expect(captured.body()).toMatchObject({ prLabels: [] });
+  });
+
+  it("omits prLabels for an event with no pull request", async () => {
+    const captured = captureBody();
+    stubRunnerEnv({ jobKeys: "unit-tests" });
+    vi.stubEnv("GITHUB_EVENT_NAME", "push");
+
+    await withEvent({}, runAction);
+
+    expect(captured.body()).not.toHaveProperty("prLabels");
+  });
+
   it("sends the pull request's changed files when it can read them", async () => {
     const captured = captureBody();
     stubRunnerEnv({ jobKeys: "unit-tests" });

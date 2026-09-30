@@ -192,6 +192,24 @@ if: >-
 You may wish to use another paths filter mechanism to deterministically reduce what runs in the merge queue.
 If you have feedback on the filtering mechanism in merge queues, reach out to us on [Slack](https://slack.trunk.io).
 
+## Learning mode and pull request labels
+
+A repository in Learning mode runs every job and only records what Dynamic CI would have
+skipped. A pull request carrying one of the labels on the repository's allow list (set on
+the repository's Dynamic CI page in Trunk, matched case-insensitively) is gated as if the
+repository were enforced. The action sends the pull request's labels with each request.
+
+The labels are read from the triggering event, so a label takes effect on the next event
+that runs the workflow, and a re-run sees the labels the original event carried. GitHub's
+default `pull_request` activity types do not include `labeled`; add it if you want
+labelling a pull request to start a gated run straight away:
+
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+```
+
 ## Signals
 
 Each verdict is a combination of independent signals, and each signal's contribution

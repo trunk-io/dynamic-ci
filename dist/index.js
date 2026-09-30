@@ -56371,7 +56371,8 @@ var GitHubEventSchema = object({
     additions: number2().optional(),
     deletions: number2().optional(),
     base: object({ sha: string2().optional(), ref: string2().optional() }).optional(),
-    head: object({ sha: string2().optional(), ref: string2().optional() }).optional()
+    head: object({ sha: string2().optional(), ref: string2().optional() }).optional(),
+    labels: array(object({ name: string2() })).optional()
   }).optional()
 });
 var readEvent = () => {
@@ -56444,6 +56445,7 @@ var buildRequest = async (inputs) => {
     runAttempt: resolveRunAttempt(),
     ...process.env["GITHUB_TRIGGERING_ACTOR"] ? { triggeringActor: process.env["GITHUB_TRIGGERING_ACTOR"] } : {},
     ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
+    ...event.pull_request?.labels === void 0 ? {} : { prLabels: event.pull_request.labels.map(({ name }) => name) },
     workflowPath: resolveWorkflowPath(),
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
