@@ -51533,7 +51533,7 @@ var dynamic_ci_contract_default = {
   ],
   security: [
     {
-      orgKey: []
+      apiKey: []
     },
     {
       trunkToken: []
@@ -51601,16 +51601,16 @@ var dynamic_ci_contract_default = {
   },
   components: {
     securitySchemes: {
-      orgKey: {
+      apiKey: {
         type: "http",
         scheme: "bearer",
-        description: "An org-scoped API key, sent as `Authorization: Bearer <key>`. Existing v1 tokens work here unchanged. There is no enqueue-only or read/write scope: an org key authorized for merge-queue writes can invoke every merge-queue mutation, including changing merge-protection configuration and pausing, draining or deleting a queue."
+        description: "An API key, sent as `Authorization: Bearer <key>`. An organization admin creates one in the Trunk app under **Settings \u2192 Developer \u2192 API Keys** and chooses the merge-queue permissions it holds; a key with none can read merge queues but change nothing. Those permissions scope merge queue only: every key can use the Flaky Tests and Dynamic CI endpoints, including their writes, whatever permissions it holds."
       },
       trunkToken: {
         type: "apiKey",
         in: "header",
         name: "x-trunk-token",
-        description: "A short-lived first-party token, sent in the `x-trunk-token` header. Obtain one through the CLI device-authentication flow, or by exchanging an org API key (`POST /v2/auth/api-key/login`).\n\n**A token exchanged from an org API key reads merge queues but cannot mutate them.** A merge-queue mutation forwards the org API key itself to the merge service, and an exchanged token carries no copy of it, so those requests answer `403 INSUFFICIENT_PERMISSIONS`. A machine caller that mutates merge queues should send the org API key directly as `Authorization: Bearer <key>` rather than exchanging it. Tokens from the device flow are unaffected."
+        description: "A short-lived first-party token, sent in the `x-trunk-token` header. The `trunk` CLI sends one after `trunk auth login`, and the `trunk-io/login` action obtains one for a GitHub Actions run.\n\n**A token from a GitHub Actions run can only upload impacted targets** (`PUT /v2/impacted-targets`), for the repository the run belongs to; every other endpoint refuses it."
       }
     },
     schemas: {
@@ -51658,6 +51658,17 @@ var dynamic_ci_contract_default = {
             type: "string",
             description: "What triggered the build \u2014 `BUILDKITE_SOURCE`.",
             example: "webhook"
+          },
+          prLabels: {
+            type: "array",
+            items: {
+              type: "string",
+              maxLength: 256
+            },
+            maxItems: 1e3,
+            deprecated: true,
+            description: "Ignored. Trunk reads the pull request's labels itself when the run asks for a plan. While the repository is in Learning mode, a pull request carrying a label on the repository's managed allow list (matched case-insensitively) is gated as if Dynamic CI were enabled. Accepted so that older clients still validate.",
+            example: ["bug", "ready-for-ci"]
           },
           jobKeys: {
             type: "array",
@@ -51864,6 +51875,17 @@ var dynamic_ci_contract_default = {
             description: "`github.event_name`.",
             example: "pull_request"
           },
+          prLabels: {
+            type: "array",
+            items: {
+              type: "string",
+              maxLength: 256
+            },
+            maxItems: 1e3,
+            deprecated: true,
+            description: "Ignored. Trunk reads the pull request's labels itself when the run asks for a plan. While the repository is in Learning mode, a pull request carrying a label on the repository's managed allow list (matched case-insensitively) is gated as if Dynamic CI were enabled. Accepted so that older clients still validate.",
+            example: ["bug", "ready-for-ci"]
+          },
           jobKeys: {
             type: "array",
             items: {
@@ -51994,7 +52016,7 @@ var dynamic_ci_contract_default = {
           message: {
             type: "string",
             description: "Human-readable evidence for this signal's contribution.",
-            example: "Passed 98% of 240 runs in the last 14 days."
+            example: "Reliably green (98.0% pass rate over 240 runs)."
           },
           ignored: {
             type: "boolean",
