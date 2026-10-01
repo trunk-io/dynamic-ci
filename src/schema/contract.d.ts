@@ -96,6 +96,15 @@ export interface components {
              */
             eventName?: string;
             /**
+             * @deprecated
+             * @description Ignored. Trunk reads the pull request's labels itself when the run asks for a plan. While the repository is in Learning mode, a pull request carrying a label on the repository's managed allow list (matched case-insensitively) is gated as if Dynamic CI were enabled. Accepted so that older clients still validate.
+             * @example [
+             *       "bug",
+             *       "ready-for-ci"
+             *     ]
+             */
+            prLabels?: string[];
+            /**
              * @description The step `key:` values to decide — what Trunk ingests from `buildkite.step.key`. **Empty means every keyed step in the pipeline** — the usual call.
              * @default []
              * @example [
@@ -218,6 +227,15 @@ export interface components {
              */
             eventName?: string;
             /**
+             * @deprecated
+             * @description Ignored. Trunk reads the pull request's labels itself when the run asks for a plan. While the repository is in Learning mode, a pull request carrying a label on the repository's managed allow list (matched case-insensitively) is gated as if Dynamic CI were enabled. Accepted so that older clients still validate.
+             * @example [
+             *       "bug",
+             *       "ready-for-ci"
+             *     ]
+             */
+            prLabels?: string[];
+            /**
              * @description The `jobs:` keys to decide. **Empty means every keyed job in the workflow** — the usual call.
              * @default []
              * @example [
@@ -294,7 +312,7 @@ export interface components {
             recommendation: components["schemas"]["SignalRecommendation"];
             /**
              * @description Human-readable evidence for this signal's contribution.
-             * @example Passed 98% of 240 runs in the last 14 days.
+             * @example Reliably green (98.0% pass rate over 240 runs).
              */
             message: string;
             /**
