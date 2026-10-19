@@ -3,13 +3,15 @@
 # shape; .github/smoke/matrix/fixtures.ts is the answer key for each, and the
 # README beside it says what is asserted and why.
 #
-#   mode: simulate  (pull requests) the filter job emits the per-leg pruning
-#                   outputs the action will emit, from fixtures.ts.
-#                   Deterministic: this tests GitHub, and our model of it.
-#   mode: live      (dispatch) the real action at this commit, against staging.
-#                   Asserts the same invariants whatever staging decides.
+#   mode: simulate  (pull requests, and weekly) the filter job emits the
+#                   per-leg pruning outputs the action will emit, from
+#                   fixtures.ts. Deterministic: this tests GitHub, and our model
+#                   of it. Weekly catches GitHub changing behavior we've pinned.
+#   mode: live      (every 4 hours, or dispatch) the real action at this commit,
+#                   against staging. Asserts the same invariants whatever staging
+#                   decides, and its runs are the CI history staging decides on.
 name: Matrix Smoke
-run-name: Matrix Smoke (${{ inputs.mode || 'simulate' }}) for ${{ github.ref_name }}
+run-name: Matrix Smoke (${{ inputs.mode || (github.event.schedule == '17 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
 
 concurrency:
   group: matrix-smoke-${{ github.head_ref || github.run_id }}
@@ -22,6 +24,11 @@ on:
     paths:
       - .github/workflows/matrix-smoke*.yaml
       - .github/smoke/matrix/**
+  # Schedules run only from the default branch. MODE below tells them apart by
+  # cron string, so change both together.
+  schedule:
+    - cron: "17 */4 * * *" # live: builds staging's history for every leg
+    - cron: "43 6 * * 1" # simulate: Mondays
   workflow_dispatch:
     inputs:
       mode:
@@ -31,7 +38,7 @@ on:
         default: simulate
 
 env:
-  MODE: ${{ inputs.mode || 'simulate' }}
+  MODE: ${{ inputs.mode || (github.event.schedule == '17 */4 * * *' && 'live') || 'simulate' }}
 
 jobs:
   # A planner job: builds the rows its workflow's runtime matrices are made of.

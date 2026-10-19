@@ -21,15 +21,17 @@ prune per leg, written as a workflow author would write it. It does two jobs:
 
 ## Two modes
 
-- **`simulate`** — pull requests that touch these files. The filter job runs
+- **`simulate`** — pull requests that touch these files, and weekly on Mondays
+  to catch GitHub changing behavior a fixture pins. The filter job runs
   `smoke.ts simulate`, which emits the per-leg pruning outputs the action will
   emit (`<job>`, `<job>-exclude`, `<job>-matrix`) for the pruning `fixtures.ts`
   asks for. Deterministic, and needs no service.
-- **`live`** — run the workflow by hand and pick `live`. The filter job runs the
-  action at this commit against staging, with the planner's rows in `matrices`.
-  Until the action can prune individual legs, it ignores `matrices` and prunes
-  nothing, and the run checks only that nothing breaks. After that, the same
-  verdict checks real pruning.
+- **`live`** — every 4 hours, or run the workflow by hand and pick `live`. The
+  filter job runs the action at this commit against staging, with the
+  planner's rows in `matrices`, and the scheduled runs build the CI history
+  staging decides on. Until the action can prune individual legs, it ignores
+  `matrices` and prunes nothing, and the run checks only that nothing breaks.
+  After that, the same verdict checks real pruning.
 
 ## What is asserted
 
