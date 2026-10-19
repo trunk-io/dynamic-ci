@@ -42,6 +42,9 @@ GitHub API. For every fixture:
 - **No pruned leg ran.** A leg whose combination is in `<job>-exclude`, or
   missing from `<job>-matrix`, never became a job, so it never reported anything.
 - **Every kept leg ran, under the name `fixtures.ts` predicts, and passed.**
+  The jobs API can lag the workflow, so the verdict lists the jobs again for up
+  to 3 minutes until every leg reads as completed. Pass or fail comes from each
+  job's `needs.<key>.result`, which the workflow reports itself.
 - **A job skipped whole reports one check run,** `skipped`, under its unexpanded
   name. That is the required-check hazard the fan-in job exists for.
 - **Every check run belongs to some fixture.** Otherwise a wrong prefix would let

@@ -182,6 +182,38 @@ const fetchJobs = async (): Promise<Job[]> => {
   }
 };
 
+// The jobs API can lag the workflow: a leg that has finished (the verdict only
+// starts once every fixture job has) can still read as queued or in progress,
+// with a null conclusion. Such a leg is judged by its job's `needs.<key>.result`,
+// which the workflow itself reports, rather than by the API.
+const concludedBadly = (job: Job): boolean =>
+  job.status === "completed" && job.conclusion !== "success";
+
+const SETTLE_ATTEMPTS = 18;
+const SETTLE_INTERVAL_MS = 10_000;
+
+/** List the run's jobs, re-listing for up to 3 minutes until every leg reads as completed. */
+const fetchSettledJobs = async (): Promise<Job[]> => {
+  for (let attempt = 1; ; attempt++) {
+    const jobs = await fetchJobs();
+    const unsettled = jobs.filter(
+      (job) => !INFRA_JOBS.has(job.name) && job.status !== "completed",
+    );
+    if (unsettled.length === 0 || attempt === SETTLE_ATTEMPTS) {
+      if (unsettled.length > 0) {
+        process.stdout.write(
+          `${String(unsettled.length)} leg(s) still not completed in the jobs API; judging them by their job's result.\n`,
+        );
+      }
+      return jobs;
+    }
+    process.stdout.write(
+      `${String(unsettled.length)} leg(s) not yet completed in the jobs API; listing again in ${String(SETTLE_INTERVAL_MS / 1000)}s.\n`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_INTERVAL_MS));
+  }
+};
+
 const parseOutput = (raw: string | undefined): unknown => {
   if (!raw) return undefined;
   try {
@@ -233,14 +265,14 @@ const checkPinned = (
   problems: string[],
 ): Check => {
   const result = needs[fixture.key]?.result;
-  if (expect.result !== undefined && result !== expect.result) {
+  if (result !== (expect.result ?? "success")) {
     problems.push(
-      `the job's result is ${String(result)}, but GitHub was observed to give ${expect.result} (${expect.note})`,
+      `the job's result is ${String(result)}, but GitHub was observed to give ${expect.result ?? "success"} (${expect.note})`,
     );
   }
   const remaining = [...expect.ran];
   for (const job of observed) {
-    if (job.conclusion !== "success") {
+    if (concludedBadly(job)) {
       problems.push(`"${job.name}" concluded ${String(job.conclusion)}`);
     }
     const at = remaining.indexOf(job.name);
@@ -317,10 +349,14 @@ const checkFixture = (
     };
   }
 
+  const result = needs[fixture.key]?.result;
+  if (result !== undefined && result !== "success") {
+    problems.push(`the job's result is ${result}, not success`);
+  }
   const remaining = kept.map((leg) => leg.name);
   const prunedNames = new Set(pruned.map((leg) => leg.name));
   for (const job of observed) {
-    if (job.conclusion !== "success") {
+    if (concludedBadly(job)) {
       problems.push(`"${job.name}" concluded ${String(job.conclusion)}`);
     }
     const at = remaining.indexOf(job.name);
@@ -356,7 +392,7 @@ const xmlEscape = (s: string): string =>
 const verdict = async (): Promise<void> => {
   const needs = JSON.parse(env("NEEDS")) as Record<string, NeedsEntry>;
   const outputs = needs["filter"]?.outputs ?? {};
-  const jobs = await fetchJobs();
+  const jobs = await fetchSettledJobs();
 
   const checks: Check[] = [];
   const observedByFixture: Record<string, Job[]> = {};
