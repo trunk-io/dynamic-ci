@@ -23,6 +23,7 @@
     "isolatedDeclarations": true,
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
 
     /* Interop and emit. esbuild does the bundling; tsc is type-check only, but
        `declaration` has to be on for `isolatedDeclarations` to be legal. */
@@ -32,6 +33,11 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "esbuild.config.ts", "vitest.config.ts"],
+  "include": [
+    "src/**/*.ts",
+    ".github/smoke/**/*.ts",
+    "esbuild.config.ts",
+    "vitest.config.ts"
+  ],
   "exclude": ["node_modules", "dist", "coverage"]
 }

@@ -1,0 +1,44 @@
+# A one-off probe, run by hand: what GitHub does with an UNGATED job whose matrix
+# evaluates to `{"include": []}`. <job> is set to "false" whenever every leg is
+# pruned, on the assumption that GitHub fails such a job; matrix-smoke's
+# `all-pruned` fixture covers the gated half. Expect this run to go red — its
+# conclusion and the job's error message are the answer, so they are not
+# asserted, and this is not part of any pull request's checks.
+name: Matrix Probe (empty matrix)
+
+on:
+  workflow_dispatch: {}
+
+permissions: read-all
+
+jobs:
+  emit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.emit.outputs.matrix }}
+    steps:
+      - id: emit
+        run: echo 'matrix={"include":[]}' >> "${GITHUB_OUTPUT}"
+
+  empty-matrix:
+    name: Empty · ${{ matrix.lane }}
+    needs: [emit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix: ${{ fromJSON(needs.emit.outputs.matrix) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Does a job downstream of the empty matrix run, skip, or never appear?
+  after:
+    name: After the empty matrix
+    needs: [empty-matrix]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo 'empty-matrix concluded ${{ needs.empty-matrix.result }}'

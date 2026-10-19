@@ -1,0 +1,565 @@
+# Every shape of GitHub Actions matrix Dynamic CI has to identify, decide and
+# prune per leg, wired the way a workflow author would wire it. One job per
+# shape; .github/smoke/matrix/fixtures.ts is the answer key for each, and the
+# README beside it says what is asserted and why.
+#
+#   mode: simulate  (pull requests) the filter job emits the per-leg pruning
+#                   outputs the action will emit, from fixtures.ts.
+#                   Deterministic: this tests GitHub, and our model of it.
+#   mode: live      (dispatch) the real action at this commit, against staging.
+#                   Asserts the same invariants whatever staging decides.
+name: Matrix Smoke
+run-name: Matrix Smoke (${{ inputs.mode || 'simulate' }}) for ${{ github.ref_name }}
+
+concurrency:
+  group: matrix-smoke-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/matrix-smoke*.yaml
+      - .github/smoke/matrix/**
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Where the pruning outputs come from
+        type: choice
+        options: [simulate, live]
+        default: simulate
+
+env:
+  MODE: ${{ inputs.mode || 'simulate' }}
+
+jobs:
+  # A planner job: builds the rows its workflow's runtime matrices are made of.
+  planner:
+    name: Planner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runtime-sharded-rows: ${{ steps.rows.outputs.runtime-sharded-rows }}
+      runtime-matrix-object-rows: ${{ steps.rows.outputs.runtime-matrix-object-rows }}
+      runtime-matrix-object-matrix: ${{ steps.rows.outputs.runtime-matrix-object-matrix }}
+      axes-runtime-include-rows: ${{ steps.rows.outputs.axes-runtime-include-rows }}
+      bin-packed-rows: ${{ steps.rows.outputs.bin-packed-rows }}
+      name-collision-rows: ${{ steps.rows.outputs.name-collision-rows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - id: rows
+        run: node .github/smoke/matrix/smoke.ts planner
+
+  # The pre-job filter, exactly as the README recommends: one job whose outputs
+  # every gated job reads. It runs after the planner because runtime matrices
+  # hand it their rows (`matrices`).
+  filter:
+    name: Dynamic CI filter
+    needs: [planner]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+    # and so cannot be declared in action.yaml. Only one of `live` and `sim` runs.
+    outputs:
+      all-axes-named: ${{ steps.live.outputs.all-axes-named || steps.sim.outputs.all-axes-named }}
+      all-axes-named-exclude: ${{ steps.live.outputs.all-axes-named-exclude || steps.sim.outputs.all-axes-named-exclude }}
+      some-axes-named: ${{ steps.live.outputs.some-axes-named || steps.sim.outputs.some-axes-named }}
+      some-axes-named-exclude: ${{ steps.live.outputs.some-axes-named-exclude || steps.sim.outputs.some-axes-named-exclude }}
+      default-name: ${{ steps.live.outputs.default-name || steps.sim.outputs.default-name }}
+      default-name-exclude: ${{ steps.live.outputs.default-name-exclude || steps.sim.outputs.default-name-exclude }}
+      shard-axis: ${{ steps.live.outputs.shard-axis || steps.sim.outputs.shard-axis }}
+      shard-axis-exclude: ${{ steps.live.outputs.shard-axis-exclude || steps.sim.outputs.shard-axis-exclude }}
+      object-axis: ${{ steps.live.outputs.object-axis || steps.sim.outputs.object-axis }}
+      object-axis-exclude: ${{ steps.live.outputs.object-axis-exclude || steps.sim.outputs.object-axis-exclude }}
+      typed-exclude: ${{ steps.live.outputs.typed-exclude || steps.sim.outputs.typed-exclude }}
+      typed-exclude-exclude: ${{ steps.live.outputs.typed-exclude-exclude || steps.sim.outputs.typed-exclude-exclude }}
+      float-values: ${{ steps.live.outputs.float-values || steps.sim.outputs.float-values }}
+      float-values-exclude: ${{ steps.live.outputs.float-values-exclude || steps.sim.outputs.float-values-exclude }}
+      context-name: ${{ steps.live.outputs.context-name || steps.sim.outputs.context-name }}
+      context-name-exclude: ${{ steps.live.outputs.context-name-exclude || steps.sim.outputs.context-name-exclude }}
+      axes-plus-include: ${{ steps.live.outputs.axes-plus-include || steps.sim.outputs.axes-plus-include }}
+      axes-plus-include-exclude: ${{ steps.live.outputs.axes-plus-include-exclude || steps.sim.outputs.axes-plus-include-exclude }}
+      include-only-literal: ${{ steps.live.outputs.include-only-literal || steps.sim.outputs.include-only-literal }}
+      include-only-literal-matrix: ${{ steps.live.outputs.include-only-literal-matrix || steps.sim.outputs.include-only-literal-matrix }}
+      all-pruned: ${{ steps.live.outputs.all-pruned || steps.sim.outputs.all-pruned }}
+      all-pruned-matrix: ${{ steps.live.outputs.all-pruned-matrix || steps.sim.outputs.all-pruned-matrix }}
+      whole-job-skipped: ${{ steps.live.outputs.whole-job-skipped || steps.sim.outputs.whole-job-skipped }}
+      whole-job-skipped-exclude: ${{ steps.live.outputs.whole-job-skipped-exclude || steps.sim.outputs.whole-job-skipped-exclude }}
+      runs-on-include: ${{ steps.live.outputs.runs-on-include || steps.sim.outputs.runs-on-include }}
+      reusable-inputs: ${{ steps.live.outputs.reusable-inputs || steps.sim.outputs.reusable-inputs }}
+      reusable-inputs-exclude: ${{ steps.live.outputs.reusable-inputs-exclude || steps.sim.outputs.reusable-inputs-exclude }}
+      runtime-sharded: ${{ steps.live.outputs.runtime-sharded || steps.sim.outputs.runtime-sharded }}
+      runtime-sharded-matrix: ${{ steps.live.outputs.runtime-sharded-matrix || steps.sim.outputs.runtime-sharded-matrix }}
+      runtime-matrix-object: ${{ steps.live.outputs.runtime-matrix-object || steps.sim.outputs.runtime-matrix-object }}
+      runtime-matrix-object-matrix: ${{ steps.live.outputs.runtime-matrix-object-matrix || steps.sim.outputs.runtime-matrix-object-matrix }}
+      axes-runtime-include: ${{ steps.live.outputs.axes-runtime-include || steps.sim.outputs.axes-runtime-include }}
+      bin-packed: ${{ steps.live.outputs.bin-packed || steps.sim.outputs.bin-packed }}
+      name-collision: ${{ steps.live.outputs.name-collision || steps.sim.outputs.name-collision }}
+      name-collision-matrix: ${{ steps.live.outputs.name-collision-matrix || steps.sim.outputs.name-collision-matrix }}
+    # trunk-ignore-end(actionlint/expression)
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: live
+        if: env.MODE == 'live'
+        continue-on-error: true
+        uses: ./
+        with:
+          token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
+          # job key -> the rows its runtime matrix is built from. Which fields
+          # identify a variant is configured in Trunk, not here.
+          # trunk-ignore(actionlint/action): the `matrices` input is not released yet
+          matrices: >-
+            {"runtime-sharded": ${{ needs.planner.outputs.runtime-sharded-rows || '[]' }},
+            "runtime-matrix-object": ${{ needs.planner.outputs.runtime-matrix-object-rows || '[]' }},
+            "axes-runtime-include": ${{ needs.planner.outputs.axes-runtime-include-rows || '[]' }},
+            "bin-packed": ${{ needs.planner.outputs.bin-packed-rows || '[]' }},
+            "name-collision": ${{ needs.planner.outputs.name-collision-rows || '[]' }}}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      - uses: actions/setup-node@v4
+        if: env.MODE != 'live'
+        with:
+          node-version: "24"
+      - id: sim
+        if: env.MODE != 'live'
+        run: node .github/smoke/matrix/smoke.ts simulate
+
+  # ---------------------------------------------------------------------------
+  # Static matrices: every value is written here. Every fixture's legs only echo
+  # their matrix; what is under test is which legs GitHub creates and what it
+  # names them.
+  # ---------------------------------------------------------------------------
+
+  # Static axes, every axis in name:, so every leg's name is unique.
+  all-axes-named:
+    name: All axes · Test (${{ matrix.os }}, node ${{ matrix.node }})
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.all-axes-named != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        node: [18, 20]
+        exclude: ${{ fromJSON(needs.filter.outputs.all-axes-named-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # name: shows os but not node. Both node legs render the same name, so they
+  # can only be told apart by os, and the exclude names only os.
+  some-axes-named:
+    name: Some axes · Test (${{ matrix.os }})
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.some-axes-named != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        node: [18, 20]
+        exclude: ${{ fromJSON(needs.filter.outputs.some-axes-named-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # No name:, so GitHub appends the values itself. The include extends one leg
+  # with an object-valued key, to see how the default suffix renders it.
+  default-name:
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.default-name != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        arch: [amd64, arm64]
+        include:
+          - os: linux
+            arch: amd64
+            tier: { name: gold, level: 1 }
+        exclude: ${{ fromJSON(needs.filter.outputs.default-name-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # A shard declared as an axis. Pruning a suite removes it across its shards.
+  shard-axis:
+    name: Shard axis · ${{ matrix.suite }} (${{ matrix.shard }}/2)
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.shard-axis != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [unit, integration]
+        shard: [1, 2]
+        exclude: ${{ fromJSON(needs.filter.outputs.shard-axis-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Object-valued axis, the README's own example. The exclude carries the whole
+  # object.
+  object-axis:
+    name: Object · Test for ${{ matrix.platform.target }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.object-axis != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: aarch64-apple-darwin, os: macos-14 }
+        exclude: ${{ fromJSON(needs.filter.outputs.object-axis-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Number and boolean axes, excluded by STRING values ("18", "false"), as a
+  # service that stored the values as text would return them.
+  typed-exclude:
+    name: Typed · node ${{ matrix.node }} flag ${{ matrix.flag }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.typed-exclude != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20]
+        flag: [true, false]
+        exclude: ${{ fromJSON(needs.filter.outputs.typed-exclude-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # 3.10 unquoted is the number 3.1; "3.10" quoted is a string. Excluding
+  # "3.10" must not take 3.1 with it.
+  float-values:
+    name: Floats · Python ${{ matrix.python }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.float-values != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        # trunk-ignore(actionlint/matrix): 3.10 and "3.10" differ on purpose — that is the probe
+        python: [3.9, 3.10, "3.10"]
+        exclude: ${{ fromJSON(needs.filter.outputs.float-values-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # name: reads a context other than matrix, so the name can't be rendered from
+  # the matrix values alone.
+  context-name:
+    name: Context · ${{ matrix.os }} in ${{ github.workflow }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.context-name != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        exclude: ${{ fromJSON(needs.filter.outputs.context-name-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Axes plus a static include that extends one leg (linux/20 gains
+  # `experimental`) and adds another (windows/22). GitHub applies exclude before
+  # include, so an include-added leg can't be excluded.
+  axes-plus-include:
+    name: Axes+include · Test (${{ matrix.os }}, ${{ matrix.node }})
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.axes-plus-include != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        node: [18, 20]
+        include:
+          - os: linux
+            node: 20
+            experimental: true
+          - os: windows
+            node: 22
+        exclude: ${{ fromJSON(needs.filter.outputs.axes-plus-include-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # An include-only matrix can't be excluded from, so the rows move into a
+  # literal fallback that stays readable as the matrix's declaration.
+  include-only-literal:
+    name: Include-only · ${{ matrix.lane }} tests ${{ matrix.shard }}/${{ matrix.shard_count }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.include-only-literal != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.filter.outputs.include-only-literal-matrix || '{"include":[{"lane":"parallel","shard":1,"shard_count":1},{"lane":"serial","shard":1,"shard_count":3},{"lane":"serial","shard":2,"shard_count":3},{"lane":"serial","shard":3,"shard_count":3}]}') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Every leg pruned: the output is {"include": []} and <job> is false. The if:
+  # must skip the job before GitHub evaluates the empty matrix.
+  all-pruned:
+    name: All-pruned · ${{ matrix.lane }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.all-pruned != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.filter.outputs.all-pruned-matrix || '{"include":[{"lane":"parallel"},{"lane":"serial"}]}') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Today's whole-job skip: ONE check run under the unexpanded name. This is why
+  # the fan-in job at the bottom, not the legs, has to be the required check.
+  whole-job-skipped:
+    name: Whole · Test (${{ matrix.os }})
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.whole-job-skipped != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        exclude: ${{ fromJSON(needs.filter.outputs.whole-job-skipped-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # No name:, include-only, runs-on from the matrix: legs told apart only by
+  # their runner and values. Unwired: the job can only be skipped whole.
+  runs-on-include:
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.runs-on-include != 'false' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-22.04
+            arch: amd64-jammy
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # A reusable workflow whose matrix comes from caller inputs set to literals:
+  # static in effect, but not written in the callee's matrix.
+  reusable-inputs:
+    name: Reusable
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.reusable-inputs != 'false' }}
+    uses: ./.github/workflows/matrix-smoke-reusable.yaml
+    with:
+      oses: '["linux", "macos"]'
+      exclude: ${{ needs.filter.outputs.reusable-inputs-exclude || '[]' }}
+
+  # ---------------------------------------------------------------------------
+  # Runtime matrices: the rows come from the planner job.
+  # ---------------------------------------------------------------------------
+
+  # Stable suite/compat fields × per-run shard fields.
+  #
+  # <job>-matrix is a whole strategy.matrix ({"include": [...]}), so it goes on
+  # `matrix:`. A planner that emits a bare include array is wrapped with format()
+  # for the fallback, which keeps the planner unchanged.
+  runtime-sharded:
+    name: Runtime sharded · ${{ matrix.suite }}${{ matrix.compat && ' compat' || '' }} (${{ matrix.group }}/${{ matrix.concurrency }})
+    needs: [planner, filter]
+    if: ${{ !cancelled() && needs.filter.outputs.runtime-sharded != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.filter.outputs.runtime-sharded-matrix || format('{{"include":{0}}}', needs.planner.outputs.runtime-sharded-rows)) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # A planner that emits the whole matrix object rather than an include array.
+  runtime-matrix-object:
+    name: Runtime object · Build ${{ matrix.image }}
+    needs: [planner, filter]
+    if: ${{ !cancelled() && needs.filter.outputs.runtime-matrix-object != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.filter.outputs.runtime-matrix-object-matrix || needs.planner.outputs.runtime-matrix-object-matrix) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Static axes plus a runtime include. The action would hold only the include
+  # rows, not the expanded legs, so this job can only be skipped whole.
+  axes-runtime-include:
+    name: Axes+runtime · Build (${{ matrix.os }})
+    needs: [planner, filter]
+    if: ${{ !cancelled() && needs.filter.outputs.axes-runtime-include != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        include: ${{ fromJSON(needs.planner.outputs.axes-runtime-include-rows) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Bin-packed rows with nested arrays. No field is stable across runs, so the
+  # job can only be skipped whole; the rows are still sent.
+  bin-packed:
+    name: Bin-packed · Tests (${{ matrix.group }})
+    needs: [planner, filter]
+    if: ${{ !cancelled() && needs.filter.outputs.bin-packed != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.planner.outputs.bin-packed-rows) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Two rows render the same name, so the legs can't be told apart once they've
+  # run; pruning by row still works.
+  name-collision:
+    name: Collision · ${{ matrix.suite }}
+    needs: [planner, filter]
+    if: ${{ !cancelled() && needs.filter.outputs.name-collision != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.filter.outputs.name-collision-matrix || format('{{"include":{0}}}', needs.planner.outputs.name-collision-rows)) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # ---------------------------------------------------------------------------
+  # Did GitHub create exactly the legs the outputs kept, under the predicted names?
+  # ---------------------------------------------------------------------------
+  verdict:
+    name: Verdict
+    needs:
+      - planner
+      - filter
+      - all-axes-named
+      - some-axes-named
+      - default-name
+      - shard-axis
+      - object-axis
+      - typed-exclude
+      - float-values
+      - context-name
+      - axes-plus-include
+      - include-only-literal
+      - all-pruned
+      - whole-job-skipped
+      - runs-on-include
+      - reusable-inputs
+      - runtime-sharded
+      - runtime-matrix-object
+      - axes-runtime-include
+      - bin-packed
+      - name-collision
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Compare the check runs against fixtures.ts
+        id: verdict
+        continue-on-error: true
+        run: node .github/smoke/matrix/smoke.ts verdict
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # observed.json is the golden data: every name GitHub rendered, per fixture.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: matrix-smoke-out
+          path: matrix-smoke-out/
+
+      - name: Trunk Analytics Uploader (Staging)
+        if: ${{ !cancelled() }}
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: matrix-smoke-out/junit.xml
+          org-slug: trunk-staging-org
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          allow-missing-junit-files: false
+          previous-step-outcome: ${{ steps.verdict.outcome }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      # The uploader re-fails the job too, but only with a token; a fork has none.
+      - name: Fail if the verdict failed
+        if: ${{ steps.verdict.outcome == 'failure' }}
+        run: exit 1
+
+  # The fan-in job: the one check a repository should require instead of any
+  # leg's. Never gate it — a gate that can be skipped cannot report.
+  matrix-smoke-pass:
+    name: Matrix Smoke Pass
+    needs: [verdict]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: '[[ "${{ needs.verdict.result }}" == success ]]'
