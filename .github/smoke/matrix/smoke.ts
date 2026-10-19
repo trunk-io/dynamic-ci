@@ -131,16 +131,25 @@ const simulate = (): void => {
 /**
  * A pin records what GitHub did with the outputs simulate mode emits, so it
  * holds only when the filter emitted exactly those. Any other outputs (live
- * mode, or a service that prunes differently) get the ordinary check.
+ * mode, or a service that prunes differently) get the ordinary check. Only the
+ * outputs the fixture's wiring reads are compared: the filter job declares just
+ * those, so the others never reach the verdict.
  */
 const pinApplies = (
   fixture: Fixture,
   outputs: Record<string, string>,
-): boolean =>
-  ["", "-exclude", "-matrix"].every((suffix) => {
+): boolean => {
+  const read: Record<Fixture["wiring"], string[]> = {
+    exclude: ["", "-exclude"],
+    matrix: ["", "-matrix"],
+    none: [""],
+  };
+  const simulated = simulatedOutputs(fixture);
+  return read[fixture.wiring].every((suffix) => {
     const name = `${fixture.key}${suffix}`;
-    return outputs[name] === simulatedOutputs(fixture)[name];
+    return outputs[name] === simulated[name];
   });
+};
 
 // ---------------------------------------------------------------------------
 // verdict
