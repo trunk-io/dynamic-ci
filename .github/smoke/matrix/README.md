@@ -51,27 +51,34 @@ outputs were right.
 
 ## The fixtures
 
-| Fixture                 | Shape                                  | Wiring  | What it settles                                                                |
-| ----------------------- | -------------------------------------- | ------- | ------------------------------------------------------------------------------ |
-| `all-axes-named`        | axes, all in `name:`                   | exclude | The baseline: a typed exclude removes one combination                          |
-| `some-axes-named`       | axes, some in `name:`                  | exclude | A partial exclude (`{os}`) removes both legs that share a name                 |
-| `default-name`          | axes, no `name:`                       | exclude | GitHub's default name suffix, which leaves out keys added by include           |
-| `shard-axis`            | axes, one a shard index                | exclude | A suite pruned across all its shards                                           |
-| `object-axis`           | axis of objects                        | exclude | An exclude matches an object-valued axis by the whole object                   |
-| `typed-exclude`         | number and boolean axes                | exclude | Whether `"18"` and `"false"` in an exclude remove `18` and `false` legs        |
-| `float-values`          | float axis                             | exclude | YAML `3.10` renders `3.1`; whether excluding `"3.10"` also removes `3.1`       |
-| `context-name`          | `name:` reads `github.*`               | exclude | A name that can't be rendered from the matrix values alone                     |
-| `axes-plus-include`     | axes plus static include               | exclude | An exclude carrying an include-only key; whether include re-adds what it drops |
-| `include-only-literal`  | include-only, literal fallback         | matrix  | Include rows kept in `fromJSON(output \|\| '<literal>')`                       |
-| `all-pruned`            | every leg pruned                       | matrix  | `<job>` is `false`, so `if:` skips before the empty matrix is evaluated        |
-| `whole-job-skipped`     | whole job skipped                      | exclude | Today's whole-job skip: one check run, unexpanded name                         |
-| `runs-on-include`       | include-only, `runs-on` from matrix    | none    | Legs told apart only by runner and values, named by GitHub                     |
-| `reusable-inputs`       | reusable workflow, matrix from inputs  | exclude | A matrix from caller inputs set to literals; the `caller / callee` name        |
-| `runtime-sharded`       | runtime include, stable fields, shards | matrix  | `&&`/`\|\|` defaults, booleans and numbers in the name                         |
-| `runtime-matrix-object` | runtime matrix object                  | matrix  | A planner that emits the whole matrix object                                   |
-| `axes-runtime-include`  | static axes plus runtime include       | none    | Only the include rows are known, so the job can only be skipped whole          |
-| `bin-packed`            | runtime include, bin-packed            | none    | Rows with nested arrays and no stable field: skipped whole only                |
-| `name-collision`        | runtime include, colliding names       | matrix  | Two rows that render one name; pruning by row still works                      |
+| Fixture                  | Shape                                  | Wiring  | What it settles                                                         |
+| ------------------------ | -------------------------------------- | ------- | ----------------------------------------------------------------------- |
+| `all-axes-named`         | axes, all in `name:`                   | exclude | The baseline: a typed exclude removes one combination                   |
+| `some-axes-named`        | axes, some in `name:`                  | exclude | A partial exclude (`{os}`) removes both legs that share a name          |
+| `default-name`           | axes, no `name:`                       | exclude | GitHub's default name suffix, which leaves out keys added by include    |
+| `shard-axis`             | axes, one a shard index                | exclude | A suite pruned across all its shards                                    |
+| `object-axis`            | axis of objects                        | exclude | An exclude matches an object-valued axis by the whole object            |
+| `number-exclude`         | number axis, string exclude            | exclude | `"18"` in an exclude removes the number `18` leg                        |
+| `bool-exclude`           | boolean axis, string exclude           | exclude | PINNED: `"false"` in an exclude does not remove a `false` leg           |
+| `float-values`           | float axis, nothing excluded           | none    | Whether `3.10` (renders `3.1`) and `"3.10"` are separate legs           |
+| `float-exclude`          | float axis, string exclude             | exclude | PINNED: excluding `"3.10"` also removes the number `3.1`                |
+| `context-name`           | `name:` reads `github.*`               | exclude | A name that can't be rendered from the matrix values alone              |
+| `axes-plus-include`      | axes plus static include               | exclude | PINNED: an exclude key added by include fails the job, silently         |
+| `axes-include-projected` | axes plus static include               | exclude | An exclude on axis keys only; whether include adds the leg back         |
+| `include-only-literal`   | include-only, literal fallback         | matrix  | Include rows kept in `fromJSON(output \|\| '<literal>')`                |
+| `all-pruned`             | every leg pruned                       | matrix  | `<job>` is `false`, so `if:` skips before the empty matrix is evaluated |
+| `whole-job-skipped`      | whole job skipped                      | exclude | Today's whole-job skip: one check run, unexpanded name                  |
+| `runs-on-include`        | include-only, `runs-on` from matrix    | none    | Legs told apart only by runner and values, named by GitHub              |
+| `reusable-inputs`        | reusable workflow, matrix from inputs  | exclude | A matrix from caller inputs set to literals; the `caller / callee` name |
+| `runtime-sharded`        | runtime include, stable fields, shards | matrix  | `&&`/`\|\|` defaults, booleans and numbers in the name                  |
+| `runtime-matrix-object`  | runtime matrix object                  | matrix  | A planner that emits the whole matrix object                            |
+| `axes-runtime-include`   | static axes plus runtime include       | none    | Only the include rows are known, so the job can only be skipped whole   |
+| `bin-packed`             | runtime include, bin-packed            | none    | Rows with nested arrays and no stable field: skipped whole only         |
+| `name-collision`         | runtime include, colliding names       | matrix  | Two rows that render one name; pruning by row still works               |
+
+A fixture marked PINNED records what GitHub actually does where that differs
+from what its outputs meant (`expect` in `fixtures.ts`). It stays green while
+GitHub behaves that way, and goes red if GitHub changes.
 
 A red verdict that says a leg "ran under a name fixtures.ts does not predict"
 means either GitHub changed how it names legs, or a new fixture's prediction was

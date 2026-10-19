@@ -75,14 +75,19 @@ jobs:
       shard-axis-exclude: ${{ steps.live.outputs.shard-axis-exclude || steps.sim.outputs.shard-axis-exclude }}
       object-axis: ${{ steps.live.outputs.object-axis || steps.sim.outputs.object-axis }}
       object-axis-exclude: ${{ steps.live.outputs.object-axis-exclude || steps.sim.outputs.object-axis-exclude }}
-      typed-exclude: ${{ steps.live.outputs.typed-exclude || steps.sim.outputs.typed-exclude }}
-      typed-exclude-exclude: ${{ steps.live.outputs.typed-exclude-exclude || steps.sim.outputs.typed-exclude-exclude }}
+      number-exclude: ${{ steps.live.outputs.number-exclude || steps.sim.outputs.number-exclude }}
+      number-exclude-exclude: ${{ steps.live.outputs.number-exclude-exclude || steps.sim.outputs.number-exclude-exclude }}
+      bool-exclude: ${{ steps.live.outputs.bool-exclude || steps.sim.outputs.bool-exclude }}
+      bool-exclude-exclude: ${{ steps.live.outputs.bool-exclude-exclude || steps.sim.outputs.bool-exclude-exclude }}
       float-values: ${{ steps.live.outputs.float-values || steps.sim.outputs.float-values }}
-      float-values-exclude: ${{ steps.live.outputs.float-values-exclude || steps.sim.outputs.float-values-exclude }}
+      float-exclude: ${{ steps.live.outputs.float-exclude || steps.sim.outputs.float-exclude }}
+      float-exclude-exclude: ${{ steps.live.outputs.float-exclude-exclude || steps.sim.outputs.float-exclude-exclude }}
       context-name: ${{ steps.live.outputs.context-name || steps.sim.outputs.context-name }}
       context-name-exclude: ${{ steps.live.outputs.context-name-exclude || steps.sim.outputs.context-name-exclude }}
       axes-plus-include: ${{ steps.live.outputs.axes-plus-include || steps.sim.outputs.axes-plus-include }}
       axes-plus-include-exclude: ${{ steps.live.outputs.axes-plus-include-exclude || steps.sim.outputs.axes-plus-include-exclude }}
+      axes-include-projected: ${{ steps.live.outputs.axes-include-projected || steps.sim.outputs.axes-include-projected }}
+      axes-include-projected-exclude: ${{ steps.live.outputs.axes-include-projected-exclude || steps.sim.outputs.axes-include-projected-exclude }}
       include-only-literal: ${{ steps.live.outputs.include-only-literal || steps.sim.outputs.include-only-literal }}
       include-only-literal-matrix: ${{ steps.live.outputs.include-only-literal-matrix || steps.sim.outputs.include-only-literal-matrix }}
       all-pruned: ${{ steps.live.outputs.all-pruned || steps.sim.outputs.all-pruned }}
@@ -233,27 +238,44 @@ jobs:
         env:
           MATRIX: ${{ toJSON(matrix) }}
 
-  # Number and boolean axes, excluded by STRING values ("18", "false"), as a
-  # service that stored the values as text would return them.
-  typed-exclude:
-    name: Typed · node ${{ matrix.node }} flag ${{ matrix.flag }}
+  # A number axis excluded by the STRING "18", as a service that stored the
+  # values as text would return it.
+  number-exclude:
+    name: Number · node ${{ matrix.node }}
     needs: [filter]
-    if: ${{ !cancelled() && needs.filter.outputs.typed-exclude != 'false' }}
+    if: ${{ !cancelled() && needs.filter.outputs.number-exclude != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
         node: [18, 20]
-        flag: [true, false]
-        exclude: ${{ fromJSON(needs.filter.outputs.typed-exclude-exclude || '[]') }}
+        exclude: ${{ fromJSON(needs.filter.outputs.number-exclude-exclude || '[]') }}
     steps:
       - run: echo "${MATRIX}"
         env:
           MATRIX: ${{ toJSON(matrix) }}
 
-  # 3.10 unquoted is the number 3.1; "3.10" quoted is a string. Excluding
-  # "3.10" must not take 3.1 with it.
+  # A boolean axis excluded by the STRING "false". Observed: it does not match,
+  # so pruning outputs must keep their JSON types.
+  bool-exclude:
+    name: Bool · flag ${{ matrix.flag }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.bool-exclude != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        flag: [true, false]
+        exclude: ${{ fromJSON(needs.filter.outputs.bool-exclude-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # 3.10 unquoted is the number 3.1; "3.10" quoted is a string. Nothing is
+  # excluded: this is the control that says which legs exist at all.
   float-values:
     name: Floats · Python ${{ matrix.python }}
     needs: [filter]
@@ -265,7 +287,24 @@ jobs:
       matrix:
         # trunk-ignore(actionlint/matrix): 3.10 and "3.10" differ on purpose — that is the probe
         python: [3.9, 3.10, "3.10"]
-        exclude: ${{ fromJSON(needs.filter.outputs.float-values-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # The same axis, excluding "3.10". Observed: the number 3.1 goes too.
+  float-exclude:
+    name: Float exclude · Python ${{ matrix.python }}
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.float-exclude != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        # trunk-ignore(actionlint/matrix): 3.10 and "3.10" differ on purpose — that is the probe
+        python: [3.9, 3.10, "3.10"]
+        exclude: ${{ fromJSON(needs.filter.outputs.float-exclude-exclude || '[]') }}
     steps:
       - run: echo "${MATRIX}"
         env:
@@ -290,8 +329,9 @@ jobs:
           MATRIX: ${{ toJSON(matrix) }}
 
   # Axes plus a static include that extends one leg (linux/20 gains
-  # `experimental`) and adds another (windows/22). GitHub applies exclude before
-  # include, so an include-added leg can't be excluded.
+  # `experimental`) and adds another (windows/22). The exclude carries the
+  # include-only key `experimental`. Observed: GitHub fails the job before any
+  # leg exists, with no check run and no error annotation.
   axes-plus-include:
     name: Axes+include · Test (${{ matrix.os }}, ${{ matrix.node }})
     needs: [filter]
@@ -310,6 +350,31 @@ jobs:
           - os: windows
             node: 22
         exclude: ${{ fromJSON(needs.filter.outputs.axes-plus-include-exclude || '[]') }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # The same matrix, excluded by the axis keys only. GitHub applies include
+  # after exclude, so the leg include extends (linux/20) is predicted to come back.
+  axes-include-projected:
+    name: Projected · Test (${{ matrix.os }}, ${{ matrix.node }})
+    needs: [filter]
+    if: ${{ !cancelled() && needs.filter.outputs.axes-include-projected != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        node: [18, 20]
+        include:
+          - os: linux
+            node: 20
+            experimental: true
+          - os: windows
+            node: 22
+        exclude: ${{ fromJSON(needs.filter.outputs.axes-include-projected-exclude || '[]') }}
     steps:
       - run: echo "${MATRIX}"
         env:
@@ -498,10 +563,13 @@ jobs:
       - default-name
       - shard-axis
       - object-axis
-      - typed-exclude
+      - number-exclude
+      - bool-exclude
       - float-values
+      - float-exclude
       - context-name
       - axes-plus-include
+      - axes-include-projected
       - include-only-literal
       - all-pruned
       - whole-job-skipped

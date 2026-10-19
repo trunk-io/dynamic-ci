@@ -223,6 +223,47 @@ const intendedPrune = (
   return { wholeSkip, pruned, kept: fixture.legs.filter((l) => !isPruned(l)) };
 };
 
+/** A pinned fixture: GitHub must still behave exactly as `expect` records. */
+const checkPinned = (
+  fixture: Fixture,
+  expect: NonNullable<Fixture["expect"]>,
+  needs: Record<string, NeedsEntry>,
+  observed: Job[],
+  name: string,
+  problems: string[],
+): Check => {
+  const result = needs[fixture.key]?.result;
+  if (expect.result !== undefined && result !== expect.result) {
+    problems.push(
+      `the job's result is ${String(result)}, but GitHub was observed to give ${expect.result} (${expect.note})`,
+    );
+  }
+  const remaining = [...expect.ran];
+  for (const job of observed) {
+    if (job.conclusion !== "success") {
+      problems.push(`"${job.name}" concluded ${String(job.conclusion)}`);
+    }
+    const at = remaining.indexOf(job.name);
+    if (at >= 0) {
+      remaining.splice(at, 1);
+    } else {
+      problems.push(
+        `"${job.name}" ran, but GitHub was observed not to run it (${expect.note})`,
+      );
+    }
+  }
+  for (const missing of remaining) {
+    problems.push(
+      `"${missing}" never ran, but GitHub was observed to run it (${expect.note})`,
+    );
+  }
+  return {
+    name,
+    problems,
+    detail: `pinned: ${String(expect.ran.length)} expected, ${String(observed.length)} ran${expect.result ? `, job ${String(result)}` : ""}`,
+  };
+};
+
 const checkFixture = (
   fixture: Fixture,
   needs: Record<string, NeedsEntry>,
@@ -234,6 +275,16 @@ const checkFixture = (
   if (!(fixture.key in needs)) {
     problems.push(
       "no such job in the verdict's needs: add it to matrix-smoke.yaml, or to the verdict job's needs",
+    );
+  }
+  if (fixture.expect) {
+    return checkPinned(
+      fixture,
+      fixture.expect,
+      needs,
+      observed,
+      name,
+      problems,
     );
   }
   const { wholeSkip, pruned, kept } = intendedPrune(fixture, outputs);

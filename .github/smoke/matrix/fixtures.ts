@@ -67,6 +67,19 @@ export interface Fixture {
   stringify?: boolean;
   /** The single check run GitHub reports when the job is skipped whole: the unexpanded name. */
   skippedName?: string;
+  /**
+   * PINNED: what GitHub actually does with this fixture's outputs, where that is
+   * NOT what the outputs meant. Replaces the expectation the verdict would work
+   * out from the outputs, so the fixture stays green while GitHub behaves this
+   * way and goes red if it changes. `note` says what was observed.
+   */
+  expect?: {
+    /** The check-run names GitHub creates, one per leg. */
+    ran: string[];
+    /** The job's `needs.<key>.result`, when GitHub fails the job itself. */
+    result?: "failure";
+    note: string;
+  };
 }
 
 const axes = (dims: Record<string, Value[]>): Row[] =>
@@ -184,32 +197,67 @@ export const FIXTURES: Fixture[] = [
     prune: [{ platform: { target: "aarch64-apple-darwin", os: "macos-14" } }],
   },
   {
-    key: "typed-exclude",
-    shape: "number and boolean axes",
+    key: "number-exclude",
+    shape: "number axis, string exclude",
     shows:
-      'does an exclude of strings ("18", "false") remove legs whose values are the number 18 and the boolean false?',
-    prefix: "Typed · ",
+      'an exclude of the string "18" against a leg whose value is the number 18; GitHub converts the string to a number, so it matches',
+    prefix: "Number · ",
     wiring: "exclude",
     stringify: true,
     legs: named(
-      axes({ node: [18, 20], flag: [true, false] }),
-      (v) => `Typed · node ${s(v["node"])} flag ${s(v["flag"])}`,
+      axes({ node: [18, 20] }),
+      (v) => `Number · node ${s(v["node"])}`,
+    ),
+    prune: [{ node: "18" }],
+  },
+  {
+    key: "bool-exclude",
+    shape: "boolean axis, string exclude",
+    shows:
+      'an exclude of the string "false" against a leg whose value is the boolean false; it does not match, so pruning outputs must keep JSON types',
+    prefix: "Bool · ",
+    wiring: "exclude",
+    stringify: true,
+    legs: named(
+      axes({ flag: [true, false] }),
+      (v) => `Bool · flag ${s(v["flag"])}`,
     ),
     prune: [{ flag: "false" }],
+    expect: {
+      ran: ["Bool · flag true", "Bool · flag false"],
+      note: 'observed: the string "false" in an exclude does not remove a boolean false leg',
+    },
   },
   {
     key: "float-values",
-    shape: "float axis",
+    shape: "float axis, nothing excluded",
     shows:
-      'YAML 3.10 is the number 3.1 and renders "3.1"; "3.10" quoted is a string. Does excluding "3.10" also remove 3.1?',
+      'the control for float-exclude: YAML 3.10 is the number 3.1 and renders "3.1"; does GitHub keep "3.10" quoted as a separate leg?',
     prefix: "Floats · ",
-    wiring: "exclude",
+    wiring: "none",
     legs: [
       { values: { python: 3.9 }, name: "Floats · Python 3.9" },
       { values: { python: 3.1 }, name: "Floats · Python 3.1" },
       { values: { python: "3.10" }, name: "Floats · Python 3.10" },
     ],
+  },
+  {
+    key: "float-exclude",
+    shape: "float axis, string exclude",
+    shows:
+      'excluding the string "3.10" from [3.9, 3.10, "3.10"]; float-values says whether both legs existed to begin with',
+    prefix: "Float exclude · ",
+    wiring: "exclude",
+    legs: [
+      { values: { python: 3.9 }, name: "Float exclude · Python 3.9" },
+      { values: { python: 3.1 }, name: "Float exclude · Python 3.1" },
+      { values: { python: "3.10" }, name: "Float exclude · Python 3.10" },
+    ],
     prune: [{ python: "3.10" }],
+    expect: {
+      ran: ["Float exclude · Python 3.9"],
+      note: 'observed: excluding "3.10" removes the number 3.1 as well as the string "3.10"',
+    },
   },
   {
     key: "context-name",
@@ -228,7 +276,7 @@ export const FIXTURES: Fixture[] = [
     key: "axes-plus-include",
     shape: "axes plus static include",
     shows:
-      "include extends one axis leg and adds another; an exclude carrying the include-only key `experimental` is a probe",
+      "include extends one axis leg and adds another; an exclude entry carrying the include-only key `experimental` fails the whole job",
     prefix: "Axes+include · ",
     wiring: "exclude",
     legs: [
@@ -254,6 +302,53 @@ export const FIXTURES: Fixture[] = [
       },
     ],
     prune: [{ node: "20" }],
+    expect: {
+      ran: [],
+      result: "failure",
+      note: "observed: an exclude key that is not an axis fails the job before any leg exists, with no check run and no error annotation",
+    },
+  },
+  {
+    key: "axes-include-projected",
+    shape: "axes plus static include, exclude on axes only",
+    shows:
+      "the same matrix, excluded by the axis keys only; GitHub applies include after exclude, so the leg include extends is predicted to come back",
+    prefix: "Projected · ",
+    wiring: "exclude",
+    legs: [
+      {
+        values: { os: "linux", node: 18 },
+        name: "Projected · Test (linux, 18)",
+      },
+      {
+        values: { os: "linux", node: 20, experimental: true },
+        name: "Projected · Test (linux, 20)",
+      },
+      {
+        values: { os: "macos", node: 18 },
+        name: "Projected · Test (macos, 18)",
+      },
+      {
+        values: { os: "macos", node: 20 },
+        name: "Projected · Test (macos, 20)",
+      },
+      {
+        values: { os: "windows", node: 22 },
+        name: "Projected · Test (windows, 22)",
+      },
+    ],
+    identityDims: ["os", "node"],
+    prune: [{ node: "20" }],
+    expect: {
+      ran: [
+        "Projected · Test (linux, 18)",
+        "Projected · Test (linux, 20)",
+        "Projected · Test (macos, 18)",
+        "Projected · Test (windows, 22)",
+      ],
+      // UNVERIFIED: predicted from GitHub's documented include semantics.
+      note: "predicted: an include entry whose combination was excluded is added back as a new leg",
+    },
   },
   {
     key: "include-only-literal",
