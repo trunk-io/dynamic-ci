@@ -11,8 +11,8 @@
 // `18` is a number, `3.10` is the number 3.1). For runtime fixtures the planner
 // job emits exactly these values as its rows, so the two cannot drift.
 //
-// `legs[].name` is the check-run name GitHub renders for that leg. Names marked
-// UNVERIFIED are predictions; the first run's observed.json settles them.
+// `legs[].name` is the check-run name GitHub renders for that leg, as observed
+// in a real run's observed.json.
 
 export type Scalar = string | number | boolean | null;
 export type Value = Scalar | Value[] | { [key: string]: Value };
@@ -119,7 +119,7 @@ export const FIXTURES: Fixture[] = [
     key: "default-name",
     shape: "axes, no name:",
     shows:
-      "no name:, so GitHub appends the values itself; how it renders an include-only object value is UNVERIFIED",
+      "no name:, so GitHub appends the axis values itself; a key added by include is left out of the name",
     prefix: "default-name",
     wiring: "exclude",
     legs: [
@@ -129,8 +129,8 @@ export const FIXTURES: Fixture[] = [
           arch: "amd64",
           tier: { name: "gold", level: 1 },
         },
-        // UNVERIFIED: how an include-only object value renders in the default suffix.
-        name: "default-name (linux, amd64, [object Object])",
+        // Observed: the include-only `tier` key isn't in the default name.
+        name: "default-name (linux, amd64)",
       },
       {
         values: { os: "linux", arch: "arm64" },

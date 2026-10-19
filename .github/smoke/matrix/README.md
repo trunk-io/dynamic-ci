@@ -55,7 +55,7 @@ outputs were right.
 | ----------------------- | -------------------------------------- | ------- | ------------------------------------------------------------------------------ |
 | `all-axes-named`        | axes, all in `name:`                   | exclude | The baseline: a typed exclude removes one combination                          |
 | `some-axes-named`       | axes, some in `name:`                  | exclude | A partial exclude (`{os}`) removes both legs that share a name                 |
-| `default-name`          | axes, no `name:`                       | exclude | GitHub's default name suffix, including an include-only object value           |
+| `default-name`          | axes, no `name:`                       | exclude | GitHub's default name suffix, which leaves out keys added by include           |
 | `shard-axis`            | axes, one a shard index                | exclude | A suite pruned across all its shards                                           |
 | `object-axis`           | axis of objects                        | exclude | An exclude matches an object-valued axis by the whole object                   |
 | `typed-exclude`         | number and boolean axes                | exclude | Whether `"18"` and `"false"` in an exclude remove `18` and `false` legs        |
@@ -73,10 +73,9 @@ outputs were right.
 | `bin-packed`            | runtime include, bin-packed            | none    | Rows with nested arrays and no stable field: skipped whole only                |
 | `name-collision`        | runtime include, colliding names       | matrix  | Two rows that render one name; pruning by row still works                      |
 
-Names marked `UNVERIFIED` in `fixtures.ts` are predictions. A red verdict that
-says a leg "ran under a name fixtures.ts does not predict" means the prediction
-was wrong, not the product. Take the real name from `observed.json` and fix the
-fixture.
+A red verdict that says a leg "ran under a name fixtures.ts does not predict"
+means either GitHub changed how it names legs, or a new fixture's prediction was
+wrong. Take the real name from `observed.json` and fix the fixture.
 
 ## Adding a fixture
 

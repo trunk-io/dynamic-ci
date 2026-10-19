@@ -144,6 +144,9 @@ const INFRA_JOBS = new Set([
   "Planner",
   "Verdict",
   "Matrix Smoke Pass",
+  // Not ours: pr.yaml's trunk-action posts this check run on the same commit,
+  // and GitHub lists it among this run's jobs.
+  "Trunk Check",
 ]);
 
 const env = (name: string): string => {
