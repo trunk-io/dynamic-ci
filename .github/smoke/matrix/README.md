@@ -11,13 +11,13 @@ prune per leg, written as a workflow author would write it. It does two jobs:
   GitHub rendered, per fixture. Anything that predicts a leg's name from its
   matrix values can be tested against these names.
 
-| File                                         | What it is                                                      |
-| -------------------------------------------- | --------------------------------------------------------------- |
-| `../../workflows/matrix-smoke.yaml`          | One job per matrix shape, plus the planner, filter and verdict  |
-| `../../workflows/matrix-smoke-reusable.yaml` | The reusable workflow the `reusable-inputs` fixture calls       |
-| `../../workflows/matrix-probe-empty.yaml`    | A by-hand probe: an ungated empty matrix, expected to go red    |
-| `fixtures.ts`                                | The answer key: each fixture's legs, their names, what to prune |
-| `smoke.ts`                                   | `planner`, `simulate` and `verdict`, run by the workflow's jobs |
+| File                                         | What it is                                                         |
+| -------------------------------------------- | ------------------------------------------------------------------ |
+| `../../workflows/matrix-smoke.yaml`          | One job per matrix shape, plus the planner, filter and verdict     |
+| `../../workflows/matrix-smoke-reusable.yaml` | The reusable workflow the `reusable-inputs` fixture calls          |
+| `../../workflows/matrix-probes.yaml`         | By-hand probes whose answer is a failed job, so expected to go red |
+| `fixtures.ts`                                | The answer key: each fixture's legs, their names, what to prune    |
+| `smoke.ts`                                   | `planner`, `simulate` and `verdict`, run by the workflow's jobs    |
 
 ## Two modes
 
@@ -63,8 +63,7 @@ outputs were right.
 | `float-values`           | float axis, nothing excluded           | none    | Whether `3.10` (renders `3.1`) and `"3.10"` are separate legs           |
 | `float-exclude`          | float axis, string exclude             | exclude | PINNED: excluding `"3.10"` also removes the number `3.1`                |
 | `context-name`           | `name:` reads `github.*`               | exclude | A name that can't be rendered from the matrix values alone              |
-| `axes-plus-include`      | axes plus static include               | exclude | PINNED: an exclude key added by include fails the job, silently         |
-| `axes-include-projected` | axes plus static include               | exclude | An exclude on axis keys only; whether include adds the leg back         |
+| `axes-include-projected` | axes plus static include               | exclude | PINNED: excluded by axis keys only, the leg include extends comes back  |
 | `include-only-literal`   | include-only, literal fallback         | matrix  | Include rows kept in `fromJSON(output \|\| '<literal>')`                |
 | `all-pruned`             | every leg pruned                       | matrix  | `<job>` is `false`, so `if:` skips before the empty matrix is evaluated |
 | `whole-job-skipped`      | whole job skipped                      | exclude | Today's whole-job skip: one check run, unexpanded name                  |

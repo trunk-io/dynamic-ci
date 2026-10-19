@@ -273,46 +273,10 @@ export const FIXTURES: Fixture[] = [
     prune: [{ os: "macos" }],
   },
   {
-    key: "axes-plus-include",
-    shape: "axes plus static include",
-    shows:
-      "include extends one axis leg and adds another; an exclude entry carrying the include-only key `experimental` fails the whole job",
-    prefix: "Axes+include · ",
-    wiring: "exclude",
-    legs: [
-      {
-        values: { os: "linux", node: 18 },
-        name: "Axes+include · Test (linux, 18)",
-      },
-      {
-        values: { os: "linux", node: 20, experimental: true },
-        name: "Axes+include · Test (linux, 20)",
-      },
-      {
-        values: { os: "macos", node: 18 },
-        name: "Axes+include · Test (macos, 18)",
-      },
-      {
-        values: { os: "macos", node: 20 },
-        name: "Axes+include · Test (macos, 20)",
-      },
-      {
-        values: { os: "windows", node: 22 },
-        name: "Axes+include · Test (windows, 22)",
-      },
-    ],
-    prune: [{ node: "20" }],
-    expect: {
-      ran: [],
-      result: "failure",
-      note: "observed: an exclude key that is not an axis fails the job before any leg exists, with no check run and no error annotation",
-    },
-  },
-  {
     key: "axes-include-projected",
     shape: "axes plus static include, exclude on axes only",
     shows:
-      "the same matrix, excluded by the axis keys only; GitHub applies include after exclude, so the leg include extends is predicted to come back",
+      "include extends one axis leg and adds another; excluded by the axis keys only, the leg include extends comes back",
     prefix: "Projected · ",
     wiring: "exclude",
     legs: [
@@ -346,8 +310,7 @@ export const FIXTURES: Fixture[] = [
         "Projected · Test (macos, 18)",
         "Projected · Test (windows, 22)",
       ],
-      // UNVERIFIED: predicted from GitHub's documented include semantics.
-      note: "predicted: an include entry whose combination was excluded is added back as a new leg",
+      note: "observed: an include entry whose combination was excluded is added back as a new leg",
     },
   },
   {

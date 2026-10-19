@@ -84,8 +84,6 @@ jobs:
       float-exclude-exclude: ${{ steps.live.outputs.float-exclude-exclude || steps.sim.outputs.float-exclude-exclude }}
       context-name: ${{ steps.live.outputs.context-name || steps.sim.outputs.context-name }}
       context-name-exclude: ${{ steps.live.outputs.context-name-exclude || steps.sim.outputs.context-name-exclude }}
-      axes-plus-include: ${{ steps.live.outputs.axes-plus-include || steps.sim.outputs.axes-plus-include }}
-      axes-plus-include-exclude: ${{ steps.live.outputs.axes-plus-include-exclude || steps.sim.outputs.axes-plus-include-exclude }}
       axes-include-projected: ${{ steps.live.outputs.axes-include-projected || steps.sim.outputs.axes-include-projected }}
       axes-include-projected-exclude: ${{ steps.live.outputs.axes-include-projected-exclude || steps.sim.outputs.axes-include-projected-exclude }}
       include-only-literal: ${{ steps.live.outputs.include-only-literal || steps.sim.outputs.include-only-literal }}
@@ -329,34 +327,10 @@ jobs:
           MATRIX: ${{ toJSON(matrix) }}
 
   # Axes plus a static include that extends one leg (linux/20 gains
-  # `experimental`) and adds another (windows/22). The exclude carries the
-  # include-only key `experimental`. Observed: GitHub fails the job before any
-  # leg exists, with no check run and no error annotation.
-  axes-plus-include:
-    name: Axes+include · Test (${{ matrix.os }}, ${{ matrix.node }})
-    needs: [filter]
-    if: ${{ !cancelled() && needs.filter.outputs.axes-plus-include != 'false' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [linux, macos]
-        node: [18, 20]
-        include:
-          - os: linux
-            node: 20
-            experimental: true
-          - os: windows
-            node: 22
-        exclude: ${{ fromJSON(needs.filter.outputs.axes-plus-include-exclude || '[]') }}
-    steps:
-      - run: echo "${MATRIX}"
-        env:
-          MATRIX: ${{ toJSON(matrix) }}
-
-  # The same matrix, excluded by the axis keys only. GitHub applies include
-  # after exclude, so the leg include extends (linux/20) is predicted to come back.
+  # `experimental`) and adds another (windows/22), excluded by the axis keys only.
+  # Observed: GitHub applies include after exclude, so the leg include extends
+  # comes back. (An exclude that also names `experimental` fails the job outright;
+  # that is a by-hand probe in matrix-probes.yaml, since it would turn this run red.)
   axes-include-projected:
     name: Projected · Test (${{ matrix.os }}, ${{ matrix.node }})
     needs: [filter]
@@ -568,7 +542,6 @@ jobs:
       - float-values
       - float-exclude
       - context-name
-      - axes-plus-include
       - axes-include-projected
       - include-only-literal
       - all-pruned

@@ -1,0 +1,79 @@
+# By-hand probes of GitHub matrix behavior whose answer is a FAILED job. They
+# live here, not in matrix-smoke.yaml, because a job that fails on purpose marks
+# that workflow's run as failed even when every check passes. Expect this run
+# to go red: each probe's conclusion is the answer, so nothing is asserted, and
+# this is not part of any pull request's checks.
+name: Matrix Probes
+
+on:
+  workflow_dispatch: {}
+
+permissions: read-all
+
+jobs:
+  emit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      empty-matrix: ${{ steps.emit.outputs.empty-matrix }}
+      include-key-exclude: ${{ steps.emit.outputs.include-key-exclude }}
+    steps:
+      - id: emit
+        run: |
+          echo 'empty-matrix={"include":[]}' >> "${GITHUB_OUTPUT}"
+          echo 'include-key-exclude=[{"os":"linux","node":20,"experimental":true},{"os":"macos","node":20}]' >> "${GITHUB_OUTPUT}"
+
+  # An UNGATED job whose matrix evaluates to `{"include": []}`. <job> is set to
+  # "false" whenever every leg is pruned, on the assumption that GitHub fails
+  # such a job; matrix-smoke's `all-pruned` fixture covers the gated half.
+  empty-matrix:
+    name: Empty · ${{ matrix.lane }}
+    needs: [emit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix: ${{ fromJSON(needs.emit.outputs.empty-matrix) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # Axes plus a static include, with an exclude entry that carries
+  # `experimental`, a key only the include adds. Observed on a pull request:
+  # GitHub fails the job before any leg exists, with no check run and no error
+  # annotation. matrix-smoke's `axes-include-projected` is the working form:
+  # the same exclude limited to the axis keys.
+  include-key-exclude:
+    name: Include-key exclude · Test (${{ matrix.os }}, ${{ matrix.node }})
+    needs: [emit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        node: [18, 20]
+        include:
+          - os: linux
+            node: 20
+            experimental: true
+          - os: windows
+            node: 22
+        exclude: ${{ fromJSON(needs.emit.outputs.include-key-exclude) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
+  # The answers, in one place: does a job downstream of each probe run, and
+  # what result did the probe get?
+  after:
+    name: Probe results
+    needs: [empty-matrix, include-key-exclude]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo 'empty-matrix concluded ${{ needs.empty-matrix.result }}'
+          echo 'include-key-exclude concluded ${{ needs.include-key-exclude.result }}'
