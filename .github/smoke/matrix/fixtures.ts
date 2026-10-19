@@ -68,10 +68,12 @@ export interface Fixture {
   /** The single check run GitHub reports when the job is skipped whole: the unexpanded name. */
   skippedName?: string;
   /**
-   * PINNED: what GitHub actually does with this fixture's outputs, where that is
-   * NOT what the outputs meant. Replaces the expectation the verdict would work
-   * out from the outputs, so the fixture stays green while GitHub behaves this
-   * way and goes red if it changes. `note` says what was observed.
+   * PINNED: what GitHub actually does with the outputs simulate mode emits for
+   * this fixture, where that is NOT what the outputs meant. When the filter
+   * emitted exactly those outputs, this replaces the expectation the verdict
+   * would work out from them, so the fixture stays green while GitHub behaves
+   * this way and goes red if it changes. Any other outputs (live mode) get the
+   * ordinary check. `note` says what was observed.
    */
   expect?: {
     /** The check-run names GitHub creates, one per leg. */

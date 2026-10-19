@@ -80,9 +80,11 @@ outputs were right.
 | `bin-packed`             | runtime include, bin-packed            | none    | Rows with nested arrays and no stable field: skipped whole only         |
 | `name-collision`         | runtime include, colliding names       | matrix  | Two rows that render one name; pruning by row still works               |
 
-A fixture marked PINNED records what GitHub actually does where that differs
-from what its outputs meant (`expect` in `fixtures.ts`). It stays green while
-GitHub behaves that way, and goes red if GitHub changes.
+A fixture marked PINNED records what GitHub actually does with the outputs
+`simulate` emits, where that differs from what the outputs meant (`expect` in
+`fixtures.ts`). It stays green while GitHub behaves that way, and goes red if
+GitHub changes. A pin applies only when the filter emitted exactly those
+outputs: in `live` mode, the fixture gets the ordinary check instead.
 
 A red verdict that says a leg "ran under a name fixtures.ts does not predict"
 means either GitHub changed how it names legs, or a new fixture's prediction was

@@ -87,40 +87,68 @@ const planner = (): void => {
 // ---------------------------------------------------------------------------
 // simulate: the action's per-leg pruning outputs, fed from fixtures.ts instead of a plan
 // ---------------------------------------------------------------------------
+/** The filter outputs simulate mode emits for one fixture. */
+const simulatedOutputs = (fixture: Fixture): Record<string, string> => {
+  const outputs: Record<string, string> = {};
+  const { prune } = fixture;
+  const pruned =
+    prune === undefined
+      ? []
+      : fixture.legs.filter(
+          (leg) => prune === "all" || prune.some((m) => carries(leg.values, m)),
+        );
+  const kept = fixture.legs.filter((leg) => !pruned.includes(leg));
+  // Fan-out mode sets a verdict for every job it knows; every leg pruned is a skip.
+  outputs[fixture.key] = kept.length > 0 ? "true" : "false";
+  if (pruned.length === 0) return outputs; // nothing pruned: no outputs, `||` falls back
+
+  const shape = fixture.stringify ? stringified : (row: Row): Row => row;
+  const dims = fixture.identityDims;
+  const project = (row: Row): Row =>
+    dims ? Object.fromEntries(dims.map((d) => [d, row[d] ?? null])) : row;
+  const exclude = [
+    ...new Map(
+      pruned.map((leg) => {
+        const entry = shape(project(leg.values));
+        return [sortedJson(entry), entry];
+      }),
+    ).values(),
+  ];
+  outputs[`${fixture.key}-exclude`] = JSON.stringify(exclude);
+  outputs[`${fixture.key}-matrix`] = JSON.stringify({
+    include: kept.map((leg) => shape(leg.values)),
+  });
+  return outputs;
+};
+
 const simulate = (): void => {
   const outputs: Record<string, string> = {};
-  for (const fixture of FIXTURES) {
-    const { prune } = fixture;
-    const pruned =
-      prune === undefined
-        ? []
-        : fixture.legs.filter(
-            (leg) =>
-              prune === "all" || prune.some((m) => carries(leg.values, m)),
-          );
-    const kept = fixture.legs.filter((leg) => !pruned.includes(leg));
-    // Fan-out mode sets a verdict for every job it knows; every leg pruned is a skip.
-    outputs[fixture.key] = kept.length > 0 ? "true" : "false";
-    if (pruned.length === 0) continue; // nothing pruned: no outputs, `||` falls back
-
-    const shape = fixture.stringify ? stringified : (row: Row): Row => row;
-    const dims = fixture.identityDims;
-    const project = (row: Row): Row =>
-      dims ? Object.fromEntries(dims.map((d) => [d, row[d] ?? null])) : row;
-    const exclude = [
-      ...new Map(
-        pruned.map((leg) => {
-          const entry = shape(project(leg.values));
-          return [sortedJson(entry), entry];
-        }),
-      ).values(),
-    ];
-    outputs[`${fixture.key}-exclude`] = JSON.stringify(exclude);
-    outputs[`${fixture.key}-matrix`] = JSON.stringify({
-      include: kept.map((leg) => shape(leg.values)),
-    });
-  }
+  for (const fixture of FIXTURES)
+    Object.assign(outputs, simulatedOutputs(fixture));
   writeOutputs(outputs);
+};
+
+/**
+ * A pin records what GitHub did with the outputs simulate mode emits, so it
+ * holds only when the filter emitted exactly those. Any other outputs (live
+ * mode, or a service that prunes differently) get the ordinary check. Only the
+ * outputs the fixture's wiring reads are compared: the filter job declares just
+ * those, so the others never reach the verdict.
+ */
+const pinApplies = (
+  fixture: Fixture,
+  outputs: Record<string, string>,
+): boolean => {
+  const read: Record<Fixture["wiring"], string[]> = {
+    exclude: ["", "-exclude"],
+    matrix: ["", "-matrix"],
+    none: [""],
+  };
+  const simulated = simulatedOutputs(fixture);
+  return read[fixture.wiring].every((suffix) => {
+    const name = `${fixture.key}${suffix}`;
+    return outputs[name] === simulated[name];
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -309,7 +337,7 @@ const checkFixture = (
       "no such job in the verdict's needs: add it to matrix-smoke.yaml, or to the verdict job's needs",
     );
   }
-  if (fixture.expect) {
+  if (fixture.expect && pinApplies(fixture, outputs)) {
     return checkPinned(
       fixture,
       fixture.expect,
