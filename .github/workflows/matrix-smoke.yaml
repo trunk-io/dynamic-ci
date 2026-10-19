@@ -27,8 +27,8 @@ on:
   # Schedules run only from the default branch. MODE below tells them apart by
   # cron string, so change both together.
   schedule:
-    - cron: "17 */4 * * *" # live: builds staging's history for every leg
-    - cron: "43 6 * * 1" # simulate: Mondays
+    - cron: 17 */4 * * * # live: builds staging's history for every leg
+    - cron: 43 6 * * 1 # simulate: Mondays
   workflow_dispatch:
     inputs:
       mode:
