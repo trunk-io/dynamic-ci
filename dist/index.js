@@ -51822,7 +51822,7 @@ var dynamic_ci_contract_default = {
               $ref: "#/components/schemas/JobVerdict"
             },
             maxItems: 1e3,
-            description: "One verdict per job. **A job absent from this list must be run** \u2014 the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported."
+            description: "One verdict per job. **A job absent from this list must be run** \u2014 the documented fail-safe, and how an unrecognized job, a CI job experiment branch, and a not-yet-enabled organization are all reported."
           },
           notice: {
             $ref: "#/components/schemas/PlanNotice"
@@ -51959,7 +51959,7 @@ var dynamic_ci_contract_default = {
         properties: {
           code: {
             type: "string",
-            description: "A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`. `MERGE_QUEUE_BRANCH` is retired and no longer sent \u2014 merge-queue runs now carry real per-job verdicts. **An open set** \u2014 fall back to `message` for a code you do not recognize.",
+            description: "A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`, `EXPERIMENT_BRANCH` (a Trunk Runners experiment branch, where every job runs). `MERGE_QUEUE_BRANCH` is retired and no longer sent \u2014 merge-queue runs now carry real per-job verdicts. **An open set** \u2014 fall back to `message` for a code you do not recognize.",
             example: "ORG_NOT_ENABLED"
           },
           message: {
@@ -51969,7 +51969,7 @@ var dynamic_ci_contract_default = {
           }
         },
         required: ["code", "message"],
-        description: "Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a merge-queue branch, an engine outage, or a workflow Trunk has not enumerated \u2014 all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip."
+        description: "Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a CI job experiment branch (`trunk-runners/experiments/`), an engine outage, or a workflow Trunk has not enumerated \u2014 all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip."
       },
       PlanRepo: {
         type: "object",
