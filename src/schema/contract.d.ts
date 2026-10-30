@@ -183,7 +183,7 @@ export interface components {
             files: components["schemas"]["ChangedFile"][];
         };
         CiPlan: {
-            /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported. */
+            /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a CI job experiment branch, and a not-yet-enabled organization are all reported. */
             jobs: components["schemas"]["JobVerdict"][];
             notice?: components["schemas"]["PlanNotice"];
         };
@@ -276,10 +276,10 @@ export interface components {
             /** @description The audit trail behind `summary`, abstentions included. */
             signals: components["schemas"]["SignalResult"][];
         };
-        /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a merge-queue branch, an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
+        /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a CI job experiment branch (`trunk-runners/experiments/`), an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
         PlanNotice: {
             /**
-             * @description A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`. `MERGE_QUEUE_BRANCH` is retired and no longer sent — merge-queue runs now carry real per-job verdicts. **An open set** — fall back to `message` for a code you do not recognize.
+             * @description A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`, `EXPERIMENT_BRANCH` (a Trunk Runners experiment branch, where every job runs). `MERGE_QUEUE_BRANCH` is retired and no longer sent — merge-queue runs now carry real per-job verdicts. **An open set** — fall back to `message` for a code you do not recognize.
              * @example ORG_NOT_ENABLED
              */
             code: string;
