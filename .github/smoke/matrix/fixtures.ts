@@ -1,5 +1,7 @@
 // The matrix smoke test's expectations: one entry per fixture job in
-// .github/workflows/matrix-smoke.yaml.
+// .github/workflows/matrix-smoke.yaml. The `Fixture` type is shared with the
+// examples: each .github/workflows/matrix-example-<name>.yaml has its own answer
+// key in examples/<name>.ts, with every leg written out.
 //
 // THE YAML IS THE INPUT AND THIS FILE IS THE ANSWER KEY. Each matrix is written
 // twice on purpose — once as a workflow author would write it, once here as the
@@ -40,7 +42,8 @@ export interface Fixture {
   shows: string;
   /**
    * Every check run this fixture produces starts with this, including the single
-   * one a whole-job skip reports under the bare job name; no other fixture's does.
+   * one a whole-job skip reports under the bare job name; no other fixture's in
+   * the same workflow does.
    */
   prefix: string;
   wiring: Wiring;
@@ -103,33 +106,6 @@ export const FIXTURES: Fixture[] = [
   // ---------------------------------------------------------------------------
   // Static matrices: every value is written in the workflow file
   // ---------------------------------------------------------------------------
-  {
-    key: "all-axes-named",
-    shape: "axes, all in name:",
-    shows:
-      "the baseline: static axes, every axis in name:, one combination excluded by its typed values",
-    prefix: "All axes · ",
-    wiring: "exclude",
-    legs: named(
-      axes({ os: ["linux", "macos"], node: [18, 20] }),
-      (v) => `All axes · Test (${s(v["os"])}, node ${s(v["node"])})`,
-    ),
-    prune: [{ os: "macos", node: "20" }],
-  },
-  {
-    key: "some-axes-named",
-    shape: "axes, some in name:",
-    shows:
-      "name: shows os but not node, so two legs share each name; a partial exclude ({os}) removes both",
-    prefix: "Some axes · ",
-    wiring: "exclude",
-    identityDims: ["os"],
-    legs: named(
-      axes({ os: ["linux", "macos"], node: [18, 20] }),
-      (v) => `Some axes · Test (${s(v["os"])})`,
-    ),
-    prune: [{ os: "macos" }],
-  },
   {
     key: "default-name",
     shape: "axes, no name:",
@@ -398,57 +374,6 @@ export const FIXTURES: Fixture[] = [
   // Runtime matrices: rows built by the planner job
   // ---------------------------------------------------------------------------
   {
-    key: "runtime-sharded",
-    shape: "runtime include, stable fields × shards",
-    shows:
-      "stable suite/compat fields × per-run shard fields; the name uses && || defaults, a boolean and numbers",
-    prefix: "Runtime sharded · ",
-    wiring: "matrix",
-    legs: named(
-      [
-        {
-          suite: "api",
-          compat: false,
-          group: 1,
-          concurrency: 2,
-          artifact_key: "api-1",
-        },
-        {
-          suite: "api",
-          compat: false,
-          group: 2,
-          concurrency: 2,
-          artifact_key: "api-2",
-        },
-        {
-          suite: "api",
-          compat: true,
-          group: 1,
-          concurrency: 1,
-          artifact_key: "api-compat-1",
-        },
-        {
-          suite: "worker",
-          compat: false,
-          group: 1,
-          concurrency: 2,
-          artifact_key: "worker-1",
-        },
-        {
-          suite: "worker",
-          compat: false,
-          group: 2,
-          concurrency: 2,
-          artifact_key: "worker-2",
-        },
-      ],
-      (v) =>
-        `Runtime sharded · ${s(v["suite"])}${v["compat"] === true ? " compat" : ""} (${s(v["group"])}/${s(v["concurrency"])})`,
-    ),
-    // Decided on suite and compat: every worker shard goes together.
-    prune: [{ suite: "worker", compat: "false" }],
-  },
-  {
     key: "runtime-matrix-object",
     shape: "runtime matrix object",
     shows:
@@ -523,7 +448,6 @@ export const rowsOf = (fixture: Fixture): Row[] =>
 
 /** The runtime fixtures, whose matrices the planner job builds. */
 export const RUNTIME_KEYS: readonly string[] = [
-  "runtime-sharded",
   "runtime-matrix-object",
   "axes-runtime-include",
   "bin-packed",
