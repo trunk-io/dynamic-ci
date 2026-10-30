@@ -1,7 +1,9 @@
 # Every shape of GitHub Actions matrix Dynamic CI has to identify, decide and
 # prune per leg, wired the way a workflow author would wire it. One job per
 # shape; .github/smoke/matrix/fixtures.ts is the answer key for each, and the
-# README beside it says what is asserted and why.
+# README beside it says what is asserted and why. Shapes a customer would copy
+# are moving out into their own matrix-example-*.yaml files, one full workflow
+# each.
 #
 #   mode: simulate  (pull requests, and weekly) the filter job emits the
 #                   per-leg pruning outputs the action will emit, from
@@ -47,7 +49,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      runtime-sharded-rows: ${{ steps.rows.outputs.runtime-sharded-rows }}
       runtime-matrix-object-rows: ${{ steps.rows.outputs.runtime-matrix-object-rows }}
       runtime-matrix-object-matrix: ${{ steps.rows.outputs.runtime-matrix-object-matrix }}
       axes-runtime-include-rows: ${{ steps.rows.outputs.axes-runtime-include-rows }}
@@ -72,10 +73,6 @@ jobs:
     # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
     # and so cannot be declared in action.yaml. Only one of `live` and `sim` runs.
     outputs:
-      all-axes-named: ${{ steps.live.outputs.all-axes-named || steps.sim.outputs.all-axes-named }}
-      all-axes-named-exclude: ${{ steps.live.outputs.all-axes-named-exclude || steps.sim.outputs.all-axes-named-exclude }}
-      some-axes-named: ${{ steps.live.outputs.some-axes-named || steps.sim.outputs.some-axes-named }}
-      some-axes-named-exclude: ${{ steps.live.outputs.some-axes-named-exclude || steps.sim.outputs.some-axes-named-exclude }}
       default-name: ${{ steps.live.outputs.default-name || steps.sim.outputs.default-name }}
       default-name-exclude: ${{ steps.live.outputs.default-name-exclude || steps.sim.outputs.default-name-exclude }}
       shard-axis: ${{ steps.live.outputs.shard-axis || steps.sim.outputs.shard-axis }}
@@ -102,8 +99,6 @@ jobs:
       runs-on-include: ${{ steps.live.outputs.runs-on-include || steps.sim.outputs.runs-on-include }}
       reusable-inputs: ${{ steps.live.outputs.reusable-inputs || steps.sim.outputs.reusable-inputs }}
       reusable-inputs-exclude: ${{ steps.live.outputs.reusable-inputs-exclude || steps.sim.outputs.reusable-inputs-exclude }}
-      runtime-sharded: ${{ steps.live.outputs.runtime-sharded || steps.sim.outputs.runtime-sharded }}
-      runtime-sharded-matrix: ${{ steps.live.outputs.runtime-sharded-matrix || steps.sim.outputs.runtime-sharded-matrix }}
       runtime-matrix-object: ${{ steps.live.outputs.runtime-matrix-object || steps.sim.outputs.runtime-matrix-object }}
       runtime-matrix-object-matrix: ${{ steps.live.outputs.runtime-matrix-object-matrix || steps.sim.outputs.runtime-matrix-object-matrix }}
       axes-runtime-include: ${{ steps.live.outputs.axes-runtime-include || steps.sim.outputs.axes-runtime-include }}
@@ -124,8 +119,7 @@ jobs:
           # identify a variant is configured in Trunk, not here.
           # trunk-ignore(actionlint/action): the `matrices` input is not released yet
           matrices: >-
-            {"runtime-sharded": ${{ needs.planner.outputs.runtime-sharded-rows || '[]' }},
-            "runtime-matrix-object": ${{ needs.planner.outputs.runtime-matrix-object-rows || '[]' }},
+            {"runtime-matrix-object": ${{ needs.planner.outputs.runtime-matrix-object-rows || '[]' }},
             "axes-runtime-include": ${{ needs.planner.outputs.axes-runtime-include-rows || '[]' }},
             "bin-packed": ${{ needs.planner.outputs.bin-packed-rows || '[]' }},
             "name-collision": ${{ needs.planner.outputs.name-collision-rows || '[]' }}}
@@ -145,43 +139,6 @@ jobs:
   # their matrix; what is under test is which legs GitHub creates and what it
   # names them.
   # ---------------------------------------------------------------------------
-
-  # Static axes, every axis in name:, so every leg's name is unique.
-  all-axes-named:
-    name: All axes · Test (${{ matrix.os }}, node ${{ matrix.node }})
-    needs: [filter]
-    if: ${{ !cancelled() && needs.filter.outputs.all-axes-named != 'false' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [linux, macos]
-        node: [18, 20]
-        exclude: ${{ fromJSON(needs.filter.outputs.all-axes-named-exclude || '[]') }}
-    steps:
-      - run: echo "${MATRIX}"
-        env:
-          MATRIX: ${{ toJSON(matrix) }}
-
-  # name: shows os but not node. Both node legs render the same name, so they
-  # can only be told apart by os, and the exclude names only os.
-  some-axes-named:
-    name: Some axes · Test (${{ matrix.os }})
-    needs: [filter]
-    if: ${{ !cancelled() && needs.filter.outputs.some-axes-named != 'false' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [linux, macos]
-        node: [18, 20]
-        exclude: ${{ fromJSON(needs.filter.outputs.some-axes-named-exclude || '[]') }}
-    steps:
-      - run: echo "${MATRIX}"
-        env:
-          MATRIX: ${{ toJSON(matrix) }}
 
   # No name:, so GitHub appends the values itself. The include extends one leg
   # with an object-valued key, to see how the default suffix renders it.
@@ -446,25 +403,6 @@ jobs:
   # Runtime matrices: the rows come from the planner job.
   # ---------------------------------------------------------------------------
 
-  # Stable suite/compat fields × per-run shard fields.
-  #
-  # <job>-matrix is a whole strategy.matrix ({"include": [...]}), so it goes on
-  # `matrix:`. A planner that emits a bare include array is wrapped with format()
-  # for the fallback, which keeps the planner unchanged.
-  runtime-sharded:
-    name: Runtime sharded · ${{ matrix.suite }}${{ matrix.compat && ' compat' || '' }} (${{ matrix.group }}/${{ matrix.concurrency }})
-    needs: [planner, filter]
-    if: ${{ !cancelled() && needs.filter.outputs.runtime-sharded != 'false' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.filter.outputs.runtime-sharded-matrix || format('{{"include":{0}}}', needs.planner.outputs.runtime-sharded-rows)) }}
-    steps:
-      - run: echo "${MATRIX}"
-        env:
-          MATRIX: ${{ toJSON(matrix) }}
-
   # A planner that emits the whole matrix object rather than an include array.
   runtime-matrix-object:
     name: Runtime object · Build ${{ matrix.image }}
@@ -539,8 +477,6 @@ jobs:
     needs:
       - planner
       - filter
-      - all-axes-named
-      - some-axes-named
       - default-name
       - shard-axis
       - object-axis
@@ -555,7 +491,6 @@ jobs:
       - whole-job-skipped
       - runs-on-include
       - reusable-inputs
-      - runtime-sharded
       - runtime-matrix-object
       - axes-runtime-include
       - bin-packed

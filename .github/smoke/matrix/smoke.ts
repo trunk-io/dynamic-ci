@@ -1,8 +1,12 @@
 // The matrix smoke test's three moving parts, one subcommand each:
 //
-//   node smoke.ts planner    emit each runtime fixture's rows, as a workflow's planner job would
-//   node smoke.ts simulate   emit the per-leg pruning outputs the action will emit, from fixtures.ts
-//   node smoke.ts verdict    compare the check runs GitHub created against fixtures.ts
+//   node smoke.ts planner              emit each runtime fixture's rows, as a workflow's planner job would
+//   node smoke.ts simulate [example]   emit the per-leg pruning outputs the action will emit, from the answer key
+//   node smoke.ts verdict [example]    compare the check runs GitHub created against the answer key
+//
+// With no example, the answer key is fixtures.ts and the workflow is
+// matrix-smoke.yaml. With one, it is examples/<example>.ts and the workflow is
+// matrix-example-<example>.yaml.
 //
 // The verdict is agnostic about where the pruning came from. It reads the filter
 // job's outputs, works out which legs they meant to prune, and checks GitHub
@@ -121,9 +125,9 @@ const simulatedOutputs = (fixture: Fixture): Record<string, string> => {
   return outputs;
 };
 
-const simulate = (): void => {
+const simulate = (fixtures: Fixture[]): void => {
   const outputs: Record<string, string> = {};
-  for (const fixture of FIXTURES)
+  for (const fixture of fixtures)
     Object.assign(outputs, simulatedOutputs(fixture));
   writeOutputs(outputs);
 };
@@ -165,13 +169,19 @@ interface NeedsEntry {
   outputs: Record<string, string>;
 }
 
-// Jobs the smoke workflow runs that are not fixtures. Any other check run must
-// belong to a fixture, or a prefix in fixtures.ts is wrong.
+// Jobs the smoke workflows run that are not fixtures. Any other check run must
+// belong to a fixture, or a prefix in the answer key is wrong.
 const INFRA_JOBS = new Set([
+  // matrix-smoke.yaml
   "Dynamic CI filter",
   "Planner",
   "Verdict",
   "Matrix Smoke Pass",
+  // matrix-example-*.yaml
+  "Dynamic CI Filter",
+  "Plan",
+  "Tests pass",
+  "Smoke verdict",
   // Not ours: pr.yaml's trunk-action posts this check run on the same commit,
   // and GitHub lists it among this run's jobs.
   "Trunk Check",
@@ -334,7 +344,7 @@ const checkFixture = (
   const problems: string[] = [];
   if (!(fixture.key in needs)) {
     problems.push(
-      "no such job in the verdict's needs: add it to matrix-smoke.yaml, or to the verdict job's needs",
+      "no such job in the verdict's needs: add it to the workflow, or to the verdict job's needs",
     );
   }
   if (fixture.expect && pinApplies(fixture, outputs)) {
@@ -394,7 +404,7 @@ const checkFixture = (
       problems.push(`"${job.name}" ran, but its outputs pruned it`);
     } else {
       problems.push(
-        `"${job.name}" ran under a name fixtures.ts does not predict`,
+        `"${job.name}" ran under a name the answer key does not predict`,
       );
     }
   }
@@ -417,17 +427,28 @@ const xmlEscape = (s: string): string =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 
-const verdict = async (): Promise<void> => {
+const verdict = async (
+  fixtures: Fixture[],
+  example: string | undefined,
+): Promise<void> => {
   const needs = JSON.parse(env("NEEDS")) as Record<string, NeedsEntry>;
-  const outputs = needs["filter"]?.outputs ?? {};
+  // The filter job's key: the examples use the README's, matrix-smoke.yaml its own.
+  const outputs =
+    (needs["dynamic-ci-filter"] ?? needs["filter"])?.outputs ?? {};
   const jobs = await fetchSettledJobs();
+  // Flaky Tests keys a test on its name, and every example has a `test` job.
+  const label = example ? `${example}: ` : "";
 
   const checks: Check[] = [];
   const observedByFixture: Record<string, Job[]> = {};
-  for (const fixture of FIXTURES) {
-    const observed = jobs.filter((job) => job.name.startsWith(fixture.prefix));
+  for (const fixture of fixtures) {
+    // An infra job can share a fixture's prefix: "Tests pass" starts with "Test".
+    const observed = jobs.filter(
+      (job) => !INFRA_JOBS.has(job.name) && job.name.startsWith(fixture.prefix),
+    );
     observedByFixture[fixture.key] = observed;
-    checks.push(checkFixture(fixture, needs, outputs, observed));
+    const check = checkFixture(fixture, needs, outputs, observed);
+    checks.push({ ...check, name: `${label}${check.name}` });
   }
 
   // A check run no fixture claims means a prefix is wrong, and that fixture's
@@ -435,10 +456,10 @@ const verdict = async (): Promise<void> => {
   const unclaimed = jobs.filter(
     (job) =>
       !INFRA_JOBS.has(job.name) &&
-      !FIXTURES.some((f) => job.name.startsWith(f.prefix)),
+      !fixtures.some((f) => job.name.startsWith(f.prefix)),
   );
   checks.push({
-    name: "every check run belongs to a fixture",
+    name: `${label}every check run belongs to a fixture`,
     problems: unclaimed.map(
       (job) => `"${job.name}" matches no fixture's prefix`,
     ),
@@ -453,6 +474,7 @@ const verdict = async (): Promise<void> => {
     JSON.stringify(
       {
         mode: process.env["MODE"] || "simulate",
+        example: example ?? null,
         outputs,
         fixtures: Object.fromEntries(
           Object.entries(observedByFixture).map(([key, observed]) => [
@@ -489,13 +511,13 @@ const verdict = async (): Promise<void> => {
     ].join("\n"),
   );
 
-  const rows = FIXTURES.map((fixture, i) => {
+  const rows = fixtures.map((fixture, i) => {
     const check = checks[i];
     const mark = check && check.problems.length > 0 ? "✘" : "✔";
     return `| ${mark} | \`${fixture.key}\` | ${fixture.shape} | ${fixture.wiring} | ${check?.detail ?? ""} |`;
   });
   const summary = [
-    `## Matrix smoke (${process.env["MODE"] || "simulate"})`,
+    `## Matrix ${example ? `example: ${example}` : "smoke"} (${process.env["MODE"] || "simulate"})`,
     "",
     "| | Fixture | Shape | Wiring | Legs |",
     "| --- | --- | --- | --- | --- |",
@@ -525,20 +547,34 @@ const verdict = async (): Promise<void> => {
   }
 };
 
-const command = process.argv[2];
+/** The answer key: an example's, or matrix-smoke.yaml's when none is named. */
+const loadFixtures = async (
+  example: string | undefined,
+): Promise<Fixture[]> => {
+  if (example === undefined) return FIXTURES;
+  if (!/^[a-z0-9-]+$/.test(example)) {
+    throw new Error(`not an example name: ${example}`);
+  }
+  const module = (await import(`./examples/${example}.ts`)) as {
+    FIXTURES: Fixture[];
+  };
+  return module.FIXTURES;
+};
+
+const [command, example] = process.argv.slice(2);
 switch (command) {
   case "planner":
     planner();
     break;
   case "simulate":
-    simulate();
+    simulate(await loadFixtures(example));
     break;
   case "verdict":
-    await verdict();
+    await verdict(await loadFixtures(example), example);
     break;
   default:
     process.stderr.write(
-      `usage: node smoke.ts planner|simulate|verdict (got ${String(command)})\n`,
+      `usage: node smoke.ts planner | simulate [example] | verdict [example] (got ${String(command)})\n`,
     );
     process.exitCode = 2;
 }
