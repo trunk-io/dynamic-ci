@@ -171,6 +171,7 @@ export const buildRequest = async (
       ? { ignoreSignals: inputs.ignoreSignals }
       : {}),
     ...(resolved === undefined ? {} : { changedFiles: resolved.changedFiles }),
+    ...(inputs.impact === undefined ? {} : { impact: inputs.impact }),
   };
   return resolved === undefined
     ? { request }

@@ -100,6 +100,9 @@ steps:
 | `token`             | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
 | `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
 | `ignore-signals`    | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
+| `impact-count`      | no       | How many units your build tool says the change affects. See [Impact reach](#impact-reach).                                                                                                |
+| `impact-all`        | no       | `true` when your build tool says the change affects everything. See [Impact reach](#impact-reach).                                                                                        |
+| `impact-source`     | no       | A label for the measure, at most 64 characters. See [Impact reach](#impact-reach).                                                                                                        |
 | `enable-annotation` | no       | Post the recommendation to the run — its annotation list and the job summary. Defaults to `false`; the step's logs are written either way.                                                |
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
@@ -207,6 +210,7 @@ is shown in the logs. Pass any of these to `ignore-signals` to drop it from the 
 | `merge-failure`          | Whether this job failed on the PR's most recent merge-queue run. |
 | `mid-pr-stack`           | Whether another open PR is stacked on top of this one.           |
 | `required-check`         | Whether the PR's base branch requires this job to merge.         |
+| `impact-reach`           | How much of the codebase the change affects (see below).         |
 
 The identifiers this action version knows about are the `SignalType` enum in
 [`src/schema/dynamic-ci-contract.json`](src/schema/dynamic-ci-contract.json), which
@@ -221,6 +225,34 @@ neither side treats an unfamiliar identifier as an error:
 
 Check `SIGNAL_TYPES` for the release you have pinned to see what this version can
 describe, but read the step's logs for what actually voted.
+
+## Impact reach
+
+Send how much of the codebase the change affects, as your own build or
+dependency tool measures it. On jobs where Trunk's impact reach signal is on,
+Dynamic CI always runs a change that affects everything, leans toward running a
+broad change and leans slightly toward skipping a narrow one. Sending nothing
+leaves every verdict as it is.
+
+```yaml
+- id: affected
+  run: echo "count=$(npx nx show projects --affected --base=origin/main | wc -l)" >> "$GITHUB_OUTPUT"
+- uses: trunk-io/dynamic-ci-filter@v1
+  with:
+    token: ${{ secrets.TRUNK_TOKEN }}
+    impact-count: ${{ steps.affected.outputs.count }}
+    impact-source: nx-affected-projects
+```
+
+- `impact-count`: how many units the change affects (packages, targets, test
+  files or tests). Send the same measure on every run. Required unless
+  `impact-all` is `true`. Send `0` when nothing is affected.
+- `impact-all`: `true` when the tool says the change affects everything, or could
+  not work out what is affected. Never send a large count in its place.
+- `impact-source`: a label for the measure, at most 64 characters.
+
+Leave all three unset when your tool did not compute the impact. An unreadable
+value is dropped with a warning, and the plan is still requested.
 
 ## Environment variables
 

@@ -138,17 +138,22 @@ const stubRunnerEnv = ({
   jobKeys = "",
   ignoreSignals = "",
   enableAnnotation = "false",
+  impact = {},
 }: {
   token?: string;
   omitToken?: boolean;
   jobKeys?: string;
   ignoreSignals?: string;
   enableAnnotation?: string;
+  impact?: { count?: string; all?: string; source?: string };
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
   vi.stubEnv("INPUT_ENABLE-ANNOTATION", enableAnnotation);
+  vi.stubEnv("INPUT_IMPACT-COUNT", impact.count ?? "");
+  vi.stubEnv("INPUT_IMPACT-ALL", impact.all ?? "");
+  vi.stubEnv("INPUT_IMPACT-SOURCE", impact.source ?? "");
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -389,6 +394,87 @@ describe("the action end to end", () => {
       ignoreSignals: ["estimated-cost", "historical-pass-rate"],
     });
   });
+
+  it.each([
+    {
+      name: "a count with its source",
+      impact: { count: "734", source: "tainted-packages" },
+      sent: { count: 734, all: false, source: "tainted-packages" },
+    },
+    {
+      name: "nothing affected",
+      impact: { count: "0" },
+      sent: { count: 0, all: false },
+    },
+    {
+      name: "everything affected",
+      impact: { all: "TRUE" },
+      sent: { all: true },
+    },
+  ])("forwards $name as the impact", async ({ impact, sent }) => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    stubRunnerEnv({ jobKeys: "unit-tests", impact });
+
+    await runAction();
+
+    expect(body).toMatchObject({ impact: sent });
+  });
+
+  it("sends no impact when the inputs are unset", async () => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    stubRunnerEnv({ jobKeys: "unit-tests" });
+
+    await runAction();
+
+    expect(body).not.toHaveProperty("impact");
+  });
+
+  it.each([
+    {
+      name: "a count that is not a number",
+      impact: { count: "lots" },
+      warning:
+        'impact-count: "lots" is not a whole number from 0 to 10000000; sending no impact.',
+    },
+    {
+      name: "an impact-all that is not a boolean",
+      impact: { count: "3", all: "yes" },
+      warning: 'impact-all: "yes" is not "true" or "false"; sending no impact.',
+    },
+  ])(
+    "drops $name with a warning, and still gates",
+    async ({ impact, warning }) => {
+      let body: unknown;
+      server.overrideHandlers([
+        () =>
+          http.post(API_URL, async ({ request }) => {
+            body = await request.json();
+            return HttpResponse.json(skipUnitTests);
+          }),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests", impact });
+
+      await runAction();
+
+      expect(body).not.toHaveProperty("impact");
+      expect(stdout()).toContain(warning);
+      expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    },
+  );
 
   // A signal this version predates is a normal state, not an error: the service
   // ships new signals before the vendored contract catches up.

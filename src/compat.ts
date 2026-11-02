@@ -8,6 +8,8 @@ import contract from "./schema/dynamic-ci-contract.json" with { type: "json" };
 
 export type Repo = components["schemas"]["PlanRepo"];
 
+export type Impact = components["schemas"]["PlanImpact"];
+
 export const SIGNAL_TYPES: readonly string[] =
   contract.components.schemas.SignalType.enum;
 
