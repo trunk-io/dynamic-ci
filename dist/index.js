@@ -51604,13 +51604,13 @@ var dynamic_ci_contract_default = {
       apiKey: {
         type: "http",
         scheme: "bearer",
-        description: "An API key, sent as `Authorization: Bearer <key>`. An organization admin creates one in the Trunk app under **Settings \u2192 Developer \u2192 API Keys** and chooses the merge-queue permissions it holds; a key with none can read merge queues but change nothing. Those permissions scope merge queue only: every key can use the Flaky Tests and Dynamic CI endpoints, including their writes, whatever permissions it holds."
+        description: "An API key, sent as `Authorization: Bearer <key>`. An organization admin creates one in the Trunk app under **Settings \u2192 Developer \u2192 API Keys** and chooses the permissions it holds. A key with none can read merge queues but change nothing in them. Permissions cover merge queues and test-result uploads, including the quarantine lookups a CI run makes before it uploads; any key can call the other Flaky Tests and Dynamic CI endpoints, including their writes."
       },
       trunkToken: {
         type: "apiKey",
         in: "header",
         name: "x-trunk-token",
-        description: "A short-lived first-party token, sent in the `x-trunk-token` header. The `trunk` CLI sends one after `trunk auth login`, and the `trunk-io/login` action obtains one for a GitHub Actions run.\n\n**A token from a GitHub Actions run can only upload impacted targets** (`PUT /v2/impacted-targets`), for the repository the run belongs to; every other endpoint refuses it."
+        description: "A short-lived token that Trunk's own tools send in the `x-trunk-token` header: the `trunk` CLI after `trunk auth login`, and the `trunk-io/login` action in a GitHub Actions run. Your own integrations should use an API key instead. Never send `Authorization` and `x-trunk-token` on the same request.\n\n**A token from a GitHub Actions run can only upload impacted targets** (`PUT /v2/impacted-targets`), for the repository the run belongs to; every other endpoint refuses it."
       }
     },
     schemas: {
@@ -51691,6 +51691,9 @@ var dynamic_ci_contract_default = {
           },
           changedFiles: {
             $ref: "#/components/schemas/ChangedFiles"
+          },
+          impact: {
+            $ref: "#/components/schemas/PlanImpact"
           },
           buildkiteOrganizationSlug: {
             type: "string",
@@ -51822,7 +51825,7 @@ var dynamic_ci_contract_default = {
               $ref: "#/components/schemas/JobVerdict"
             },
             maxItems: 1e3,
-            description: "One verdict per job. **A job absent from this list must be run** \u2014 the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported."
+            description: "One verdict per job. **A job absent from this list must be run** \u2014 the documented fail-safe, and how an unrecognized job, a CI job experiment branch, and a not-yet-enabled organization are all reported."
           },
           notice: {
             $ref: "#/components/schemas/PlanNotice"
@@ -51908,6 +51911,9 @@ var dynamic_ci_contract_default = {
           changedFiles: {
             $ref: "#/components/schemas/ChangedFiles"
           },
+          impact: {
+            $ref: "#/components/schemas/PlanImpact"
+          },
           workflowPath: {
             type: "string",
             description: "From `github.workflow_ref`; identifies the workflow whose jobs are in scope.",
@@ -51954,12 +51960,38 @@ var dynamic_ci_contract_default = {
         },
         required: ["jobKey", "run", "summary", "signals"]
       },
+      PlanImpact: {
+        type: "object",
+        properties: {
+          count: {
+            type: "integer",
+            minimum: 0,
+            maximum: 1e7,
+            description: "How many units your build tool says the change affects: packages, targets, test files or tests. Send the same measure on every request for a repository. Required unless `all` is true, and ignored when it is. `0` means nothing is affected, not unknown.",
+            example: 734
+          },
+          all: {
+            type: "boolean",
+            default: false,
+            description: "The tool says the change affects everything, or could not work out what is affected. Never send a large `count` in its place.",
+            example: false
+          },
+          source: {
+            type: "string",
+            minLength: 1,
+            maxLength: 64,
+            description: "A label for the measure, such as `tainted-packages`. Trunk stores it with each verdict's impact reach result, so a change of measure is visible. Keep it the same while the measure stays the same.",
+            example: "tainted-packages"
+          }
+        },
+        description: "How much of the codebase the change affects, as your own build or dependency tool measures it. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool did not compute it; sending nothing leaves every verdict as it is."
+      },
       PlanNotice: {
         type: "object",
         properties: {
           code: {
             type: "string",
-            description: "A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`. `MERGE_QUEUE_BRANCH` is retired and no longer sent \u2014 merge-queue runs now carry real per-job verdicts. **An open set** \u2014 fall back to `message` for a code you do not recognize.",
+            description: "A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`, `EXPERIMENT_BRANCH` (a Trunk Runners experiment branch, where every job runs). `MERGE_QUEUE_BRANCH` is retired and no longer sent \u2014 merge-queue runs now carry real per-job verdicts. **An open set** \u2014 fall back to `message` for a code you do not recognize.",
             example: "ORG_NOT_ENABLED"
           },
           message: {
@@ -51969,7 +52001,7 @@ var dynamic_ci_contract_default = {
           }
         },
         required: ["code", "message"],
-        description: "Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a merge-queue branch, an engine outage, or a workflow Trunk has not enumerated \u2014 all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip."
+        description: "Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a CI job experiment branch (`trunk-runners/experiments/`), an engine outage, or a workflow Trunk has not enumerated \u2014 all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip."
       },
       PlanRepo: {
         type: "object",
@@ -52039,7 +52071,8 @@ var dynamic_ci_contract_default = {
           "required-check",
           "merge-queue-is-required",
           "paths-filter",
-          "draft-pull-request"
+          "draft-pull-request",
+          "impact-reach"
         ],
         description: "Which independent signal produced a contribution to a job's verdict. These identifiers are also what `ignoreSignals` accepts.",
         example: "historical-pass-rate"
@@ -56450,7 +56483,8 @@ var buildRequest = async (inputs) => {
     workflowPath: resolveWorkflowPath(),
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
-    ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles }
+    ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles },
+    ...inputs.impact === void 0 ? {} : { impact: inputs.impact }
   };
   return resolved === void 0 ? { request: request2 } : { request: request2, changedFilesSource: resolved.source };
 };
@@ -56458,6 +56492,42 @@ var buildRequest = async (inputs) => {
 // src/inputs.ts
 var core3 = __toESM(require_core(), 1);
 var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
+var MAX_IMPACT_COUNT = 1e7;
+var MAX_IMPACT_SOURCE_LENGTH = 64;
+var readImpact = () => {
+  const rawCount = core3.getInput("impact-count").trim();
+  const rawAll = core3.getInput("impact-all").trim().toLowerCase();
+  const rawSource = core3.getInput("impact-source").trim();
+  if (rawCount === "" && rawAll === "" && rawSource === "") {
+    return void 0;
+  }
+  if (rawAll !== "" && rawAll !== "true" && rawAll !== "false") {
+    warn(
+      `impact-all: "${rawAll}" is not "true" or "false"; sending no impact.`
+    );
+    return void 0;
+  }
+  const all = rawAll === "true";
+  const count = /^\d{1,8}$/.test(rawCount) ? Number(rawCount) : void 0;
+  const validCount = count !== void 0 && count <= MAX_IMPACT_COUNT ? count : void 0;
+  if (validCount === void 0 && !all) {
+    warn(
+      `impact-count: "${rawCount}" is not a whole number from 0 to ${String(MAX_IMPACT_COUNT)}; sending no impact.`
+    );
+    return void 0;
+  }
+  const source = rawSource.length > MAX_IMPACT_SOURCE_LENGTH ? "" : rawSource;
+  if (source !== rawSource) {
+    warn(
+      `impact-source: longer than ${String(MAX_IMPACT_SOURCE_LENGTH)} characters; sending the impact without it.`
+    );
+  }
+  return {
+    all,
+    ...validCount === void 0 ? {} : { count: validCount },
+    ...source === "" ? {} : { source }
+  };
+};
 var splitList = (raw) => raw.split(",").map((entry) => entry.trim()).filter(Boolean);
 var applyAnnotationSetting = () => {
   const raw = core3.getInput("enable-annotation").trim().toLowerCase();
@@ -56479,12 +56549,14 @@ var readInputs = () => {
       `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`
     );
   }
+  const impact = readImpact();
   return {
     token,
     jobKeys,
     ignoreSignals,
     actionRef: core3.getInput("gh-action-ref"),
-    githubToken: core3.getInput("github-token")
+    githubToken: core3.getInput("github-token"),
+    ...impact === void 0 ? {} : { impact }
   };
 };
 

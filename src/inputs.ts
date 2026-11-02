@@ -1,6 +1,6 @@
 import * as core from "@actions/core";
 import { setAnnotationsEnabled, warn } from "./annotations";
-import { SIGNAL_TYPES } from "./compat";
+import { SIGNAL_TYPES, type Impact } from "./compat";
 
 const KNOWN_SIGNALS = new Set<string>(SIGNAL_TYPES);
 
@@ -15,7 +15,58 @@ export interface ActionInputs {
   actionRef: string;
   /** Reads the pull request's files when the checkout cannot. Empty disables it. */
   githubToken: string;
+  /** How much of the codebase the change affects, as the caller's build tool measured it. */
+  impact?: Impact;
 }
+
+const MAX_IMPACT_COUNT = 10_000_000;
+const MAX_IMPACT_SOURCE_LENGTH = 64;
+
+/**
+ * `impact-count`, `impact-all` and `impact-source` as one `impact`, or nothing.
+ * An unreadable value is dropped with a warning rather than failing the step:
+ * without an impact the impact-reach signal abstains, which leaves every
+ * verdict as it was.
+ */
+export const readImpact = (): Impact | undefined => {
+  const rawCount = core.getInput("impact-count").trim();
+  const rawAll = core.getInput("impact-all").trim().toLowerCase();
+  const rawSource = core.getInput("impact-source").trim();
+  if (rawCount === "" && rawAll === "" && rawSource === "") {
+    return undefined;
+  }
+
+  if (rawAll !== "" && rawAll !== "true" && rawAll !== "false") {
+    warn(
+      `impact-all: "${rawAll}" is not "true" or "false"; sending no impact.`,
+    );
+    return undefined;
+  }
+  const all = rawAll === "true";
+
+  const count = /^\d{1,8}$/.test(rawCount) ? Number(rawCount) : undefined;
+  const validCount =
+    count !== undefined && count <= MAX_IMPACT_COUNT ? count : undefined;
+  if (validCount === undefined && !all) {
+    warn(
+      `impact-count: "${rawCount}" is not a whole number from 0 to ${String(MAX_IMPACT_COUNT)}; sending no impact.`,
+    );
+    return undefined;
+  }
+
+  const source = rawSource.length > MAX_IMPACT_SOURCE_LENGTH ? "" : rawSource;
+  if (source !== rawSource) {
+    warn(
+      `impact-source: longer than ${String(MAX_IMPACT_SOURCE_LENGTH)} characters; sending the impact without it.`,
+    );
+  }
+
+  return {
+    all,
+    ...(validCount === undefined ? {} : { count: validCount }),
+    ...(source === "" ? {} : { source }),
+  };
+};
 
 const splitList = (raw: string): string[] =>
   raw
@@ -70,11 +121,14 @@ export const readInputs = (): ActionInputs => {
     );
   }
 
+  const impact = readImpact();
+
   return {
     token,
     jobKeys,
     ignoreSignals,
     actionRef: core.getInput("gh-action-ref"),
     githubToken: core.getInput("github-token"),
+    ...(impact === undefined ? {} : { impact }),
   };
 };

@@ -120,6 +120,7 @@ export interface components {
              */
             ignoreSignals?: components["schemas"]["SignalType"][];
             changedFiles?: components["schemas"]["ChangedFiles"];
+            impact?: components["schemas"]["PlanImpact"];
             /**
              * @description `BUILDKITE_ORGANIZATION_SLUG` on an agent.
              * @example acme
@@ -183,7 +184,7 @@ export interface components {
             files: components["schemas"]["ChangedFile"][];
         };
         CiPlan: {
-            /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a merge-queue branch, and a not-yet-enabled organization are all reported. */
+            /** @description One verdict per job. **A job absent from this list must be run** — the documented fail-safe, and how an unrecognized job, a CI job experiment branch, and a not-yet-enabled organization are all reported. */
             jobs: components["schemas"]["JobVerdict"][];
             notice?: components["schemas"]["PlanNotice"];
         };
@@ -251,6 +252,7 @@ export interface components {
              */
             ignoreSignals?: components["schemas"]["SignalType"][];
             changedFiles?: components["schemas"]["ChangedFiles"];
+            impact?: components["schemas"]["PlanImpact"];
             /**
              * @description From `github.workflow_ref`; identifies the workflow whose jobs are in scope.
              * @example .github/workflows/ci.yaml
@@ -276,10 +278,29 @@ export interface components {
             /** @description The audit trail behind `summary`, abstentions included. */
             signals: components["schemas"]["SignalResult"][];
         };
-        /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a merge-queue branch, an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
+        /** @description How much of the codebase the change affects, as your own build or dependency tool measures it. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool did not compute it; sending nothing leaves every verdict as it is. */
+        PlanImpact: {
+            /**
+             * @description How many units your build tool says the change affects: packages, targets, test files or tests. Send the same measure on every request for a repository. Required unless `all` is true, and ignored when it is. `0` means nothing is affected, not unknown.
+             * @example 734
+             */
+            count?: number;
+            /**
+             * @description The tool says the change affects everything, or could not work out what is affected. Never send a large `count` in its place.
+             * @default false
+             * @example false
+             */
+            all: boolean;
+            /**
+             * @description A label for the measure, such as `tainted-packages`. Trunk stores it with each verdict's impact reach result, so a change of measure is visible. Keep it the same while the measure stays the same.
+             * @example tainted-packages
+             */
+            source?: string;
+        };
+        /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a CI job experiment branch (`trunk-runners/experiments/`), an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
         PlanNotice: {
             /**
-             * @description A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`. `MERGE_QUEUE_BRANCH` is retired and no longer sent — merge-queue runs now carry real per-job verdicts. **An open set** — fall back to `message` for a code you do not recognize.
+             * @description A stable identifier for the condition, safe to branch on. Today: `ORG_NOT_ENABLED`, `REPO_NOT_ENABLED`, `REPO_IN_SHADOW_MODE`, `ENGINE_UNAVAILABLE`, `WORKFLOW_NOT_RECOGNIZED`, `EXPERIMENT_BRANCH` (a Trunk Runners experiment branch, where every job runs). `MERGE_QUEUE_BRANCH` is retired and no longer sent — merge-queue runs now carry real per-job verdicts. **An open set** — fall back to `message` for a code you do not recognize.
              * @example ORG_NOT_ENABLED
              */
             code: string;
@@ -326,7 +347,7 @@ export interface components {
          * @example historical-pass-rate
          * @enum {string}
          */
-        SignalType: "estimated-cost" | "previous-result-on-pr" | "historical-pass-rate" | "diff-driven-volatility" | "force-override" | "merge-failure" | "mid-pr-stack" | "required-check" | "merge-queue-is-required" | "paths-filter" | "draft-pull-request";
+        SignalType: "estimated-cost" | "previous-result-on-pr" | "historical-pass-rate" | "diff-driven-volatility" | "force-override" | "merge-failure" | "mid-pr-stack" | "required-check" | "merge-queue-is-required" | "paths-filter" | "draft-pull-request" | "impact-reach";
     };
     responses: never;
     parameters: never;
