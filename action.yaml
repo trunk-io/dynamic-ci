@@ -27,24 +27,15 @@ inputs:
       unrecognized identifier makes the action fail open (recommend running
       everything) rather than silently ignore the setting.
     required: false
-  impact-count:
+  impacts:
     description:
-      How many units your build tool says the change affects (packages,
-      targets, test files or tests). Send the same measure on every run.
-      Required unless impact-all is true. Send 0 when nothing is affected, and
-      leave it unset when your tool did not compute it. Jobs with Trunk's diff
-      impact signal on lean toward running a broad change.
-    required: false
-  impact-all:
-    description:
-      Set to true when your build tool says the change affects everything, or
-      could not work out what is affected. Such a change always runs on jobs
-      with the impact reach signal on.
-    required: false
-  impact-source:
-    description:
-      A label for the measure, such as nx-affected-projects. At most 64
-      characters.
+      A JSON list of how much of the codebase the change affects, one entry per
+      measure your build tool computes, each with source (lowercase letters,
+      digits, '.', '_' and '-'), count (required unless all is true) and all
+      (true when the change affects everything). For example
+      [{"source":"tainted-packages","count":734}]. Jobs with Trunk's impact
+      reach signal on lean toward running a broad change. Leave it unset when
+      your tool computed nothing.
     required: false
   enable-annotation:
     description:

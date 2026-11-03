@@ -138,22 +138,20 @@ const stubRunnerEnv = ({
   jobKeys = "",
   ignoreSignals = "",
   enableAnnotation = "false",
-  impact = {},
+  impacts = "",
 }: {
   token?: string;
   omitToken?: boolean;
   jobKeys?: string;
   ignoreSignals?: string;
   enableAnnotation?: string;
-  impact?: { count?: string; all?: string; source?: string };
+  impacts?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
   vi.stubEnv("INPUT_ENABLE-ANNOTATION", enableAnnotation);
-  vi.stubEnv("INPUT_IMPACT-COUNT", impact.count ?? "");
-  vi.stubEnv("INPUT_IMPACT-ALL", impact.all ?? "");
-  vi.stubEnv("INPUT_IMPACT-SOURCE", impact.source ?? "");
+  vi.stubEnv("INPUT_IMPACTS", impacts);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -395,23 +393,7 @@ describe("the action end to end", () => {
     });
   });
 
-  it.each([
-    {
-      name: "a count with its source",
-      impact: { count: "734", source: "tainted-packages" },
-      sent: { count: 734, all: false, source: "tainted-packages" },
-    },
-    {
-      name: "nothing affected",
-      impact: { count: "0" },
-      sent: { count: 0, all: false },
-    },
-    {
-      name: "everything affected",
-      impact: { all: "TRUE" },
-      sent: { all: true },
-    },
-  ])("forwards $name as the impact", async ({ impact, sent }) => {
+  const sendWith = async (impacts?: string): Promise<unknown> => {
     let body: unknown;
     server.overrideHandlers([
       () =>
@@ -420,61 +402,121 @@ describe("the action end to end", () => {
           return HttpResponse.json(skipUnitTests);
         }),
     ]);
-    stubRunnerEnv({ jobKeys: "unit-tests", impact });
-
+    stubRunnerEnv({
+      jobKeys: "unit-tests",
+      ...(impacts === undefined ? {} : { impacts }),
+    });
     await runAction();
+    return body;
+  };
 
-    expect(body).toMatchObject({ impact: sent });
+  it("forwards every impact, in order", async () => {
+    const body = await sendWith(
+      JSON.stringify([
+        { source: "tainted-packages", count: 734 },
+        { source: "test-files", count: 0, all: false },
+        { source: "targets", all: true },
+      ]),
+    );
+
+    expect(body).toMatchObject({
+      impacts: [
+        { source: "tainted-packages", count: 734, all: false },
+        { source: "test-files", count: 0, all: false },
+        { source: "targets", all: true },
+      ],
+    });
   });
 
-  it("sends no impact when the inputs are unset", async () => {
-    let body: unknown;
-    server.overrideHandlers([
-      () =>
-        http.post(API_URL, async ({ request }) => {
-          body = await request.json();
-          return HttpResponse.json(skipUnitTests);
-        }),
-    ]);
-    stubRunnerEnv({ jobKeys: "unit-tests" });
-
-    await runAction();
-
-    expect(body).not.toHaveProperty("impact");
+  it("sends no impacts when the input is unset", async () => {
+    expect(await sendWith()).not.toHaveProperty("impacts");
   });
 
   it.each([
+    {
+      name: "a source that is not a slug",
+      entry: { source: "Tainted", count: 1 },
+      warning:
+        "impacts[1]: source: must be lowercase letters, digits, '.', '_' or '-', at most 64 characters; dropping it.",
+    },
+    {
+      name: "an entry with neither a count nor all",
+      entry: { source: "test-files" },
+      warning: "impacts[1]: needs a count unless all is true; dropping it.",
+    },
     {
       name: "a count that is not a number",
-      impact: { count: "lots" },
+      entry: { source: "test-files", count: "lots" },
       warning:
-        'impact-count: "lots" is not a whole number from 0 to 10000000; sending no impact.',
+        "impacts[1]: count: Invalid input: expected number, received string; dropping it.",
     },
     {
-      name: "an impact-all that is not a boolean",
-      impact: { count: "3", all: "yes" },
-      warning: 'impact-all: "yes" is not "true" or "false"; sending no impact.',
+      name: "an unknown key",
+      entry: { source: "test-files", counts: 3 },
+      warning: 'impacts[1]: Unrecognized key: "counts"; dropping it.',
+    },
+    {
+      name: "a source listed twice",
+      entry: { source: "tainted-packages", count: 2 },
+      warning:
+        "impacts: lists tainted-packages more than once; keeping the first.",
     },
   ])(
-    "drops $name with a warning, and still gates",
-    async ({ impact, warning }) => {
-      let body: unknown;
-      server.overrideHandlers([
-        () =>
-          http.post(API_URL, async ({ request }) => {
-            body = await request.json();
-            return HttpResponse.json(skipUnitTests);
-          }),
-      ]);
-      stubRunnerEnv({ jobKeys: "unit-tests", impact });
+    "drops $name with a warning, keeps the rest, and still gates",
+    async ({ entry, warning }) => {
+      const body = await sendWith(
+        JSON.stringify([{ source: "tainted-packages", count: 1 }, entry]),
+      );
 
-      await runAction();
-
-      expect(body).not.toHaveProperty("impact");
+      expect(body).toMatchObject({
+        impacts: [{ source: "tainted-packages", count: 1, all: false }],
+      });
       expect(stdout()).toContain(warning);
       expect(readOutputs()).toEqual({ "unit-tests": "false" });
     },
   );
+
+  it.each([
+    {
+      name: "input that is not JSON",
+      impacts: "tainted-packages=734",
+      warning: "impacts: not valid JSON; sending no impacts.",
+    },
+    {
+      name: "a JSON value that is not a list",
+      impacts: JSON.stringify({ source: "tainted-packages", count: 1 }),
+      warning: "impacts: not a JSON list; sending no impacts.",
+    },
+  ])(
+    "sends no impacts for $name, and still gates",
+    async ({ impacts, warning }) => {
+      const body = await sendWith(impacts);
+
+      expect(body).not.toHaveProperty("impacts");
+      expect(stdout()).toContain(warning);
+      expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    },
+  );
+
+  it("sends at most 8 impacts", async () => {
+    const body = await sendWith(
+      JSON.stringify(
+        Array.from({ length: 9 }, (_unused, index) => ({
+          source: `s${String(index)}`,
+          count: 1,
+        })),
+      ),
+    );
+
+    expect(body).toMatchObject({
+      impacts: Array.from({ length: 8 }, (_unused, index) => ({
+        source: `s${String(index)}`,
+        count: 1,
+        all: false,
+      })),
+    });
+    expect(stdout()).toContain("impacts: more than 8 entries; dropping s8.");
+  });
 
   // A signal this version predates is a normal state, not an error: the service
   // ships new signals before the vendored contract catches up.

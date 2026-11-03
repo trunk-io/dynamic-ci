@@ -120,7 +120,8 @@ export interface components {
              */
             ignoreSignals?: components["schemas"]["SignalType"][];
             changedFiles?: components["schemas"]["ChangedFiles"];
-            impact?: components["schemas"]["PlanImpact"];
+            /** @description How much of the codebase the change affects, by each measure your own build or dependency tool computes, one entry per source. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool computed nothing; sending nothing leaves every verdict as it is. */
+            impacts?: components["schemas"]["PlanImpact"][];
             /**
              * @description `BUILDKITE_ORGANIZATION_SLUG` on an agent.
              * @example acme
@@ -252,7 +253,8 @@ export interface components {
              */
             ignoreSignals?: components["schemas"]["SignalType"][];
             changedFiles?: components["schemas"]["ChangedFiles"];
-            impact?: components["schemas"]["PlanImpact"];
+            /** @description How much of the codebase the change affects, by each measure your own build or dependency tool computes, one entry per source. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool computed nothing; sending nothing leaves every verdict as it is. */
+            impacts?: components["schemas"]["PlanImpact"][];
             /**
              * @description From `github.workflow_ref`; identifies the workflow whose jobs are in scope.
              * @example .github/workflows/ci.yaml
@@ -278,10 +280,14 @@ export interface components {
             /** @description The audit trail behind `summary`, abstentions included. */
             signals: components["schemas"]["SignalResult"][];
         };
-        /** @description How much of the codebase the change affects, as your own build or dependency tool measures it. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool did not compute it; sending nothing leaves every verdict as it is. */
         PlanImpact: {
             /**
-             * @description How many units your build tool says the change affects: packages, targets, test files or tests. Send the same measure on every request for a repository. Required unless `all` is true, and ignored when it is. `0` means nothing is affected, not unknown.
+             * @description The measure, such as `tainted-packages` or `test-files`: lowercase letters, digits, `.`, `_` and `-`, at most 64 characters. Trunk sets each job's maximum per source, so keep a source's name and measure the same on every request.
+             * @example tainted-packages
+             */
+            source: string;
+            /**
+             * @description How many units your build tool says the change affects: packages, targets, test files or tests. Required unless `all` is true, and ignored when it is. `0` means nothing is affected, not unknown.
              * @example 734
              */
             count?: number;
@@ -291,11 +297,6 @@ export interface components {
              * @example false
              */
             all: boolean;
-            /**
-             * @description A label for the measure, such as `tainted-packages`. Trunk stores it with each verdict's impact reach result, so a change of measure is visible. Keep it the same while the measure stays the same.
-             * @example tainted-packages
-             */
-            source?: string;
         };
         /** @description Why this plan has the shape it does. **Absent unless every job runs for a reason `jobs` cannot express**: a not-yet-enabled organization or repository, a CI job experiment branch (`trunk-runners/experiments/`), an engine outage, or a workflow Trunk has not enumerated — all indistinguishable otherwise, and all arriving as an empty `jobs` when you request a whole workflow. `REPO_IN_SHADOW_MODE` is the exception: the plan is fully populated and each `summary` is the recommendation the job would have received, but nothing is allowed to skip. */
         PlanNotice: {
