@@ -51267,6 +51267,14 @@ function object(shape, params) {
   };
   return new ZodObject(def);
 }
+function strictObject(shape, params) {
+  return new ZodObject({
+    type: "object",
+    shape,
+    catchall: never(),
+    ...util_exports.normalizeParams(params)
+  });
+}
 var ZodUnion = /* @__PURE__ */ $constructor("ZodUnion", (inst, def) => {
   $ZodUnion.init(inst, def);
   ZodType.init(inst, def);
@@ -51692,8 +51700,13 @@ var dynamic_ci_contract_default = {
           changedFiles: {
             $ref: "#/components/schemas/ChangedFiles"
           },
-          impact: {
-            $ref: "#/components/schemas/PlanImpact"
+          impacts: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/PlanImpact"
+            },
+            maxItems: 8,
+            description: "How much of the codebase the change affects, by each measure your own build or dependency tool computes, one entry per source. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool computed nothing; sending nothing leaves every verdict as it is."
           },
           buildkiteOrganizationSlug: {
             type: "string",
@@ -51911,8 +51924,13 @@ var dynamic_ci_contract_default = {
           changedFiles: {
             $ref: "#/components/schemas/ChangedFiles"
           },
-          impact: {
-            $ref: "#/components/schemas/PlanImpact"
+          impacts: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/PlanImpact"
+            },
+            maxItems: 8,
+            description: "How much of the codebase the change affects, by each measure your own build or dependency tool computes, one entry per source. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool computed nothing; sending nothing leaves every verdict as it is."
           },
           workflowPath: {
             type: "string",
@@ -51963,11 +51981,17 @@ var dynamic_ci_contract_default = {
       PlanImpact: {
         type: "object",
         properties: {
+          source: {
+            type: "string",
+            pattern: "^[a-z0-9][a-z0-9._-]{0,63}$",
+            description: "The measure, such as `tainted-packages` or `test-files`: lowercase letters, digits, `.`, `_` and `-`, at most 64 characters. Trunk sets each job's maximum per source, so keep a source's name and measure the same on every request.",
+            example: "tainted-packages"
+          },
           count: {
             type: "integer",
             minimum: 0,
             maximum: 1e7,
-            description: "How many units your build tool says the change affects: packages, targets, test files or tests. Send the same measure on every request for a repository. Required unless `all` is true, and ignored when it is. `0` means nothing is affected, not unknown.",
+            description: "How many units your build tool says the change affects: packages, targets, test files or tests. Required unless `all` is true, and ignored when it is. `0` means nothing is affected, not unknown.",
             example: 734
           },
           all: {
@@ -51975,16 +51999,9 @@ var dynamic_ci_contract_default = {
             default: false,
             description: "The tool says the change affects everything, or could not work out what is affected. Never send a large `count` in its place.",
             example: false
-          },
-          source: {
-            type: "string",
-            minLength: 1,
-            maxLength: 64,
-            description: "A label for the measure, such as `tainted-packages`. Trunk stores it with each verdict's impact reach result, so a change of measure is visible. Keep it the same while the measure stays the same.",
-            example: "tainted-packages"
           }
         },
-        description: "How much of the codebase the change affects, as your own build or dependency tool measures it. Jobs with the impact reach signal turned on always run a change that affects everything, lean toward running a broad change and lean slightly toward skipping a narrow one. Omit it when your tool did not compute it; sending nothing leaves every verdict as it is."
+        required: ["source"]
       },
       PlanNotice: {
         type: "object",
@@ -56484,7 +56501,7 @@ var buildRequest = async (inputs) => {
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
     ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles },
-    ...inputs.impact === void 0 ? {} : { impact: inputs.impact }
+    ...inputs.impacts === void 0 ? {} : { impacts: inputs.impacts }
   };
   return resolved === void 0 ? { request: request2 } : { request: request2, changedFilesSource: resolved.source };
 };
@@ -56493,40 +56510,59 @@ var buildRequest = async (inputs) => {
 var core3 = __toESM(require_core(), 1);
 var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
 var MAX_IMPACT_COUNT = 1e7;
-var MAX_IMPACT_SOURCE_LENGTH = 64;
-var readImpact = () => {
-  const rawCount = core3.getInput("impact-count").trim();
-  const rawAll = core3.getInput("impact-all").trim().toLowerCase();
-  const rawSource = core3.getInput("impact-source").trim();
-  if (rawCount === "" && rawAll === "" && rawSource === "") {
+var MAX_IMPACTS = 8;
+var IMPACT_ENTRY = strictObject({
+  source: string2().regex(
+    /^[a-z0-9][a-z0-9._-]{0,63}$/,
+    "must be lowercase letters, digits, '.', '_' or '-', at most 64 characters"
+  ),
+  count: number2().int().min(0).max(MAX_IMPACT_COUNT).optional(),
+  all: boolean2().optional()
+}).refine(({ count, all }) => all === true || count !== void 0, {
+  message: "needs a count unless all is true"
+});
+var describeIssue = (error2) => error2.issues.map(
+  (issue2) => issue2.path.length === 0 ? issue2.message : `${issue2.path.join(".")}: ${issue2.message}`
+).join("; ");
+var readImpacts = () => {
+  const raw = core3.getInput("impacts").trim();
+  if (raw === "") {
     return void 0;
   }
-  if (rawAll !== "" && rawAll !== "true" && rawAll !== "false") {
-    warn(
-      `impact-all: "${rawAll}" is not "true" or "false"; sending no impact.`
-    );
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    warn("impacts: not valid JSON; sending no impacts.");
     return void 0;
   }
-  const all = rawAll === "true";
-  const count = /^\d{1,8}$/.test(rawCount) ? Number(rawCount) : void 0;
-  const validCount = count !== void 0 && count <= MAX_IMPACT_COUNT ? count : void 0;
-  if (validCount === void 0 && !all) {
-    warn(
-      `impact-count: "${rawCount}" is not a whole number from 0 to ${String(MAX_IMPACT_COUNT)}; sending no impact.`
-    );
+  if (!Array.isArray(parsed)) {
+    warn("impacts: not a JSON list; sending no impacts.");
     return void 0;
   }
-  const source = rawSource.length > MAX_IMPACT_SOURCE_LENGTH ? "" : rawSource;
-  if (source !== rawSource) {
-    warn(
-      `impact-source: longer than ${String(MAX_IMPACT_SOURCE_LENGTH)} characters; sending the impact without it.`
-    );
-  }
-  return {
-    all,
-    ...validCount === void 0 ? {} : { count: validCount },
-    ...source === "" ? {} : { source }
-  };
+  const impacts = [];
+  parsed.forEach((item, index) => {
+    const entry = IMPACT_ENTRY.safeParse(item);
+    if (!entry.success) {
+      warn(
+        `impacts[${String(index)}]: ${describeIssue(entry.error)}; dropping it.`
+      );
+      return;
+    }
+    const { source, count, all = false } = entry.data;
+    if (impacts.some((impact) => impact.source === source)) {
+      warn(`impacts: lists ${source} more than once; keeping the first.`);
+      return;
+    }
+    if (impacts.length >= MAX_IMPACTS) {
+      warn(
+        `impacts: more than ${String(MAX_IMPACTS)} entries; dropping ${source}.`
+      );
+      return;
+    }
+    impacts.push({ source, all, ...count === void 0 ? {} : { count } });
+  });
+  return impacts.length === 0 ? void 0 : impacts;
 };
 var splitList = (raw) => raw.split(",").map((entry) => entry.trim()).filter(Boolean);
 var applyAnnotationSetting = () => {
@@ -56549,14 +56585,14 @@ var readInputs = () => {
       `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`
     );
   }
-  const impact = readImpact();
+  const impacts = readImpacts();
   return {
     token,
     jobKeys,
     ignoreSignals,
     actionRef: core3.getInput("gh-action-ref"),
     githubToken: core3.getInput("github-token"),
-    ...impact === void 0 ? {} : { impact }
+    ...impacts === void 0 ? {} : { impacts }
   };
 };
 

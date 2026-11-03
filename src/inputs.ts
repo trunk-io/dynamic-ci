@@ -1,3 +1,4 @@
+import * as z from "zod";
 import * as core from "@actions/core";
 import { setAnnotationsEnabled, warn } from "./annotations";
 import { SIGNAL_TYPES, type Impact } from "./compat";
@@ -15,57 +16,83 @@ export interface ActionInputs {
   actionRef: string;
   /** Reads the pull request's files when the checkout cannot. Empty disables it. */
   githubToken: string;
-  /** How much of the codebase the change affects, as the caller's build tool measured it. */
-  impact?: Impact;
+  /** How much of the codebase the change affects, one entry per measure the caller's build tool computed. */
+  impacts?: Impact[];
 }
 
 const MAX_IMPACT_COUNT = 10_000_000;
-const MAX_IMPACT_SOURCE_LENGTH = 64;
+const MAX_IMPACTS = 8;
+
+const IMPACT_ENTRY = z
+  .strictObject({
+    source: z
+      .string()
+      .regex(
+        /^[a-z0-9][a-z0-9._-]{0,63}$/,
+        "must be lowercase letters, digits, '.', '_' or '-', at most 64 characters",
+      ),
+    count: z.number().int().min(0).max(MAX_IMPACT_COUNT).optional(),
+    all: z.boolean().optional(),
+  })
+  .refine(({ count, all }) => all === true || count !== undefined, {
+    message: "needs a count unless all is true",
+  });
+
+const describeIssue = (error: z.ZodError): string =>
+  error.issues
+    .map((issue) =>
+      issue.path.length === 0
+        ? issue.message
+        : `${issue.path.join(".")}: ${issue.message}`,
+    )
+    .join("; ");
 
 /**
- * `impact-count`, `impact-all` and `impact-source` as one `impact`, or nothing.
- * An unreadable value is dropped with a warning rather than failing the step:
- * without an impact the impact-reach signal abstains, which leaves every
- * verdict as it was.
+ * The `impacts` input, a JSON list of `{ source, count, all }`. An unreadable
+ * input sends nothing, and an unreadable or repeated entry is dropped, each with
+ * a warning rather than failing the step: without impacts the impact-reach
+ * signal abstains, which leaves every verdict as it was.
  */
-export const readImpact = (): Impact | undefined => {
-  const rawCount = core.getInput("impact-count").trim();
-  const rawAll = core.getInput("impact-all").trim().toLowerCase();
-  const rawSource = core.getInput("impact-source").trim();
-  if (rawCount === "" && rawAll === "" && rawSource === "") {
+export const readImpacts = (): Impact[] | undefined => {
+  const raw = core.getInput("impacts").trim();
+  if (raw === "") {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    warn("impacts: not valid JSON; sending no impacts.");
+    return undefined;
+  }
+  if (!Array.isArray(parsed)) {
+    warn("impacts: not a JSON list; sending no impacts.");
     return undefined;
   }
 
-  if (rawAll !== "" && rawAll !== "true" && rawAll !== "false") {
-    warn(
-      `impact-all: "${rawAll}" is not "true" or "false"; sending no impact.`,
-    );
-    return undefined;
-  }
-  const all = rawAll === "true";
-
-  const count = /^\d{1,8}$/.test(rawCount) ? Number(rawCount) : undefined;
-  const validCount =
-    count !== undefined && count <= MAX_IMPACT_COUNT ? count : undefined;
-  if (validCount === undefined && !all) {
-    warn(
-      `impact-count: "${rawCount}" is not a whole number from 0 to ${String(MAX_IMPACT_COUNT)}; sending no impact.`,
-    );
-    return undefined;
-  }
-
-  const source = rawSource.length > MAX_IMPACT_SOURCE_LENGTH ? "" : rawSource;
-  if (source !== rawSource) {
-    warn(
-      `impact-source: longer than ${String(MAX_IMPACT_SOURCE_LENGTH)} characters; sending the impact without it.`,
-    );
-  }
-
-  return {
-    all,
-    ...(validCount === undefined ? {} : { count: validCount }),
-    ...(source === "" ? {} : { source }),
-  };
+  const impacts: Impact[] = [];
+  parsed.forEach((item: unknown, index) => {
+    const entry = IMPACT_ENTRY.safeParse(item);
+    if (!entry.success) {
+      warn(
+        `impacts[${String(index)}]: ${describeIssue(entry.error)}; dropping it.`,
+      );
+      return;
+    }
+    const { source, count, all = false } = entry.data;
+    if (impacts.some((impact) => impact.source === source)) {
+      warn(`impacts: lists ${source} more than once; keeping the first.`);
+      return;
+    }
+    if (impacts.length >= MAX_IMPACTS) {
+      warn(
+        `impacts: more than ${String(MAX_IMPACTS)} entries; dropping ${source}.`,
+      );
+      return;
+    }
+    impacts.push({ source, all, ...(count === undefined ? {} : { count }) });
+  });
+  return impacts.length === 0 ? undefined : impacts;
 };
 
 const splitList = (raw: string): string[] =>
@@ -121,7 +148,7 @@ export const readInputs = (): ActionInputs => {
     );
   }
 
-  const impact = readImpact();
+  const impacts = readImpacts();
 
   return {
     token,
@@ -129,6 +156,6 @@ export const readInputs = (): ActionInputs => {
     ignoreSignals,
     actionRef: core.getInput("gh-action-ref"),
     githubToken: core.getInput("github-token"),
-    ...(impact === undefined ? {} : { impact }),
+    ...(impacts === undefined ? {} : { impacts }),
   };
 };
