@@ -1,10 +1,29 @@
 import * as core from "@actions/core";
 import { warn } from "./annotations";
-import type { DynamicCiResponse } from "./compat";
+import type { DynamicCiResponse, Prune } from "./compat";
 
 /** Set the per-job output under its job key. */
 const setJobOutput = (jobKey: string, run: boolean): void => {
   core.setOutput(jobKey, run ? "true" : "false");
+};
+
+/**
+ * The matrix outputs that leave a job's pruned legs out
+ * (`<job>-exclude`, `<job>-matrix`, `<job>-include`), each set exactly as Trunk
+ * built it. The customer wires the one their matrix shape needs; the others go
+ * unused. Nothing is set when nothing is pruned, so `||` falls back to the
+ * customer's own matrix.
+ */
+const setPruneOutputs = (jobKey: string, prune: Prune): void => {
+  if (prune.exclude !== undefined) {
+    core.setOutput(`${jobKey}-exclude`, prune.exclude);
+  }
+  if (prune.matrix !== undefined) {
+    core.setOutput(`${jobKey}-matrix`, prune.matrix);
+  }
+  if (prune.include !== undefined) {
+    core.setOutput(`${jobKey}-include`, prune.include);
+  }
 };
 
 /**
@@ -24,6 +43,9 @@ export const setOutputs = (
   const decided = new Set<string>();
   for (const job of response.jobs) {
     setJobOutput(job.jobKey, job.run);
+    if (job.prune !== undefined) {
+      setPruneOutputs(job.jobKey, job.prune);
+    }
     decided.add(job.jobKey);
   }
   for (const jobKey of requestedJobKeys) {

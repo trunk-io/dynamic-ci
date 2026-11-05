@@ -111,6 +111,8 @@ it safe to put in an `if:`.
 ## Outputs
 
 One output per job, whose value is the string `'true'` (run) or `'false'` (skip).
+A matrix job decided by matrix variation can also get `<job>-exclude`, `<job>-matrix` and
+`<job>-include`. See [Skipping single matrix variations](#skipping-single-matrix-variations).
 
 The output is named for the job key verbatim. GitHub already constrains a `jobs:` key to
 what an expression can dereference, so a job written as `unit-tests` is read back as
@@ -265,15 +267,59 @@ is not a JSON list sends no impacts. The plan is still requested.
 
 ## Matrices
 
-### A matrix is one job identity
+### Skipping single matrix variations
 
-Verdicts are keyed on the job **key** — what the job is written as under `jobs:` — and a
-matrix expands into many legs beneath that one key. Trunk issues **one verdict for the
-whole job**: either every leg runs or every leg skips. There is no per-leg verdict, and no
-way to skip one platform while running another.
+By default Trunk decides a matrix job as a whole: every matrix variation runs or every one skips. When
+the job is set in Dynamic CI's job settings to be decided by matrix variation (for example
+by `os`), Trunk decides each variation on its own history, and the action sets one more
+output for the job that leaves the skipped variations out of the matrix. Wire the output that
+fits how the matrix is written. Nothing is set when no variation is skipped, so the `||`
+fallback keeps your own matrix.
 
-If you need matrix legs judged separately, reach out to us at
-[slack.trunk.io](https://slack.trunk.io).
+**A matrix declared with axes** reads `<job>-exclude` as its `exclude`. Move any
+`exclude` entries you already have into the fallback, because GitHub takes one
+`exclude` value:
+
+```yaml
+dynamic-ci-filter:
+  outputs:
+    test: ${{ steps.ci-filter.outputs.test }}
+    test-exclude: ${{ steps.ci-filter.outputs.test-exclude }}
+  # ...
+
+test:
+  needs: [dynamic-ci-filter]
+  if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.test != 'false' }}
+  strategy:
+    matrix:
+      os: [ubuntu-latest, macos-14]
+      node: [18, 20]
+      exclude: ${{ fromJSON(needs.dynamic-ci-filter.outputs.test-exclude || '[{"os":"macos-14","node":18}]') }}
+```
+
+**A matrix written as a list of rows** cannot use `exclude`: GitHub applies `exclude`
+before `include`. Write the rows as a JSON literal and read `<job>-matrix` in its place.
+The output holds the rows that run, each exactly as you wrote it, so job names do not
+change:
+
+```yaml
+unit-tests:
+  needs: [dynamic-ci-filter]
+  if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.unit-tests != 'false' }}
+  strategy:
+    matrix: ${{ fromJSON(needs.dynamic-ci-filter.outputs.unit-tests-matrix || '{"include":[{"suite":"packages"},{"suite":"apps"}]}') }}
+```
+
+`<job>-include` holds the same rows as a bare array, for a matrix that reads them at
+`strategy.matrix.include`. A wrong output in the wrong place makes GitHub reject the
+matrix, which shows as a failed job the first time a variation is skipped.
+
+The outputs are built from the exact workflow file that runs. The action sends that
+file's git blob sha: from the checkout when the run's commit is checked out, else with one
+contents API call using `github-token`, which needs `contents: read` (the default
+`GITHUB_TOKEN` has it). With no sha, or a file Trunk has not read yet (a pull request that
+edits the matrix), the job is decided as a whole. On a very busy repository, check out the
+code before this step so that the call is not needed.
 
 ### Matrix legs as required checks
 

@@ -23,7 +23,8 @@ const failOpen = async (jobKeys: string[], reason: string): Promise<void> => {
 
 export const run = async (): Promise<void> => {
   const inputs = readInputs();
-  const { request, changedFilesSource } = await buildRequest(inputs);
+  const { request, changedFilesSource, workflowFileShaSource } =
+    await buildRequest(inputs);
 
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
@@ -41,6 +42,12 @@ export const run = async (): Promise<void> => {
       `Changed files: ${String(request.changedFiles.totalFiles)} from ${CHANGED_FILES_SOURCE_LABEL[changedFilesSource]}.`,
     );
   }
+
+  core.info(
+    workflowFileShaSource === undefined
+      ? "Workflow file sha: not found, so matrix jobs are decided as a whole."
+      : `Workflow file sha: ${request.workflowFileSha ?? ""} from ${CHANGED_FILES_SOURCE_LABEL[workflowFileShaSource]}.`,
+  );
 
   const startedAt = Date.now();
   try {

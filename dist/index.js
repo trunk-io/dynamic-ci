@@ -10750,7 +10750,7 @@ var require_mock_interceptor = __commonJS({
 var require_mock_client = __commonJS({
   "node_modules/.pnpm/undici@5.29.0/node_modules/undici/lib/mock/mock-client.js"(exports2, module2) {
     "use strict";
-    var { promisify: promisify2 } = require("util");
+    var { promisify: promisify3 } = require("util");
     var Client = require_client();
     var { buildMockDispatch } = require_mock_utils();
     var {
@@ -10790,7 +10790,7 @@ var require_mock_client = __commonJS({
         return new MockInterceptor(opts, this[kDispatches]);
       }
       async [kClose]() {
-        await promisify2(this[kOriginalClose])();
+        await promisify3(this[kOriginalClose])();
         this[kConnected] = 0;
         this[kMockAgent][Symbols.kClients].delete(this[kOrigin]);
       }
@@ -10803,7 +10803,7 @@ var require_mock_client = __commonJS({
 var require_mock_pool = __commonJS({
   "node_modules/.pnpm/undici@5.29.0/node_modules/undici/lib/mock/mock-pool.js"(exports2, module2) {
     "use strict";
-    var { promisify: promisify2 } = require("util");
+    var { promisify: promisify3 } = require("util");
     var Pool = require_pool();
     var { buildMockDispatch } = require_mock_utils();
     var {
@@ -10843,7 +10843,7 @@ var require_mock_pool = __commonJS({
         return new MockInterceptor(opts, this[kDispatches]);
       }
       async [kClose]() {
-        await promisify2(this[kOriginalClose])();
+        await promisify3(this[kOriginalClose])();
         this[kConnected] = 0;
         this[kMockAgent][Symbols.kClients].delete(this[kOrigin]);
       }
@@ -31271,7 +31271,7 @@ var require_mock_interceptor2 = __commonJS({
 var require_mock_client2 = __commonJS({
   "node_modules/.pnpm/undici@6.29.0/node_modules/undici/lib/mock/mock-client.js"(exports2, module2) {
     "use strict";
-    var { promisify: promisify2 } = require("node:util");
+    var { promisify: promisify3 } = require("node:util");
     var Client = require_client2();
     var { buildMockDispatch } = require_mock_utils2();
     var {
@@ -31311,7 +31311,7 @@ var require_mock_client2 = __commonJS({
         return new MockInterceptor(opts, this[kDispatches]);
       }
       async [kClose]() {
-        await promisify2(this[kOriginalClose])();
+        await promisify3(this[kOriginalClose])();
         this[kConnected] = 0;
         this[kMockAgent][Symbols.kClients].delete(this[kOrigin]);
       }
@@ -31324,7 +31324,7 @@ var require_mock_client2 = __commonJS({
 var require_mock_pool2 = __commonJS({
   "node_modules/.pnpm/undici@6.29.0/node_modules/undici/lib/mock/mock-pool.js"(exports2, module2) {
     "use strict";
-    var { promisify: promisify2 } = require("node:util");
+    var { promisify: promisify3 } = require("node:util");
     var Pool = require_pool2();
     var { buildMockDispatch } = require_mock_utils2();
     var {
@@ -31364,7 +31364,7 @@ var require_mock_pool2 = __commonJS({
         return new MockInterceptor(opts, this[kDispatches]);
       }
       async [kClose]() {
-        await promisify2(this[kOriginalClose])();
+        await promisify3(this[kOriginalClose])();
         this[kConnected] = 0;
         this[kMockAgent][Symbols.kClients].delete(this[kOrigin]);
       }
@@ -31952,16 +31952,16 @@ var require_dns = __commonJS({
       setRecords(origin, addresses) {
         const timestamp = Date.now();
         const records = { records: { 4: null, 6: null } };
-        for (const record of addresses) {
-          record.timestamp = timestamp;
-          if (typeof record.ttl === "number") {
-            record.ttl = Math.min(record.ttl, this.#maxTTL);
+        for (const record2 of addresses) {
+          record2.timestamp = timestamp;
+          if (typeof record2.ttl === "number") {
+            record2.ttl = Math.min(record2.ttl, this.#maxTTL);
           } else {
-            record.ttl = this.#maxTTL;
+            record2.ttl = this.#maxTTL;
           }
-          const familyRecords = records.records[record.family] ?? { ips: [] };
-          familyRecords.ips.push(record);
-          records.records[record.family] = familyRecords;
+          const familyRecords = records.records[record2.family] ?? { ips: [] };
+          familyRecords.ips.push(record2);
+          records.records[record2.family] = familyRecords;
         }
         this.#records.set(origin.hostname, records);
       }
@@ -49906,6 +49906,101 @@ function handleIntersectionResults(result, left, right) {
   result.value = merged.data;
   return result;
 }
+var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
+  $ZodType.init(inst, def);
+  inst._zod.parse = (payload, ctx) => {
+    const input = payload.value;
+    if (!isPlainObject(input)) {
+      payload.issues.push({
+        expected: "record",
+        code: "invalid_type",
+        input,
+        inst
+      });
+      return payload;
+    }
+    const proms = [];
+    const values = def.keyType._zod.values;
+    if (values) {
+      payload.value = {};
+      const recordKeys = /* @__PURE__ */ new Set();
+      for (const key of values) {
+        if (typeof key === "string" || typeof key === "number" || typeof key === "symbol") {
+          recordKeys.add(typeof key === "number" ? key.toString() : key);
+          const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
+          if (result instanceof Promise) {
+            proms.push(result.then((result2) => {
+              if (result2.issues.length) {
+                payload.issues.push(...prefixIssues(key, result2.issues));
+              }
+              payload.value[key] = result2.value;
+            }));
+          } else {
+            if (result.issues.length) {
+              payload.issues.push(...prefixIssues(key, result.issues));
+            }
+            payload.value[key] = result.value;
+          }
+        }
+      }
+      let unrecognized;
+      for (const key in input) {
+        if (!recordKeys.has(key)) {
+          unrecognized = unrecognized ?? [];
+          unrecognized.push(key);
+        }
+      }
+      if (unrecognized && unrecognized.length > 0) {
+        payload.issues.push({
+          code: "unrecognized_keys",
+          input,
+          inst,
+          keys: unrecognized
+        });
+      }
+    } else {
+      payload.value = {};
+      for (const key of Reflect.ownKeys(input)) {
+        if (key === "__proto__")
+          continue;
+        const keyResult = def.keyType._zod.run({ value: key, issues: [] }, ctx);
+        if (keyResult instanceof Promise) {
+          throw new Error("Async schemas not supported in object keys currently");
+        }
+        if (keyResult.issues.length) {
+          payload.issues.push({
+            code: "invalid_key",
+            origin: "record",
+            issues: keyResult.issues.map((iss) => finalizeIssue(iss, ctx, config())),
+            input: key,
+            path: [key],
+            inst
+          });
+          payload.value[keyResult.value] = keyResult.value;
+          continue;
+        }
+        const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
+        if (result instanceof Promise) {
+          proms.push(result.then((result2) => {
+            if (result2.issues.length) {
+              payload.issues.push(...prefixIssues(key, result2.issues));
+            }
+            payload.value[keyResult.value] = result2.value;
+          }));
+        } else {
+          if (result.issues.length) {
+            payload.issues.push(...prefixIssues(key, result.issues));
+          }
+          payload.value[keyResult.value] = result.value;
+        }
+      }
+    }
+    if (proms.length) {
+      return Promise.all(proms).then(() => payload);
+    }
+    return payload;
+  };
+});
 var $ZodEnum = /* @__PURE__ */ $constructor("$ZodEnum", (inst, def) => {
   $ZodType.init(inst, def);
   const values = getEnumValues(def.entries);
@@ -51298,6 +51393,20 @@ function intersection(left, right) {
     right
   });
 }
+var ZodRecord = /* @__PURE__ */ $constructor("ZodRecord", (inst, def) => {
+  $ZodRecord.init(inst, def);
+  ZodType.init(inst, def);
+  inst.keyType = def.keyType;
+  inst.valueType = def.valueType;
+});
+function record(keyType, valueType, params) {
+  return new ZodRecord({
+    type: "record",
+    keyType,
+    valueType,
+    ...util_exports.normalizeParams(params)
+  });
+}
 var ZodEnum = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
   $ZodEnum.init(inst, def);
   ZodType.init(inst, def);
@@ -52170,11 +52279,23 @@ var PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT = object({
   ignored: boolean2()
 });
 var PLAN_NOTICE_SCHEMA = object({ code: string2(), message: string2() });
+var VARIATION_VERDICT_SCHEMA = object({
+  match: record(string2(), unknown()),
+  run: boolean2(),
+  summary: string2()
+});
+var PRUNE_SCHEMA = object({
+  exclude: string2().optional(),
+  matrix: string2().optional(),
+  include: string2().optional()
+});
 var JOB_VERDICT_SCHEMA = object({
   jobKey: string2(),
   run: boolean2(),
   summary: string2(),
-  signals: array(PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT)
+  signals: array(PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT),
+  variations: array(VARIATION_VERDICT_SCHEMA).optional(),
+  prune: PRUNE_SCHEMA.optional()
 });
 var DYNAMIC_CI_RESPONSE_SCHEMA = object({
   jobs: array(JOB_VERDICT_SCHEMA),
@@ -56478,6 +56599,79 @@ var resolveChangedFiles = async ({
   return api === void 0 ? void 0 : { changedFiles: api, source: "api" };
 };
 
+// src/workflow-file-sha.ts
+var import_node_child_process2 = require("node:child_process");
+var import_node_util2 = require("node:util");
+var API_TIMEOUT_MS2 = 1e4;
+var GIT_TIMEOUT_MS2 = 1e4;
+var BLOB_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+var execFileAsync2 = (0, import_node_util2.promisify)(import_node_child_process2.execFile);
+var fromCheckout2 = async ({
+  commitSha,
+  path,
+  cwd
+}) => {
+  try {
+    const { stdout } = await execFileAsync2(
+      "git",
+      ["ls-tree", "-z", "--full-tree", commitSha, "--", path],
+      { cwd, encoding: "utf8", timeout: GIT_TIMEOUT_MS2 }
+    );
+    const entries = stdout.split("\0").filter((entry2) => entry2 !== "");
+    const [entry] = entries;
+    if (entries.length !== 1 || entry === void 0) {
+      return void 0;
+    }
+    const [meta2 = "", entryPath] = entry.split("	");
+    const [, type, sha = ""] = meta2.split(" ");
+    return type === "blob" && entryPath === path && BLOB_SHA.test(sha) ? sha : void 0;
+  } catch {
+    return void 0;
+  }
+};
+var fromApi2 = async ({
+  commitSha,
+  path,
+  repo,
+  githubToken
+}) => {
+  if (githubToken === "") {
+    return void 0;
+  }
+  try {
+    const octokit = getOctokit(githubToken, {
+      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com"
+    });
+    const { data } = await octokit.rest.repos.getContent({
+      owner: repo.owner,
+      repo: repo.name,
+      path,
+      ref: commitSha,
+      request: { signal: AbortSignal.timeout(API_TIMEOUT_MS2) }
+    });
+    return !Array.isArray(data) && data.type === "file" && BLOB_SHA.test(data.sha) ? data.sha : void 0;
+  } catch {
+    return void 0;
+  }
+};
+var resolveWorkflowFileSha = async ({
+  commitSha,
+  path,
+  repo,
+  githubToken,
+  cwd
+}) => {
+  if (commitSha === "" || path === "") {
+    return void 0;
+  }
+  const checkout = await fromCheckout2({ commitSha, path, cwd });
+  if (checkout !== void 0) {
+    return { sha: checkout, source: "checkout" };
+  }
+  const api = await fromApi2({ commitSha, path, repo, githubToken });
+  return api === void 0 ? void 0 : { sha: api, source: "api" };
+};
+
 // src/context.ts
 var GitHubEventSchema = object({
   number: number2().optional(),
@@ -56544,12 +56738,23 @@ var buildRequest = async (inputs) => {
   const prNumber = event.pull_request?.number ?? event.number ?? null;
   const repo = parseRepo();
   const pr = pullRequestDiff(event, prNumber);
-  const resolved = pr === void 0 ? void 0 : await resolveChangedFiles({
-    pr,
-    repo,
-    githubToken: inputs.githubToken,
-    cwd: process.env["GITHUB_WORKSPACE"] || process.cwd()
-  });
+  const cwd = process.env["GITHUB_WORKSPACE"] || process.cwd();
+  const workflowPath = resolveWorkflowPath();
+  const [resolved, workflowFile] = await Promise.all([
+    pr === void 0 ? void 0 : resolveChangedFiles({
+      pr,
+      repo,
+      githubToken: inputs.githubToken,
+      cwd
+    }),
+    resolveWorkflowFileSha({
+      commitSha: process.env["GITHUB_SHA"] ?? "",
+      path: workflowPath,
+      repo,
+      githubToken: inputs.githubToken,
+      cwd
+    })
+  ]);
   const request2 = {
     repo,
     commitSha: headSha,
@@ -56560,13 +56765,18 @@ var buildRequest = async (inputs) => {
     runAttempt: resolveRunAttempt(),
     ...process.env["GITHUB_TRIGGERING_ACTOR"] ? { triggeringActor: process.env["GITHUB_TRIGGERING_ACTOR"] } : {},
     ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
-    workflowPath: resolveWorkflowPath(),
+    workflowPath,
+    ...workflowFile === void 0 ? {} : { workflowFileSha: workflowFile.sha },
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
     ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles },
     ...inputs.impacts === void 0 ? {} : { impacts: inputs.impacts }
   };
-  return resolved === void 0 ? { request: request2 } : { request: request2, changedFilesSource: resolved.source };
+  return {
+    request: request2,
+    ...resolved === void 0 ? {} : { changedFilesSource: resolved.source },
+    ...workflowFile === void 0 ? {} : { workflowFileShaSource: workflowFile.source }
+  };
 };
 
 // src/inputs.ts
@@ -56733,10 +56943,24 @@ var core4 = __toESM(require_core(), 1);
 var setJobOutput = (jobKey, run2) => {
   core4.setOutput(jobKey, run2 ? "true" : "false");
 };
+var setPruneOutputs = (jobKey, prune) => {
+  if (prune.exclude !== void 0) {
+    core4.setOutput(`${jobKey}-exclude`, prune.exclude);
+  }
+  if (prune.matrix !== void 0) {
+    core4.setOutput(`${jobKey}-matrix`, prune.matrix);
+  }
+  if (prune.include !== void 0) {
+    core4.setOutput(`${jobKey}-include`, prune.include);
+  }
+};
 var setOutputs = (response, requestedJobKeys) => {
   const decided = /* @__PURE__ */ new Set();
   for (const job of response.jobs) {
     setJobOutput(job.jobKey, job.run);
+    if (job.prune !== void 0) {
+      setPruneOutputs(job.jobKey, job.prune);
+    }
     decided.add(job.jobKey);
   }
   for (const jobKey of requestedJobKeys) {
@@ -56953,7 +57177,7 @@ var failOpen = async (jobKeys, reason) => {
 };
 var run = async () => {
   const inputs = readInputs();
-  const { request: request2, changedFilesSource } = await buildRequest(inputs);
+  const { request: request2, changedFilesSource, workflowFileShaSource } = await buildRequest(inputs);
   const apiUrl = resolveApiUrl();
   const timeoutMs = resolveTimeoutMs();
   const maxAttempts = resolveMaxAttempts();
@@ -56966,6 +57190,9 @@ var run = async () => {
       `Changed files: ${String(request2.changedFiles.totalFiles)} from ${CHANGED_FILES_SOURCE_LABEL[changedFilesSource]}.`
     );
   }
+  core7.info(
+    workflowFileShaSource === void 0 ? "Workflow file sha: not found, so matrix jobs are decided as a whole." : `Workflow file sha: ${request2.workflowFileSha ?? ""} from ${CHANGED_FILES_SOURCE_LABEL[workflowFileShaSource]}.`
+  );
   const startedAt = Date.now();
   try {
     const result = await requestRecommendations({

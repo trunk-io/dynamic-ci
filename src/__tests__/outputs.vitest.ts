@@ -29,6 +29,77 @@ const response: DynamicCiResponse = {
 };
 
 describe("setOutputs", () => {
+  // Each output is set as Trunk built it: `3.10` and the big integer must
+  // survive byte for byte, or a leg is renamed or the job fails.
+  it("sets each prune output under the job's key, unchanged", () => {
+    const prune = {
+      exclude: '[{"os":"macos","python":3.10,"n":12345678901234567890}]',
+      matrix: '{"include":[{"suite":"apps","shard":""}]}',
+      include: '[{"suite":"apps","shard":""}]',
+    };
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "unit-tests",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune,
+          },
+        ],
+      },
+      ["unit-tests"],
+    );
+    expect(setOutput.mock.calls).toEqual([
+      ["unit-tests", "true"],
+      ["unit-tests-exclude", prune.exclude],
+      ["unit-tests-matrix", prune.matrix],
+      ["unit-tests-include", prune.include],
+    ]);
+  });
+
+  it("sets only the prune outputs Trunk sent", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune: { exclude: '[{"os":"macos"}]' },
+          },
+        ],
+      },
+      ["test"],
+    );
+    expect(setOutput.mock.calls).toEqual([
+      ["test", "true"],
+      ["test-exclude", '[{"os":"macos"}]'],
+    ]);
+  });
+
+  it("sets no prune output when every leg is skipped, so the job's if: skips it", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: false,
+            summary: "Skip",
+            signals: [],
+            variations: [
+              { match: { os: "linux" }, run: false, summary: "Skip" },
+            ],
+          },
+        ],
+      },
+      ["test"],
+    );
+    expect(setOutput.mock.calls).toEqual([["test", "false"]]);
+  });
+
   it("emits flat per-job true/false strings", () => {
     setOutputs(response, ["unit-tests", "integration"]);
     expect(setOutput.mock.calls).toEqual([
