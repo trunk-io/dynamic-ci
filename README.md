@@ -276,6 +276,15 @@ output for the job that leaves the skipped variations out of the matrix. Wire th
 fits how the matrix is written. Nothing is set when no variation is skipped, so the `||`
 fallback keeps your own matrix.
 
+The action's log lists such a job's variations instead of its signals, one line per group
+decided together:
+
+```text
+test: RUN — Runs 2 of 4 matrix variations (os=ubuntu-latest ×2); skips 2 (os=macos-14 ×2).
+  - [RUN] os=ubuntu-latest ×2: The job should run because …
+  - [SKIP] os=macos-14 ×2: The job should skip because …
+```
+
 **A matrix declared with axes** reads `<job>-exclude` as its `exclude`. Move any
 `exclude` entries you already have into the fallback, because GitHub takes one
 `exclude` value:

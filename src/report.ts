@@ -4,6 +4,7 @@ import type {
   DynamicCiResponse,
   JobVerdict,
   PublicSignalResult,
+  VariationVerdict,
 } from "./compat";
 
 const ANNOTATION_TITLE = "Trunk Dynamic CI Filter";
@@ -32,16 +33,83 @@ const signalMessage = (signal: PublicSignalResult): string =>
 const displaySignals = (job: JobVerdict): PublicSignalResult[] =>
   job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
 
+/** A matrix value as a workflow author would write it; an empty string stays visible. */
+const matrixValue = (value: unknown): string =>
+  typeof value === "string" && value !== "" ? value : JSON.stringify(value);
+
+/**
+ * Variations that share a verdict and a summary were decided together (one
+ * decision group), so they print as one line, named by the values they share.
+ */
+interface VariationGroup {
+  run: boolean;
+  summary: string;
+  label: string;
+  count: number;
+}
+
+const variationGroups = (
+  variations: readonly VariationVerdict[],
+): VariationGroup[] => {
+  const byVerdict = new Map<
+    string,
+    { first: VariationVerdict; members: VariationVerdict[] }
+  >();
+  for (const variation of variations) {
+    const key = `${String(variation.run)}\0${variation.summary}`;
+    const group = byVerdict.get(key);
+    if (group === undefined) {
+      byVerdict.set(key, { first: variation, members: [variation] });
+    } else {
+      group.members.push(variation);
+    }
+  }
+  return [...byVerdict.values()].map(({ first, members }) => {
+    const shared = Object.keys(first.match)
+      .toSorted()
+      .filter((key) =>
+        members.every(
+          (other) =>
+            key in other.match &&
+            JSON.stringify(other.match[key]) ===
+              JSON.stringify(first.match[key]),
+        ),
+      )
+      .map((key) => `${key}=${matrixValue(first.match[key])}`)
+      .join(", ");
+    return {
+      run: first.run,
+      summary: first.summary,
+      label: shared === "" ? "(no shared values)" : shared,
+      count: members.length,
+    };
+  });
+};
+
+const groupLabel = ({ label, count }: VariationGroup): string =>
+  count === 1 ? label : `${label} ×${String(count)}`;
+
 /** Glanceable verdict marker for the summary (logs stay plain text). */
 const verdictBadge = (run: boolean): string => (run ? "✅ RUN" : "⏭️ SKIP");
 
 /**
  * Per-job log line, keyed by the job key — which is both the output key and what
  * an `if:` conditional names, so a log line matches the
- * `steps.<id>.outputs.<job-key>` reference verbatim.
+ * `steps.<id>.outputs.<job-key>` reference verbatim. A job decided per matrix
+ * variation lists its variations instead of its signals: those are the
+ * whole-job verdict, which decided none of them unless a variation had too
+ * little history of its own, and its summary then says so.
  */
 const logVerdict = (job: JobVerdict): void => {
   core.info(`  ${job.jobKey}: ${verdictLabel(job.run)} — ${job.summary}`);
+  if (job.variations !== undefined && job.variations.length > 0) {
+    for (const group of variationGroups(job.variations)) {
+      core.info(
+        `    - [${verdictLabel(group.run)}] ${groupLabel(group)}: ${group.summary}`,
+      );
+    }
+    return;
+  }
   for (const signal of displaySignals(job)) {
     core.info(
       `    - [${signal.recommendation}] ${signal.type}: ${signalMessage(signal)}`,
@@ -84,6 +152,20 @@ const signalTable = (job: JobVerdict): string =>
     ),
   ].join("\n");
 
+/** A per-variation job's table: one row per decision group. */
+const variationTable = (variations: readonly VariationVerdict[]): string =>
+  [
+    mdRow(["Variations", "Verdict", "Summary"]),
+    mdRow(["---", "---", "---"]),
+    ...variationGroups(variations).map((group) =>
+      mdRow([
+        escapeCell(groupLabel(group)),
+        verdictBadge(group.run),
+        escapeCell(group.summary),
+      ]),
+    ),
+  ].join("\n");
+
 /**
  * A collapsible section per job. The blank lines around the table are required:
  * GitHub only renders markdown inside `<details>` when the content is separated
@@ -96,7 +178,9 @@ const jobDetails = (job: JobVerdict): string =>
     "",
     `_${escapeCell(job.summary)}_`,
     "",
-    signalTable(job),
+    job.variations !== undefined && job.variations.length > 0
+      ? variationTable(job.variations)
+      : signalTable(job),
     "",
     "</details>",
   ].join("\n");

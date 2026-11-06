@@ -199,3 +199,56 @@ describe("with annotations turned off", () => {
     );
   });
 });
+
+describe("a job decided per matrix variation", () => {
+  const frontendSummary =
+    "The job should skip because most recent completed run on this PR passed and reliably green (100.0% pass rate over 49 runs).";
+  const perVariation = {
+    jobs: [
+      {
+        jobKey: "unit-tests",
+        run: true,
+        summary:
+          "Runs 2 of 5 matrix variations (suite=packages, suite=apps); skips 3 (suite=frontend ×3).",
+        signals: [
+          {
+            type: "historical-pass-rate",
+            recommendation: "VOTE_NO_RUN",
+            message: "Reliably green (91.1% pass rate over 481 runs).",
+            ignored: false,
+          },
+        ],
+        variations: [
+          {
+            match: { suite: "packages", shard: "" },
+            run: true,
+            summary: "The job should run because the paths changed.",
+          },
+          {
+            match: { suite: "apps", shard: "" },
+            run: true,
+            summary: "The job should run because the diff is volatile.",
+          },
+          ...["1/3", "2/3", "3/3"].map((shard) => ({
+            match: { suite: "frontend", shard },
+            run: false,
+            summary: frontendSummary,
+          })),
+        ],
+        prune: { include: "[]" },
+      },
+    ],
+  } as const satisfies DynamicCiResponse;
+
+  it("logs one line per decision group instead of the whole-job signals", async () => {
+    await reportRecommendations(perVariation);
+
+    expect(info.mock.calls.map((call) => String(call[0]))).toEqual([
+      "Trunk Dynamic CI Filter recommendations:",
+      "  unit-tests: RUN — Runs 2 of 5 matrix variations (suite=packages, suite=apps); skips 3 (suite=frontend ×3).",
+      '    - [RUN] shard="", suite=packages: The job should run because the paths changed.',
+      '    - [RUN] shard="", suite=apps: The job should run because the diff is volatile.',
+      `    - [SKIP] suite=frontend ×3: ${frontendSummary}`,
+    ]);
+  });
+});
