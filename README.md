@@ -314,13 +314,6 @@ unit-tests:
 `strategy.matrix.include`. A wrong output in the wrong place makes GitHub reject the
 matrix, which shows as a failed job the first time a variation is skipped.
 
-The outputs are built from the exact workflow file that runs. The action sends that
-file's git blob sha: from the checkout when the run's commit is checked out, else with one
-contents API call using `github-token`, which needs `contents: read` (the default
-`GITHUB_TOKEN` has it). With no sha, or a file Trunk has not read yet (a pull request that
-edits the matrix), the job is decided as a whole. On a very busy repository, check out the
-code before this step so that the call is not needed.
-
 ### Matrix legs as required checks
 
 GitHub evaluates a job's `if:` before it expands the matrix, so a matrix job that Dynamic
