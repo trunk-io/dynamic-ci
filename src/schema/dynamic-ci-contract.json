@@ -193,6 +193,14 @@
             "maxLength": 200,
             "description": "`BUILDKITE_PIPELINE_SLUG` on an agent.",
             "example": "widgets-pr"
+          },
+          "matrixBlocks": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Each keyed matrix step's `matrix:` block, by step key, as `buildkite-agent pipeline upload --dry-run` renders it with environment variables resolved. Matrix steps are pruned per variation only when their block is sent; a step left out is decided as a whole. Send at most 64 KiB of blocks; Trunk ignores a larger map.",
+            "example": {
+              "build-image": ["amd64", "arm64"]
+            }
           }
         },
         "required": [
