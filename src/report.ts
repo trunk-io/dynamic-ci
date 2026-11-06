@@ -38,18 +38,30 @@ const matrixValue = (value: unknown): string =>
   typeof value === "string" && value !== "" ? value : JSON.stringify(value);
 
 /**
+ * The values a variation is labelled by: its decision group's, which leave out
+ * the keys the job was never split on (a shard, a filter), else its own when
+ * the service sends no group.
+ */
+type LabelValues = VariationVerdict["match"];
+const labelValues = (variation: VariationVerdict): LabelValues =>
+  variation.group ?? variation.match;
+
+/** A group of variations that set none of the job's variation dimensions. */
+const UNSET_LABEL = "(unset)";
+
+/**
  * Names a group by the values its members vary over, for when they share none
  * (a one-axis matrix always lands here): `domain={ci, admin-portal}`.
  */
-const varyingValues = (members: readonly VariationVerdict[]): string => {
-  const keys = new Set(members.flatMap((member) => Object.keys(member.match)));
+const varyingValues = (members: readonly LabelValues[]): string => {
+  const keys = new Set(members.flatMap((member) => Object.keys(member)));
   return [...keys]
     .toSorted()
     .map((key) => {
       const values = new Map<string, string>();
       for (const member of members) {
-        if (key in member.match) {
-          const value = member.match[key];
+        if (key in member) {
+          const value = member[key];
           values.set(JSON.stringify(value), matrixValue(value));
         }
       }
@@ -90,22 +102,24 @@ const variationGroups = (
     }
   }
   return [...byVerdict.values()].map(({ first, members }) => {
-    const shared = Object.keys(first.match)
+    const firstValues = labelValues(first);
+    const memberValues = members.map(labelValues);
+    const shared = Object.keys(firstValues)
       .toSorted()
       .filter((key) =>
-        members.every(
+        memberValues.every(
           (other) =>
-            key in other.match &&
-            JSON.stringify(other.match[key]) ===
-              JSON.stringify(first.match[key]),
+            key in other &&
+            JSON.stringify(other[key]) === JSON.stringify(firstValues[key]),
         ),
       )
-      .map((key) => `${key}=${matrixValue(first.match[key])}`)
+      .map((key) => `${key}=${matrixValue(firstValues[key])}`)
       .join(", ");
+    const label = shared === "" ? varyingValues(memberValues) : shared;
     return {
       run: first.run,
       summary: first.summary,
-      label: shared === "" ? varyingValues(members) : shared,
+      label: label === "" ? UNSET_LABEL : label,
       count: members.length,
     };
   });

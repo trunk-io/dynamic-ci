@@ -624,6 +624,14 @@
               "node": 20
             }
           },
+          "group": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.",
+            "example": {
+              "os": "macos-14"
+            }
+          },
           "run": {
             "type": "boolean",
             "description": "Whether this variation's legs should run.",

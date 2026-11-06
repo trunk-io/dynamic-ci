@@ -35,10 +35,12 @@ export const PLAN_NOTICE_SCHEMA: z.ZodObject<{
 
 export const VARIATION_VERDICT_SCHEMA: z.ZodObject<{
   match: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+  group: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
   run: z.ZodBoolean;
   summary: z.ZodString;
 }> = z.object({
   match: z.record(z.string(), z.unknown()),
+  group: z.record(z.string(), z.unknown()).optional(),
   run: z.boolean(),
   summary: z.string(),
 });

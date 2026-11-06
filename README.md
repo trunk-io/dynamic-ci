@@ -277,7 +277,8 @@ fits how the matrix is written. Nothing is set when no variation is skipped, so 
 fallback keeps your own matrix.
 
 The action's log lists such a job's variations instead of its signals, one line per group
-decided together:
+decided together, named by the keys the job is decided by (other matrix keys, such as a
+shard index, are left out):
 
 ```text
 test: RUN — Runs 2 of 4 matrix variations (os=ubuntu-latest ×2); skips 2 (os=macos-14 ×2).

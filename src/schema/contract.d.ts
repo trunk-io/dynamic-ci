@@ -399,6 +399,15 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
+             * @description The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.
+             * @example {
+             *       "os": "macos-14"
+             *     }
+             */
+            group?: {
+                [key: string]: unknown;
+            };
+            /**
              * @description Whether this variation's legs should run.
              * @example false
              */
