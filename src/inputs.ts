@@ -2,6 +2,7 @@ import * as z from "zod";
 import * as core from "@actions/core";
 import { setAnnotationsEnabled, warn } from "./annotations";
 import { SIGNAL_TYPES, type Impact } from "./compat";
+import { buildMatrixRows, type MatrixRows } from "./matrices";
 
 const KNOWN_SIGNALS = new Set<string>(SIGNAL_TYPES);
 
@@ -18,6 +19,8 @@ export interface ActionInputs {
   githubToken: string;
   /** How much of the codebase the change affects, one entry per measure the caller's build tool computed. */
   impacts?: Impact[];
+  /** Each runtime matrix job's rows, as the planner's text, from the `matrices` input. */
+  matrices?: MatrixRows;
 }
 
 const MAX_IMPACT_COUNT = 10_000_000;
@@ -149,6 +152,7 @@ export const readInputs = (): ActionInputs => {
   }
 
   const impacts = readImpacts();
+  const matrices = buildMatrixRows(core.getInput("matrices"));
 
   return {
     token,
@@ -157,5 +161,6 @@ export const readInputs = (): ActionInputs => {
     actionRef: core.getInput("gh-action-ref"),
     githubToken: core.getInput("github-token"),
     ...(impacts === undefined ? {} : { impacts }),
+    ...(matrices === undefined ? {} : { matrices }),
   };
 };

@@ -37,6 +37,16 @@ inputs:
       reach signal on lean toward running a broad change. Leave it unset when
       your tool computed nothing.
     required: false
+  matrices:
+    description: >-
+      A JSON object of job key to the rows a planner job built for that job's
+      runtime matrix, each the planner's output as written, for example
+      {"tests": [{"suite": "api"}, {"suite": "web"}]}. Pass the planner's
+      output unchanged. Trunk then decides each variation of the job, and the
+      <job>-matrix and <job>-include outputs keep only the rows that run. Which
+      fields name a variation is set in Trunk, not here. Leave it unset for
+      matrices written in the workflow file.
+    required: false
   enable-annotation:
     description:
       Post the recommendation to the workflow run — its annotation list and the
