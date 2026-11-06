@@ -57023,6 +57023,20 @@ var verdictLabel = (run2) => run2 ? "RUN" : "SKIP";
 var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` : signal.message;
 var displaySignals = (job) => job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
 var matrixValue = (value) => typeof value === "string" && value !== "" ? value : JSON.stringify(value);
+var varyingValues = (members) => {
+  const keys = new Set(members.flatMap((member) => Object.keys(member.match)));
+  return [...keys].toSorted().map((key) => {
+    const values = /* @__PURE__ */ new Map();
+    for (const member of members) {
+      if (key in member.match) {
+        const value = member.match[key];
+        values.set(JSON.stringify(value), matrixValue(value));
+      }
+    }
+    const listed = [...values.values()];
+    return listed.length === 1 ? `${key}=${listed.join("")}` : `${key}={${listed.join(", ")}}`;
+  }).join(", ");
+};
 var variationGroups = (variations) => {
   const byVerdict = /* @__PURE__ */ new Map();
   for (const variation of variations) {
@@ -57043,7 +57057,7 @@ var variationGroups = (variations) => {
     return {
       run: first.run,
       summary: first.summary,
-      label: shared === "" ? "(no shared values)" : shared,
+      label: shared === "" ? varyingValues(members) : shared,
       count: members.length
     };
   });
