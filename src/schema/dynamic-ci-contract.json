@@ -408,6 +408,12 @@
             "type": "string",
             "description": "From `github.workflow_ref`; identifies the workflow whose jobs are in scope.",
             "example": ".github/workflows/ci.yaml"
+          },
+          "workflowFileSha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+            "description": "The git blob sha of the workflow file at `commitSha` (`git rev-parse <commitSha>:<workflowPath>`). Matrix jobs are pruned only against the parsed version of exactly this file; without it, a matrix job is decided as a whole.",
+            "example": "51d537a714c0f1c8a4e92b13d5f0e6a7c2b9d8e1"
           }
         },
         "required": [
@@ -446,6 +452,17 @@
             },
             "maxItems": 64,
             "description": "The audit trail behind `summary`, abstentions included."
+          },
+          "variations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariationVerdict"
+            },
+            "maxItems": 256,
+            "description": "One verdict per matrix variation, for a job decided per variation. Informational: act on `run` and `prune`, never on these."
+          },
+          "prune": {
+            "$ref": "#/components/schemas/Prune"
           }
         },
         "required": ["jobKey", "run", "summary", "signals"]
@@ -512,6 +529,27 @@
         },
         "required": ["owner", "name"]
       },
+      "Prune": {
+        "type": "object",
+        "properties": {
+          "exclude": {
+            "type": "string",
+            "description": "Set as the `<job>-exclude` output, unchanged, for a matrix declared with axes and wired as `exclude: ${{ fromJSON(<output> || '[...your own excludes...]') }}`. A JSON array: your own `exclude` entries first, then one entry per pruned leg. Do not parse or re-encode it: GitHub matches `exclude` by JSON type.",
+            "example": "[{\"os\":\"macos-14\",\"node\":20}]"
+          },
+          "matrix": {
+            "type": "string",
+            "description": "Set as the `<job>-matrix` output, unchanged, for a matrix written as `matrix: ${{ fromJSON(<output> || '{\"include\":[...]}') }}`. A JSON object `{\"include\": [...]}` holding the rows that run, each exactly as written in your literal, so leg names do not change.",
+            "example": "{\"include\":[{\"lane\":\"parallel\",\"shard\":1}]}"
+          },
+          "include": {
+            "type": "string",
+            "description": "Set as the `<job>-include` output, unchanged, for a matrix wired as `include: ${{ fromJSON(<output> || '[...]') }}`. The same rows as `matrix`, as a bare JSON array.",
+            "example": "[{\"lane\":\"parallel\",\"shard\":1}]"
+          }
+        },
+        "description": "Present only when some legs of this matrix job are skipped and others run. Each field is the exact text for one output; a client sets it unchanged. When every leg is skipped, `run` is false and `prune` is absent."
+      },
       "SignalRecommendation": {
         "type": "string",
         "enum": [
@@ -565,6 +603,31 @@
         ],
         "description": "Which independent signal produced a contribution to a job's verdict. These identifiers are also what `ignoreSignals` accepts.",
         "example": "historical-pass-rate"
+      },
+      "VariationVerdict": {
+        "type": "object",
+        "properties": {
+          "match": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The variation's matrix values, each as typed JSON. Informational: a number may lose how it was written (`3.10` reads as `3.1`), so never build a matrix output from it; set `prune` instead.",
+            "example": {
+              "os": "macos-14",
+              "node": 20
+            }
+          },
+          "run": {
+            "type": "boolean",
+            "description": "Whether this variation's legs should run.",
+            "example": false
+          },
+          "summary": {
+            "type": "string",
+            "description": "One-line rationale for this variation's verdict, safe to show to a user.",
+            "example": "The job should skip because no changed file has ever broken it."
+          }
+        },
+        "required": ["match", "run", "summary"]
       }
     }
   }
