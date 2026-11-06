@@ -2,9 +2,9 @@ import { type ParseError, parseTree } from "jsonc-parser";
 import { warn } from "./annotations";
 
 /**
- * Caps on the rows sent, matching Trunk's (`MAX_MATRIX_ROW_*` in its engine).
- * The plan routes refuse a body over 512 KiB, which would decide every job
- * whole, so the rows keep under half of it.
+ * Caps on the rows sent, the same limits Trunk applies to `matrixRows`. Trunk
+ * refuses a plan request over 512 KiB, which would decide every job whole, so
+ * the rows keep under half of it.
  */
 export const MAX_JOB_BYTES: number = 64 * 1024;
 export const MAX_TOTAL_BYTES: number = 256 * 1024;
