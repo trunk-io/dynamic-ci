@@ -40,8 +40,8 @@ inputs:
   matrices:
     description: >-
       A JSON object of job key to the rows a planner job built for that job's
-      runtime matrix, for example
-      {"tests": ${{ needs.plan.outputs.rows || '[]' }}}. Pass the planner's
+      runtime matrix, each the planner's output as written, for example
+      {"tests": [{"suite": "api"}, {"suite": "web"}]}. Pass the planner's
       output unchanged. Trunk then decides each variation of the job, and the
       <job>-matrix and <job>-include outputs keep only the rows that run. Which
       fields name a variation is set in Trunk, not here. Leave it unset for
