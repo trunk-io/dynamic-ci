@@ -11,7 +11,14 @@ import {
 } from "../config";
 import type { Repo as RepoShape } from "../compat";
 import type { PlanOutcome } from "../outcome";
-import { Duration, PlanRequestMetrics, Repo } from "./protos";
+import type { ChangedFilesSource } from "../changed-files";
+import type { WorkflowFileShaSource } from "../workflow-file-sha";
+import {
+  Duration,
+  PLAN_INPUT_SOURCE,
+  PlanRequestMetrics,
+  Repo,
+} from "./protos";
 
 const TELEMETRY_ATTEMPTS = 3;
 const HTTP_SERVER_ERROR_FLOOR = 500;
@@ -53,7 +60,22 @@ export interface PlanTelemetry {
   attempts: number;
   durationMs: number;
   jobCount: number;
+  /** Where each input came from; undefined when it was not sent. */
+  inputs?: {
+    changedFiles: ChangedFilesSource | undefined;
+    workflowFileSha: WorkflowFileShaSource | undefined;
+  };
 }
+
+const PLAN_INPUT_SOURCE_OF = {
+  checkout: PLAN_INPUT_SOURCE.checkout,
+  api: PLAN_INPUT_SOURCE.githubApi,
+} as const satisfies Record<ChangedFilesSource | WorkflowFileShaSource, number>;
+
+const inputSource = (
+  source: ChangedFilesSource | WorkflowFileShaSource | undefined,
+): number =>
+  source === undefined ? PLAN_INPUT_SOURCE.none : PLAN_INPUT_SOURCE_OF[source];
 
 /**
  * Report the plan outcome. Fire-and-forget: the verdict is already set, and a
@@ -74,6 +96,14 @@ export const sendPlanTelemetry = async (
       attempts: telemetry.attempts,
       duration: durationOf(telemetry.durationMs),
       job_count: telemetry.jobCount,
+      ...(telemetry.inputs === undefined
+        ? {}
+        : {
+            changed_files_source: inputSource(telemetry.inputs.changedFiles),
+            workflow_file_sha_source: inputSource(
+              telemetry.inputs.workflowFileSha,
+            ),
+          }),
     });
     const buffer = PlanRequestMetrics.encode(message).finish();
 

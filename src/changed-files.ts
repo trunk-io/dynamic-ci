@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { getOctokit } from "@actions/github";
 import type { components } from "./schema/contract.js";
 import type { Repo } from "./compat";
+import { githubClient } from "./github";
 
 export type ChangedFiles = components["schemas"]["ChangedFiles"];
 type ChangedFile = components["schemas"]["ChangedFile"];
@@ -172,9 +172,7 @@ export const fromApi = async (
     return undefined;
   }
   try {
-    const octokit = getOctokit(githubToken, {
-      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com",
-    });
+    const octokit = githubClient(githubToken);
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner: repo.owner,
       repo: repo.name,

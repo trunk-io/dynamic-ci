@@ -33,16 +33,44 @@ export const PLAN_NOTICE_SCHEMA: z.ZodObject<{
   message: z.ZodString;
 }> = z.object({ code: z.string(), message: z.string() });
 
+export const VARIATION_VERDICT_SCHEMA: z.ZodObject<{
+  match: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+  run: z.ZodBoolean;
+  summary: z.ZodString;
+}> = z.object({
+  match: z.record(z.string(), z.unknown()),
+  run: z.boolean(),
+  summary: z.string(),
+});
+export type VariationVerdict = z.infer<typeof VARIATION_VERDICT_SCHEMA>;
+
+// Strings, never parsed: each is set as an output byte for byte, and a
+// re-encoded row or value renames a leg or fails the customer's job.
+export const PRUNE_SCHEMA: z.ZodObject<{
+  exclude: z.ZodOptional<z.ZodString>;
+  matrix: z.ZodOptional<z.ZodString>;
+  include: z.ZodOptional<z.ZodString>;
+}> = z.object({
+  exclude: z.string().optional(),
+  matrix: z.string().optional(),
+  include: z.string().optional(),
+});
+export type Prune = z.infer<typeof PRUNE_SCHEMA>;
+
 export const JOB_VERDICT_SCHEMA: z.ZodObject<{
   jobKey: z.ZodString;
   run: z.ZodBoolean;
   summary: z.ZodString;
   signals: z.ZodArray<typeof PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT>;
+  variations: z.ZodOptional<z.ZodArray<typeof VARIATION_VERDICT_SCHEMA>>;
+  prune: z.ZodOptional<typeof PRUNE_SCHEMA>;
 }> = z.object({
   jobKey: z.string(),
   run: z.boolean(),
   summary: z.string(),
   signals: z.array(PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT),
+  variations: z.array(VARIATION_VERDICT_SCHEMA).optional(),
+  prune: PRUNE_SCHEMA.optional(),
 });
 export type JobVerdict = z.infer<typeof JOB_VERDICT_SCHEMA>;
 
@@ -83,3 +111,27 @@ type MatchesContract = WidenedPlan extends Parsed
   : never;
 const matchesContract: MatchesContract = true;
 void matchesContract;
+
+// Assignability alone misses an OPTIONAL field the contract adds: the parser
+// would strip it with no type error, as `variations` and `prune` would have
+// been. The key sets must match too.
+type SameKeys<A, B> = [
+  Exclude<keyof A, keyof B>,
+  Exclude<keyof B, keyof A>,
+] extends [never, never]
+  ? true
+  : never;
+const jobVerdictKeysMatch: SameKeys<
+  WidenedJobVerdict,
+  z.input<typeof JOB_VERDICT_SCHEMA>
+> = true;
+const planKeysMatch: SameKeys<WidenedPlan, Parsed> = true;
+const pruneKeysMatch: SameKeys<
+  components["schemas"]["Prune"],
+  z.input<typeof PRUNE_SCHEMA>
+> = true;
+const variationKeysMatch: SameKeys<
+  components["schemas"]["VariationVerdict"],
+  z.input<typeof VARIATION_VERDICT_SCHEMA>
+> = true;
+void [jobVerdictKeysMatch, planKeysMatch, pruneKeysMatch, variationKeysMatch];

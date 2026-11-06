@@ -2,7 +2,9 @@ import protobuf from "protobufjs";
 
 // Reflection rather than generated code, as in analytics-uploader — see CONTRIBUTING.
 // Half of a cross-repo contract with trunk1's telemetry-service: field numbers and
-// enum values must change together, and nothing fails if they drift.
+// enum values must change together, and nothing fails if they drift. The other half
+// is `trunk/services/telemetry/proto/v1/dynamic_ci.proto`; `PlanRequestMetrics`
+// there holds fields 1-9 and `PlanInputSource` values 0-3, as here.
 export const Repo: protobuf.Type = new protobuf.Type("Repo")
   .add(new protobuf.Field("host", 1, "string"))
   .add(new protobuf.Field("owner", 2, "string"))
@@ -40,6 +42,15 @@ export const PLAN_REASON = {
   workflowNotRecognized: "workflow_not_recognized",
 } as const;
 
+// trunk1's `PlanInputSource`: where the action read one input of the plan request.
+// `none` is any input not sent, including one whose GitHub API call failed.
+export const PLAN_INPUT_SOURCE = {
+  unspecified: 0,
+  none: 1,
+  checkout: 2,
+  githubApi: 3,
+} as const;
+
 export const PlanRequestMetrics: protobuf.Type = new protobuf.Type(
   "PlanRequestMetrics",
 )
@@ -50,5 +61,7 @@ export const PlanRequestMetrics: protobuf.Type = new protobuf.Type(
   .add(new protobuf.Field("attempts", 5, "uint32"))
   .add(new protobuf.Field("duration", 6, "Duration"))
   .add(new protobuf.Field("job_count", 7, "uint32"))
+  .add(new protobuf.Field("changed_files_source", 8, "int32"))
+  .add(new protobuf.Field("workflow_file_sha_source", 9, "int32"))
   .add(Repo)
   .add(Duration);

@@ -29,6 +29,154 @@ const response: DynamicCiResponse = {
 };
 
 describe("setOutputs", () => {
+  // Each output is set as Trunk built it: `3.10` and the big integer must
+  // survive byte for byte, or a leg is renamed or the job fails.
+  it("sets each prune output under the job's key, unchanged", () => {
+    const prune = {
+      exclude: '[{"os":"macos","python":3.10,"n":12345678901234567890}]',
+      matrix: '{"include":[{"suite":"apps","shard":""}]}',
+      include: '[{"suite":"apps","shard":""}]',
+    };
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "unit-tests",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune,
+          },
+        ],
+      },
+      ["unit-tests"],
+    );
+    expect(setOutput.mock.calls).toEqual([
+      ["unit-tests", "true"],
+      ["unit-tests-exclude", prune.exclude],
+      ["unit-tests-matrix", prune.matrix],
+      ["unit-tests-include", prune.include],
+    ]);
+  });
+
+  it("sets only the prune outputs Trunk sent", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune: { exclude: '[{"os":"macos"}]' },
+          },
+        ],
+      },
+      ["test"],
+    );
+    expect(setOutput.mock.calls).toEqual([
+      ["test", "true"],
+      ["test-exclude", '[{"os":"macos"}]'],
+    ]);
+  });
+
+  it("sets no prune output for a job that is skipped, even if Trunk sent one", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: false,
+            summary: "Skip",
+            signals: [],
+            prune: { exclude: '[{"os":"macos"}]' },
+          },
+        ],
+      },
+      ["test"],
+    );
+    expect(setOutput.mock.calls).toEqual([["test", "false"]]);
+  });
+
+  // `test-matrix` is both `test`'s prune output and a job's own output; setting
+  // both would leave one of them wrong.
+  it("does not set a prune output whose name is a job's key, and says so", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune: { matrix: '{"include":[{"os":"linux"}]}' },
+          },
+          { jobKey: "test-matrix", run: false, summary: "Skip", signals: [] },
+        ],
+      },
+      ["test", "test-matrix"],
+    );
+    expect({
+      outputs: setOutput.mock.calls,
+      warnings: warning.mock.calls,
+    }).toEqual({
+      outputs: [
+        ["test", "true"],
+        ["test-matrix", "false"],
+      ],
+      warnings: [[expect.stringContaining('Not setting "test-matrix"')]],
+    });
+  });
+
+  it.each([
+    { why: "is not JSON", prune: { exclude: '[{"os":' } },
+    {
+      why: "is an object where an array goes",
+      prune: { exclude: '{"os":"macos"}' },
+    },
+    { why: "is an array where an object goes", prune: { matrix: "[]" } },
+    { why: "is null", prune: { include: "null" } },
+  ])(
+    "drops a prune output that $why, so the matrix falls back to its default",
+    ({ prune }) => {
+      setOutputs(
+        {
+          jobs: [
+            { jobKey: "test", run: true, summary: "Run", signals: [], prune },
+          ],
+        },
+        ["test"],
+      );
+      expect({
+        outputs: setOutput.mock.calls,
+        warnings: warning.mock.calls.length,
+      }).toEqual({
+        outputs: [["test", "true"]],
+        warnings: 1,
+      });
+    },
+  );
+
+  it("sets no prune output when every leg is skipped, so the job's if: skips it", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: false,
+            summary: "Skip",
+            signals: [],
+            variations: [
+              { match: { os: "linux" }, run: false, summary: "Skip" },
+            ],
+          },
+        ],
+      },
+      ["test"],
+    );
+    expect(setOutput.mock.calls).toEqual([["test", "false"]]);
+  });
+
   it("emits flat per-job true/false strings", () => {
     setOutputs(response, ["unit-tests", "integration"]);
     expect(setOutput.mock.calls).toEqual([

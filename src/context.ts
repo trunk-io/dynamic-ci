@@ -8,6 +8,10 @@ import {
   type PullRequestDiff,
   resolveChangedFiles,
 } from "./changed-files";
+import {
+  type WorkflowFileShaSource,
+  resolveWorkflowFileSha,
+} from "./workflow-file-sha";
 
 /** The subset of the GitHub event payload we read (unknown keys are stripped). */
 const GitHubEventSchema = z.object({
@@ -125,6 +129,8 @@ export interface BuiltRequest {
   request: DynamicCiRequest;
   /** Absent when `changedFiles` was not sent and Trunk will fetch the diff. */
   changedFilesSource?: ChangedFilesSource;
+  /** Absent when no `workflowFileSha` was sent, so matrix jobs are decided whole. */
+  workflowFileShaSource?: WorkflowFileShaSource;
 }
 
 /**
@@ -141,15 +147,26 @@ export const buildRequest = async (
   const prNumber = event.pull_request?.number ?? event.number ?? null;
   const repo = parseRepo();
   const pr = pullRequestDiff(event, prNumber);
-  const resolved =
+  const cwd = process.env["GITHUB_WORKSPACE"] || process.cwd();
+  const workflowPath = resolveWorkflowPath();
+  // In parallel: both read the checkout first and fall back to one API call.
+  const [resolved, workflowFile] = await Promise.all([
     pr === undefined
       ? undefined
-      : await resolveChangedFiles({
+      : resolveChangedFiles({
           pr,
           repo,
           githubToken: inputs.githubToken,
-          cwd: process.env["GITHUB_WORKSPACE"] || process.cwd(),
-        });
+          cwd,
+        }),
+    resolveWorkflowFileSha({
+      commitSha: process.env["GITHUB_SHA"] ?? "",
+      path: workflowPath,
+      repo,
+      githubToken: inputs.githubToken,
+      cwd,
+    }),
+  ]);
 
   const request: DynamicCiRequest = {
     repo,
@@ -165,7 +182,10 @@ export const buildRequest = async (
     ...(process.env["GITHUB_EVENT_NAME"]
       ? { eventName: process.env["GITHUB_EVENT_NAME"] }
       : {}),
-    workflowPath: resolveWorkflowPath(),
+    workflowPath,
+    ...(workflowFile === undefined
+      ? {}
+      : { workflowFileSha: workflowFile.sha }),
     jobKeys: inputs.jobKeys,
     ...(inputs.ignoreSignals.length > 0
       ? { ignoreSignals: inputs.ignoreSignals }
@@ -173,7 +193,11 @@ export const buildRequest = async (
     ...(resolved === undefined ? {} : { changedFiles: resolved.changedFiles }),
     ...(inputs.impacts === undefined ? {} : { impacts: inputs.impacts }),
   };
-  return resolved === undefined
-    ? { request }
-    : { request, changedFilesSource: resolved.source };
+  return {
+    request,
+    ...(resolved === undefined ? {} : { changedFilesSource: resolved.source }),
+    ...(workflowFile === undefined
+      ? {}
+      : { workflowFileShaSource: workflowFile.source }),
+  };
 };

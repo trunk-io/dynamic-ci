@@ -45,8 +45,10 @@ inputs:
     default: "false"
   github-token:
     description:
-      Token for reading the pull request's changed files when the checkout does
-      not have both commits. Needs the pull-requests read permission.
+      Token for reading the pull request's changed files and the workflow file
+      when the checkout does not have them. Needs the pull-requests read and
+      contents read permissions; without them, Trunk reads the changed files
+      itself and decides matrix jobs as a whole.
     required: false
     default: ${{ github.token }}
   gh-action-ref:
