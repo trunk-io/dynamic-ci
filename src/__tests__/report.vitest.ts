@@ -200,7 +200,7 @@ describe("with annotations turned off", () => {
   });
 });
 
-describe("a job decided per matrix variation", () => {
+describe("a job decided per matrix variation, from a service that sends no group", () => {
   const frontendSummary =
     "The job should skip because most recent completed run on this PR passed and reliably green (100.0% pass rate over 49 runs).";
   const perVariation = {
@@ -240,7 +240,7 @@ describe("a job decided per matrix variation", () => {
     ],
   } as const satisfies DynamicCiResponse;
 
-  it("logs one line per decision group instead of the whole-job signals", async () => {
+  it("labels each line by the values its variations share", async () => {
     await reportRecommendations(perVariation);
 
     expect(info.mock.calls.map((call) => String(call[0]))).toEqual([
@@ -249,6 +249,95 @@ describe("a job decided per matrix variation", () => {
       '    - [RUN] shard="", suite=packages: The job should run because the paths changed.',
       '    - [RUN] shard="", suite=apps: The job should run because the diff is volatile.',
       `    - [SKIP] suite=frontend ×3: ${frontendSummary}`,
+    ]);
+  });
+});
+
+describe("a job decided per matrix variation", () => {
+  const skipSummary =
+    "The job should skip because most recent completed run on this PR passed and reliably green (100.0% pass rate over 32 runs).";
+  const runSummary =
+    "The job should run because a changed file matches this job's watched paths.";
+  // Split on `suite` alone: `filters` and `shard` are on every row but decide nothing.
+  const perVariation = {
+    jobs: [
+      {
+        jobKey: "unit-tests",
+        run: true,
+        summary:
+          "Runs 3 of 5 matrix variations (suite=frontend ×3); skips 2 (suite=apps, suite=packages).",
+        signals: [
+          {
+            type: "historical-pass-rate",
+            recommendation: "VOTE_NO_RUN",
+            message: "Reliably green (91.1% pass rate over 481 runs).",
+            ignored: false,
+          },
+        ],
+        variations: [
+          {
+            match: { suite: "packages", filters: "./packages/**", shard: "" },
+            group: { suite: "packages" },
+            run: false,
+            summary: skipSummary,
+          },
+          {
+            match: {
+              suite: "apps",
+              filters: "!./packages/** !frontend",
+              shard: "",
+            },
+            group: { suite: "apps" },
+            run: false,
+            summary: skipSummary,
+          },
+          ...["1/3", "2/3", "3/3"].map((shard) => ({
+            match: { suite: "frontend", filters: "frontend", shard },
+            group: { suite: "frontend" },
+            run: true,
+            summary: runSummary,
+          })),
+        ],
+        prune: { include: "[]" },
+      },
+    ],
+  } as const satisfies DynamicCiResponse;
+
+  it("logs one line per decision group, named by its variation dimensions alone, instead of the whole-job signals", async () => {
+    await reportRecommendations(perVariation);
+
+    expect(info.mock.calls.map((call) => String(call[0]))).toEqual([
+      "Trunk Dynamic CI Filter recommendations:",
+      "  unit-tests: RUN — Runs 3 of 5 matrix variations (suite=frontend ×3); skips 2 (suite=apps, suite=packages).",
+      `    - [SKIP] suite={packages, apps} ×2: ${skipSummary}`,
+      `    - [RUN] suite=frontend ×3: ${runSummary}`,
+    ]);
+  });
+
+  it("names a group that sets none of the dimensions as unset", async () => {
+    await reportRecommendations({
+      jobs: [
+        {
+          jobKey: "build",
+          run: true,
+          summary: "Runs 1 of 1 matrix variations ((unset)).",
+          signals: [],
+          variations: [
+            {
+              match: { os: "linux" },
+              group: {},
+              run: true,
+              summary: runSummary,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(info.mock.calls.map((call) => String(call[0]))).toEqual([
+      "Trunk Dynamic CI Filter recommendations:",
+      "  build: RUN — Runs 1 of 1 matrix variations ((unset)).",
+      `    - [RUN] (unset): ${runSummary}`,
     ]);
   });
 });

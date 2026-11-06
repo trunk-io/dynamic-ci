@@ -51830,6 +51830,14 @@ var dynamic_ci_contract_default = {
             maxLength: 200,
             description: "`BUILDKITE_PIPELINE_SLUG` on an agent.",
             example: "widgets-pr"
+          },
+          matrixBlocks: {
+            type: "object",
+            additionalProperties: {},
+            description: "Each keyed matrix step's `matrix:` block, by step key, as `buildkite-agent pipeline upload --dry-run` renders it with environment variables resolved. Matrix steps are pruned per variation only when their block is sent; a step left out is decided as a whole. Send at most 64 KiB of blocks; Trunk ignores a larger map.",
+            example: {
+              "build-image": ["amd64", "arm64"]
+            }
           }
         },
         required: [
@@ -52253,6 +52261,14 @@ var dynamic_ci_contract_default = {
               node: 20
             }
           },
+          group: {
+            type: "object",
+            additionalProperties: {},
+            description: "The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.",
+            example: {
+              os: "macos-14"
+            }
+          },
           run: {
             type: "boolean",
             description: "Whether this variation's legs should run.",
@@ -52281,6 +52297,7 @@ var PUBLIC_SIGNAL_RESULT_SCHEMA_COMPAT = object({
 var PLAN_NOTICE_SCHEMA = object({ code: string2(), message: string2() });
 var VARIATION_VERDICT_SCHEMA = object({
   match: record(string2(), unknown()),
+  group: record(string2(), unknown()).optional(),
   run: boolean2(),
   summary: string2()
 });
@@ -57023,13 +57040,15 @@ var verdictLabel = (run2) => run2 ? "RUN" : "SKIP";
 var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` : signal.message;
 var displaySignals = (job) => job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
 var matrixValue = (value) => typeof value === "string" && value !== "" ? value : JSON.stringify(value);
+var labelValues = (variation) => variation.group ?? variation.match;
+var UNSET_LABEL = "(unset)";
 var varyingValues = (members) => {
-  const keys = new Set(members.flatMap((member) => Object.keys(member.match)));
+  const keys = new Set(members.flatMap((member) => Object.keys(member)));
   return [...keys].toSorted().map((key) => {
     const values = /* @__PURE__ */ new Map();
     for (const member of members) {
-      if (key in member.match) {
-        const value = member.match[key];
+      if (key in member) {
+        const value = member[key];
         values.set(JSON.stringify(value), matrixValue(value));
       }
     }
@@ -57049,15 +57068,18 @@ var variationGroups = (variations) => {
     }
   }
   return [...byVerdict.values()].map(({ first, members }) => {
-    const shared = Object.keys(first.match).toSorted().filter(
-      (key) => members.every(
-        (other) => key in other.match && JSON.stringify(other.match[key]) === JSON.stringify(first.match[key])
+    const firstValues = labelValues(first);
+    const memberValues = members.map(labelValues);
+    const shared = Object.keys(firstValues).toSorted().filter(
+      (key) => memberValues.every(
+        (other) => key in other && JSON.stringify(other[key]) === JSON.stringify(firstValues[key])
       )
-    ).map((key) => `${key}=${matrixValue(first.match[key])}`).join(", ");
+    ).map((key) => `${key}=${matrixValue(firstValues[key])}`).join(", ");
+    const label = shared === "" ? varyingValues(memberValues) : shared;
     return {
       run: first.run,
       summary: first.summary,
-      label: shared === "" ? varyingValues(members) : shared,
+      label: label === "" ? UNSET_LABEL : label,
       count: members.length
     };
   });

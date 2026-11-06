@@ -193,6 +193,14 @@
             "maxLength": 200,
             "description": "`BUILDKITE_PIPELINE_SLUG` on an agent.",
             "example": "widgets-pr"
+          },
+          "matrixBlocks": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Each keyed matrix step's `matrix:` block, by step key, as `buildkite-agent pipeline upload --dry-run` renders it with environment variables resolved. Matrix steps are pruned per variation only when their block is sent; a step left out is decided as a whole. Send at most 64 KiB of blocks; Trunk ignores a larger map.",
+            "example": {
+              "build-image": ["amd64", "arm64"]
+            }
           }
         },
         "required": [
@@ -614,6 +622,14 @@
             "example": {
               "os": "macos-14",
               "node": 20
+            }
+          },
+          "group": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.",
+            "example": {
+              "os": "macos-14"
             }
           },
           "run": {

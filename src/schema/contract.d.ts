@@ -132,6 +132,18 @@ export interface components {
              * @example widgets-pr
              */
             buildkitePipelineSlug: string;
+            /**
+             * @description Each keyed matrix step's `matrix:` block, by step key, as `buildkite-agent pipeline upload --dry-run` renders it with environment variables resolved. Matrix steps are pruned per variation only when their block is sent; a step left out is decided as a whole. Send at most 64 KiB of blocks; Trunk ignores a larger map.
+             * @example {
+             *       "build-image": [
+             *         "amd64",
+             *         "arm64"
+             *       ]
+             *     }
+             */
+            matrixBlocks?: {
+                [key: string]: unknown;
+            };
         };
         ChangedFile: {
             /** @example src/cache.ts */
@@ -384,6 +396,15 @@ export interface components {
              *     }
              */
             match: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.
+             * @example {
+             *       "os": "macos-14"
+             *     }
+             */
+            group?: {
                 [key: string]: unknown;
             };
             /**
