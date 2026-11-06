@@ -57022,9 +57022,44 @@ var NO_VERDICTS_MESSAGE = "No per-job recommendations were returned. Please cont
 var verdictLabel = (run2) => run2 ? "RUN" : "SKIP";
 var signalMessage = (signal) => signal.ignored ? `(Ignored) ${signal.message}` : signal.message;
 var displaySignals = (job) => job.signals.filter((signal) => signal.recommendation !== "ABSTAIN");
+var matrixValue = (value) => typeof value === "string" && value !== "" ? value : JSON.stringify(value);
+var variationGroups = (variations) => {
+  const byVerdict = /* @__PURE__ */ new Map();
+  for (const variation of variations) {
+    const key = `${String(variation.run)}\0${variation.summary}`;
+    const group = byVerdict.get(key);
+    if (group === void 0) {
+      byVerdict.set(key, { first: variation, members: [variation] });
+    } else {
+      group.members.push(variation);
+    }
+  }
+  return [...byVerdict.values()].map(({ first, members }) => {
+    const shared = Object.keys(first.match).toSorted().filter(
+      (key) => members.every(
+        (other) => key in other.match && JSON.stringify(other.match[key]) === JSON.stringify(first.match[key])
+      )
+    ).map((key) => `${key}=${matrixValue(first.match[key])}`).join(", ");
+    return {
+      run: first.run,
+      summary: first.summary,
+      label: shared === "" ? "(no shared values)" : shared,
+      count: members.length
+    };
+  });
+};
+var groupLabel = ({ label, count }) => count === 1 ? label : `${label} \xD7${String(count)}`;
 var verdictBadge = (run2) => run2 ? "\u2705 RUN" : "\u23ED\uFE0F SKIP";
 var logVerdict = (job) => {
   core5.info(`  ${job.jobKey}: ${verdictLabel(job.run)} \u2014 ${job.summary}`);
+  if (job.variations !== void 0 && job.variations.length > 0) {
+    for (const group of variationGroups(job.variations)) {
+      core5.info(
+        `    - [${verdictLabel(group.run)}] ${groupLabel(group)}: ${group.summary}`
+      );
+    }
+    return;
+  }
   for (const signal of displaySignals(job)) {
     core5.info(
       `    - [${signal.recommendation}] ${signal.type}: ${signalMessage(signal)}`
@@ -57055,13 +57090,24 @@ var signalTable = (job) => [
     ])
   )
 ].join("\n");
+var variationTable = (variations) => [
+  mdRow(["Variations", "Verdict", "Summary"]),
+  mdRow(["---", "---", "---"]),
+  ...variationGroups(variations).map(
+    (group) => mdRow([
+      escapeCell(groupLabel(group)),
+      verdictBadge(group.run),
+      escapeCell(group.summary)
+    ])
+  )
+].join("\n");
 var jobDetails = (job) => [
   "<details>",
   `<summary>${job.jobKey} \u2192 ${verdictBadge(job.run)}</summary>`,
   "",
   `_${escapeCell(job.summary)}_`,
   "",
-  signalTable(job),
+  job.variations !== void 0 && job.variations.length > 0 ? variationTable(job.variations) : signalTable(job),
   "",
   "</details>"
 ].join("\n");
