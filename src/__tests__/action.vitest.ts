@@ -17,7 +17,7 @@ import { createServer, type ServerApi } from "./__fixtures__/msw";
 import {
   PLAN_REASON,
   PLAN_STATUS,
-  INPUT_SOURCE,
+  PLAN_INPUT_SOURCE,
   PlanRequestMetrics,
 } from "../telemetry/protos";
 import { runAction } from "../main";
@@ -682,8 +682,8 @@ describe("the action end to end", () => {
         status: PLAN_STATUS.success,
         reason: PLAN_REASON.none,
         attempts: 1,
-        changedFilesSource: INPUT_SOURCE.none,
-        workflowFileShaSource: INPUT_SOURCE.none,
+        changedFilesSource: PLAN_INPUT_SOURCE.none,
+        workflowFileShaSource: PLAN_INPUT_SOURCE.none,
       });
       // Sent as a `google.protobuf.Duration`, so it has to survive the seconds/nanos
       // split rather than arriving as a raw millisecond count.

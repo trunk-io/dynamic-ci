@@ -13,7 +13,12 @@ import type { Repo as RepoShape } from "../compat";
 import type { PlanOutcome } from "../outcome";
 import type { ChangedFilesSource } from "../changed-files";
 import type { WorkflowFileShaSource } from "../workflow-file-sha";
-import { Duration, INPUT_SOURCE, PlanRequestMetrics, Repo } from "./protos";
+import {
+  Duration,
+  PLAN_INPUT_SOURCE,
+  PlanRequestMetrics,
+  Repo,
+} from "./protos";
 
 const TELEMETRY_ATTEMPTS = 3;
 const HTTP_SERVER_ERROR_FLOOR = 500;
@@ -62,15 +67,15 @@ export interface PlanTelemetry {
   };
 }
 
-const INPUT_SOURCE_OF = {
-  checkout: INPUT_SOURCE.checkout,
-  api: INPUT_SOURCE.githubApi,
+const PLAN_INPUT_SOURCE_OF = {
+  checkout: PLAN_INPUT_SOURCE.checkout,
+  api: PLAN_INPUT_SOURCE.githubApi,
 } as const satisfies Record<ChangedFilesSource | WorkflowFileShaSource, number>;
 
 const inputSource = (
   source: ChangedFilesSource | WorkflowFileShaSource | undefined,
 ): number =>
-  source === undefined ? INPUT_SOURCE.none : INPUT_SOURCE_OF[source];
+  source === undefined ? PLAN_INPUT_SOURCE.none : PLAN_INPUT_SOURCE_OF[source];
 
 /**
  * Report the plan outcome. Fire-and-forget: the verdict is already set, and a

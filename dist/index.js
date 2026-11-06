@@ -56895,7 +56895,7 @@ var PLAN_REASON = {
   repoNotEnabled: "repo_not_enabled",
   workflowNotRecognized: "workflow_not_recognized"
 };
-var INPUT_SOURCE = {
+var PLAN_INPUT_SOURCE = {
   unspecified: 0,
   none: 1,
   checkout: 2,
@@ -57123,11 +57123,11 @@ var durationOf = (durationMs) => {
 };
 var FULL_SHA = /^[0-9a-f]{40}$/i;
 var actionVersionLabel = (ref) => `github/${FULL_SHA.test(ref) ? ref.slice(0, 7) : ref || "unknown"}`;
-var INPUT_SOURCE_OF = {
-  checkout: INPUT_SOURCE.checkout,
-  api: INPUT_SOURCE.githubApi
+var PLAN_INPUT_SOURCE_OF = {
+  checkout: PLAN_INPUT_SOURCE.checkout,
+  api: PLAN_INPUT_SOURCE.githubApi
 };
-var inputSource = (source) => source === void 0 ? INPUT_SOURCE.none : INPUT_SOURCE_OF[source];
+var inputSource = (source) => source === void 0 ? PLAN_INPUT_SOURCE.none : PLAN_INPUT_SOURCE_OF[source];
 var sendPlanTelemetry = async (telemetry) => {
   if (telemetryDisabled()) {
     return;

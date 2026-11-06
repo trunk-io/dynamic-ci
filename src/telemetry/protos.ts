@@ -40,8 +40,8 @@ export const PLAN_REASON = {
   workflowNotRecognized: "workflow_not_recognized",
 } as const;
 
-// trunk1's `InputSource`: where the action read one input of the plan request.
-export const INPUT_SOURCE = {
+// trunk1's `PlanInputSource`: where the action read one input of the plan request.
+export const PLAN_INPUT_SOURCE = {
   unspecified: 0,
   none: 1,
   checkout: 2,
