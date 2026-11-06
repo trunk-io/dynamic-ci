@@ -146,6 +146,7 @@ const stubRunnerEnv = ({
   ignoreSignals = "",
   enableAnnotation = "false",
   impacts = "",
+  matrices = "",
 }: {
   token?: string;
   omitToken?: boolean;
@@ -153,12 +154,14 @@ const stubRunnerEnv = ({
   ignoreSignals?: string;
   enableAnnotation?: string;
   impacts?: string;
+  matrices?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
   vi.stubEnv("INPUT_IGNORE-SIGNALS", ignoreSignals);
   vi.stubEnv("INPUT_ENABLE-ANNOTATION", enableAnnotation);
   vi.stubEnv("INPUT_IMPACTS", impacts);
+  vi.stubEnv("INPUT_MATRICES", matrices);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -433,6 +436,32 @@ describe("the action end to end", () => {
         { source: "targets", all: true },
       ],
     });
+  });
+
+  it("forwards each job's matrix rows as the text written", async () => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    // As GitHub renders `{"unit-tests": ${{ needs.plan.outputs.rows }}}`.
+    const rows = '[{"py": 3.10, "shard": 1},{"py": 3.10, "shard": 2}]';
+    stubRunnerEnv({
+      jobKeys: "unit-tests",
+      matrices: `{"unit-tests": ${rows}, "lint": []}`,
+    });
+
+    await runAction();
+
+    expect(body).toMatchObject({ matrixRows: { "unit-tests": rows } });
+    expect(body).not.toHaveProperty("matrixRowsOmitted");
+  });
+
+  it("sends no matrix rows when the input is unset", async () => {
+    expect(await sendWith()).not.toHaveProperty("matrixRows");
   });
 
   it("sends no impacts when the input is unset", async () => {

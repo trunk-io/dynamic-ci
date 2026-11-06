@@ -39927,8 +39927,8 @@ var require_dist = __commonJS({
   "node_modules/.pnpm/content-type@2.0.0/node_modules/content-type/dist/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.format = format;
-    exports2.parse = parse5;
+    exports2.format = format2;
+    exports2.parse = parse6;
     var TEXT_REGEXP = /^[\u0009\u0020-\u007e\u0080-\u00ff]*$/;
     var TOKEN_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
     var QUOTE_REGEXP = /[\\"]/g;
@@ -39939,7 +39939,7 @@ var require_dist = __commonJS({
       C.prototype = /* @__PURE__ */ Object.create(null);
       return C;
     })();
-    function format(obj) {
+    function format2(obj) {
       const { type, parameters } = obj;
       if (!type || !TYPE_REGEXP.test(type)) {
         throw new TypeError(`Invalid type: ${type}`);
@@ -39955,7 +39955,7 @@ var require_dist = __commonJS({
       }
       return result;
     }
-    function parse5(header, options) {
+    function parse6(header, options) {
       const len = header.length;
       let index = skipOWS(header, 0, len);
       const valueStart = index;
@@ -44825,7 +44825,7 @@ var require_root = __commonJS({
     var OneOf = require_oneof();
     var util = require_util16();
     var Type;
-    var parse5;
+    var parse6;
     var common;
     function Root(options) {
       Namespace.call(this, "", options);
@@ -44893,8 +44893,8 @@ var require_root = __commonJS({
           if (!util.isString(source))
             self2.setOptions(source.options).addJSON(source.nested);
           else {
-            parse5.filename = filename2;
-            var parsed = parse5(source, self2, options), resolved2, i2 = 0;
+            parse6.filename = filename2;
+            var parsed = parse6(source, self2, options), resolved2, i2 = 0;
             if (parsed.imports) {
               for (; i2 < parsed.imports.length; ++i2)
                 if (resolved2 = getBundledFileName(parsed.imports[i2]) || self2.resolvePath(filename2, parsed.imports[i2]))
@@ -45067,7 +45067,7 @@ var require_root = __commonJS({
     };
     Root._configure = function(Type_, parse_, common_) {
       Type = Type_;
-      parse5 = parse_;
+      parse6 = parse_;
       common = common_;
     };
   }
@@ -45182,7 +45182,7 @@ var require_util16 = __commonJS({
       Object.defineProperty(object2, "$type", { value: enm, enumerable: false });
       return enm;
     };
-    util.setProperty = function setProperty(dst, path, value, ifNotSet) {
+    util.setProperty = function setProperty2(dst, path, value, ifNotSet) {
       function setProp(dst2, path2, value2) {
         var part = path2.shift();
         if (util.isUnsafeProperty(part))
@@ -46437,9 +46437,9 @@ var require_tokenize = __commonJS({
 var require_parse3 = __commonJS({
   "node_modules/.pnpm/protobufjs@8.8.0/node_modules/protobufjs/src/parse.js"(exports2, module2) {
     "use strict";
-    module2.exports = parse5;
-    parse5.filename = null;
-    parse5.defaults = { keepCase: false };
+    module2.exports = parse6;
+    parse6.filename = null;
+    parse6.defaults = { keepCase: false };
     var tokenize = require_tokenize();
     var Root = require_root();
     var Type = require_type();
@@ -46465,13 +46465,13 @@ var require_parse3 = __commonJS({
     var typeRefRe = util.patterns.typeRefRe;
     var maxFieldId = 536870911;
     var maxEnumId = 2147483647;
-    function parse5(source, root, options) {
+    function parse6(source, root, options) {
       if (!(root instanceof Root)) {
         options = root;
         root = new Root();
       }
       if (!options)
-        options = parse5.defaults;
+        options = parse6.defaults;
       var preferTrailingComment = options.preferTrailingComment || false;
       var tn = tokenize(source, options.alternateCommentMode || false), next = tn.next, push = tn.push, peek = tn.peek, skip = tn.skip, cmnt = tn.cmnt;
       var head = true, pkg, imports, weakImports, edition = "proto2";
@@ -46491,9 +46491,9 @@ var require_parse3 = __commonJS({
         });
       }
       function illegal(token2, name, insideTryCatch) {
-        var filename = parse5.filename;
+        var filename = parse6.filename;
         if (!insideTryCatch)
-          parse5.filename = null;
+          parse6.filename = null;
         return Error("illegal " + (name || "token") + " '" + token2 + "' (" + (filename ? filename + ", " : "") + "line " + tn.line + ")");
       }
       function readString() {
@@ -46724,7 +46724,7 @@ var require_parse3 = __commonJS({
           if (typeof obj.comment !== "string") {
             obj.comment = cmnt();
           }
-          obj.filename = parse5.filename;
+          obj.filename = parse6.filename;
         }
         if (skip("{", true)) {
           var token2;
@@ -46866,7 +46866,7 @@ var require_parse3 = __commonJS({
         var type = new Type(name);
         type.group = true;
         var field = new Field(fieldName, id, name, rule, extend2);
-        field.filename = parse5.filename;
+        field.filename = parse6.filename;
         ifBlock(type, function parseGroup_block(token2) {
           switch (token2) {
             case ";":
@@ -47275,7 +47275,7 @@ var require_parse3 = __commonJS({
         }
       }
       resolveFileFeatures();
-      parse5.filename = null;
+      parse6.filename = null;
       return {
         "package": pkg,
         "imports": imports,
@@ -52059,6 +52059,25 @@ var dynamic_ci_contract_default = {
             pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$",
             description: "The git blob sha of the workflow file at `commitSha` (`git rev-parse <commitSha>:<workflowPath>`). Matrix jobs are pruned only against the parsed version of exactly this file; without it, a matrix job is decided as a whole.",
             example: "51d537a714c0f1c8a4e92b13d5f0e6a7c2b9d8e1"
+          },
+          matrixRows: {
+            type: "object",
+            additionalProperties: {
+              type: "string"
+            },
+            description: "For matrix jobs whose rows a planner job builds at run time (`fromJSON`): each job's rows array, by job key, as the exact JSON text the planner emitted. Send the text unchanged; Trunk returns the rows it keeps in the same text. A job is pruned per variation only when its rows are sent and they are its whole matrix. Send at most 64 jobs, 64 KiB and 256 rows per job, and 256 KiB in all; a job over its limits is decided as a whole.",
+            example: {
+              tests: '[{"suite":"api","shard":1},{"suite":"web","shard":1}]'
+            }
+          },
+          matrixRowsOmitted: {
+            type: "array",
+            items: {
+              type: "string"
+            },
+            maxItems: 64,
+            description: "Job keys whose rows you left out of `matrixRows` for size. Informational: those jobs are decided as a whole.",
+            example: ["bin-packed"]
           }
         },
         required: [
@@ -52191,9 +52210,49 @@ var dynamic_ci_contract_default = {
             type: "string",
             description: "Set as the `<job>-include` output, unchanged, for a matrix wired as `include: ${{ fromJSON(<output> || '[...]') }}`. The same rows as `matrix`, as a bare JSON array.",
             example: '[{"lane":"parallel","shard":1}]'
+          },
+          dropSetup: {
+            type: "array",
+            items: {
+              type: "integer",
+              minimum: 0
+            },
+            maxItems: 50,
+            description: "For a Buildkite matrix with no dimension names (`matrix: [a, b]` or `setup: [a, b]`): the positions in the step's setup list to delete, counted from 0 in the list you sent in `matrixBlocks`, ascending. Delete them from the step you upload; never every position.",
+            example: [1]
+          },
+          adjustments: {
+            type: "array",
+            items: {
+              $ref: "#/components/schemas/PruneAdjustment"
+            },
+            maxItems: 12,
+            description: "For a Buildkite matrix with named dimensions: entries to append, unchanged, to the step's `matrix.adjustments`. Each skips one variation. With your own adjustments, the step never has more than Buildkite's limit of 12."
           }
         },
         description: "Present only when some legs of this matrix job are skipped and others run. Each field is the exact text for one output; a client sets it unchanged. When every leg is skipped, `run` is false and `prune` is absent."
+      },
+      PruneAdjustment: {
+        type: "object",
+        properties: {
+          with: {
+            type: "object",
+            additionalProperties: {
+              type: "string"
+            },
+            description: "The variation's value for each named dimension, as strings. Buildkite matches these against your `setup` values by their string form.",
+            example: {
+              os: "macos",
+              arch: "arm64"
+            }
+          },
+          skip: {
+            type: "string",
+            description: "The reason Buildkite shows for the skipped variation. It starts with `Trunk Dynamic CI:`.",
+            example: "Trunk Dynamic CI: no changed file has broken this variation."
+          }
+        },
+        required: ["with", "skip"]
       },
       SignalRecommendation: {
         type: "string",
@@ -52264,7 +52323,7 @@ var dynamic_ci_contract_default = {
           group: {
             type: "object",
             additionalProperties: {},
-            description: "The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.",
+            description: "The values of `match` on the job's variation dimensions: the decision group whose verdict this variation took, and what to label this variation by. Empty when the variation sets none of them. Variations in one group can still differ in `run`, because a variation that cannot be pruned runs while its group skips, so combine variations into one line only when both `group` and `run` match.",
             example: {
               os: "macos-14"
             }
@@ -52971,7 +53030,7 @@ function parse3(options) {
   if (!isBinaryRequest) {
     if (options.mediaType.format) {
       headers.accept = headers.accept.split(/,/).map(
-        (format) => format.replace(
+        (format2) => format2.replace(
           /application\/vnd(\.\w+)(\.v3)?(\.\w+)?(\+json)?$/,
           `application/vnd$1$2.${options.mediaType.format}`
         )
@@ -52981,8 +53040,8 @@ function parse3(options) {
       if (options.mediaType.previews?.length) {
         const previewsFromAcceptHeader = headers.accept.match(/(?<![\w-])[\w-]+(?=-preview)/g) || [];
         headers.accept = previewsFromAcceptHeader.concat(options.mediaType.previews).map((preview) => {
-          const format = options.mediaType.format ? `.${options.mediaType.format}` : "+json";
-          return `application/vnd.github.${preview}-preview${format}`;
+          const format2 = options.mediaType.format ? `.${options.mediaType.format}` : "+json";
+          return `application/vnd.github.${preview}-preview${format2}`;
         }).join(",");
       }
     }
@@ -56790,7 +56849,11 @@ var buildRequest = async (inputs) => {
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
     ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles },
-    ...inputs.impacts === void 0 ? {} : { impacts: inputs.impacts }
+    ...inputs.impacts === void 0 ? {} : { impacts: inputs.impacts },
+    ...inputs.matrices === void 0 ? {} : {
+      matrixRows: inputs.matrices.matrixRows,
+      ...inputs.matrices.matrixRowsOmitted.length > 0 ? { matrixRowsOmitted: inputs.matrices.matrixRowsOmitted } : {}
+    }
   };
   return {
     request: request2,
@@ -56801,6 +56864,953 @@ var buildRequest = async (inputs) => {
 
 // src/inputs.ts
 var core3 = __toESM(require_core(), 1);
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/scanner.js
+function createScanner(text, ignoreTrivia = false) {
+  const len = text.length;
+  let pos = 0, value = "", tokenOffset = 0, token = 16, lineNumber = 0, lineStartOffset = 0, tokenLineStartOffset = 0, prevTokenLineStartOffset = 0, scanError = 0;
+  function scanHexDigits(count, exact) {
+    let digits = 0;
+    let value2 = 0;
+    while (digits < count || !exact) {
+      let ch = text.charCodeAt(pos);
+      if (ch >= 48 && ch <= 57) {
+        value2 = value2 * 16 + ch - 48;
+      } else if (ch >= 65 && ch <= 70) {
+        value2 = value2 * 16 + ch - 65 + 10;
+      } else if (ch >= 97 && ch <= 102) {
+        value2 = value2 * 16 + ch - 97 + 10;
+      } else {
+        break;
+      }
+      pos++;
+      digits++;
+    }
+    if (digits < count) {
+      value2 = -1;
+    }
+    return value2;
+  }
+  function setPosition(newPosition) {
+    pos = newPosition;
+    value = "";
+    tokenOffset = 0;
+    token = 16;
+    scanError = 0;
+  }
+  function scanNumber() {
+    let start = pos;
+    if (text.charCodeAt(pos) === 48) {
+      pos++;
+    } else {
+      pos++;
+      while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+      }
+    }
+    if (pos < text.length && text.charCodeAt(pos) === 46) {
+      pos++;
+      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+          pos++;
+        }
+      } else {
+        scanError = 3;
+        return text.substring(start, pos);
+      }
+    }
+    let end = pos;
+    if (pos < text.length && (text.charCodeAt(pos) === 69 || text.charCodeAt(pos) === 101)) {
+      pos++;
+      if (pos < text.length && text.charCodeAt(pos) === 43 || text.charCodeAt(pos) === 45) {
+        pos++;
+      }
+      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+          pos++;
+        }
+        end = pos;
+      } else {
+        scanError = 3;
+      }
+    }
+    return text.substring(start, end);
+  }
+  function scanString() {
+    let result = "", start = pos;
+    while (true) {
+      if (pos >= len) {
+        result += text.substring(start, pos);
+        scanError = 2;
+        break;
+      }
+      const ch = text.charCodeAt(pos);
+      if (ch === 34) {
+        result += text.substring(start, pos);
+        pos++;
+        break;
+      }
+      if (ch === 92) {
+        result += text.substring(start, pos);
+        pos++;
+        if (pos >= len) {
+          scanError = 2;
+          break;
+        }
+        const ch2 = text.charCodeAt(pos++);
+        switch (ch2) {
+          case 34:
+            result += '"';
+            break;
+          case 92:
+            result += "\\";
+            break;
+          case 47:
+            result += "/";
+            break;
+          case 98:
+            result += "\b";
+            break;
+          case 102:
+            result += "\f";
+            break;
+          case 110:
+            result += "\n";
+            break;
+          case 114:
+            result += "\r";
+            break;
+          case 116:
+            result += "	";
+            break;
+          case 117:
+            const ch3 = scanHexDigits(4, true);
+            if (ch3 >= 0) {
+              result += String.fromCharCode(ch3);
+            } else {
+              scanError = 4;
+            }
+            break;
+          default:
+            scanError = 5;
+        }
+        start = pos;
+        continue;
+      }
+      if (ch >= 0 && ch <= 31) {
+        if (isLineBreak(ch)) {
+          result += text.substring(start, pos);
+          scanError = 2;
+          break;
+        } else {
+          scanError = 6;
+        }
+      }
+      pos++;
+    }
+    return result;
+  }
+  function scanNext() {
+    value = "";
+    scanError = 0;
+    tokenOffset = pos;
+    lineStartOffset = lineNumber;
+    prevTokenLineStartOffset = tokenLineStartOffset;
+    if (pos >= len) {
+      tokenOffset = len;
+      return token = 17;
+    }
+    let code = text.charCodeAt(pos);
+    if (isWhiteSpace(code)) {
+      do {
+        pos++;
+        value += String.fromCharCode(code);
+        code = text.charCodeAt(pos);
+      } while (isWhiteSpace(code));
+      return token = 15;
+    }
+    if (isLineBreak(code)) {
+      pos++;
+      value += String.fromCharCode(code);
+      if (code === 13 && text.charCodeAt(pos) === 10) {
+        pos++;
+        value += "\n";
+      }
+      lineNumber++;
+      tokenLineStartOffset = pos;
+      return token = 14;
+    }
+    switch (code) {
+      // tokens: []{}:,
+      case 123:
+        pos++;
+        return token = 1;
+      case 125:
+        pos++;
+        return token = 2;
+      case 91:
+        pos++;
+        return token = 3;
+      case 93:
+        pos++;
+        return token = 4;
+      case 58:
+        pos++;
+        return token = 6;
+      case 44:
+        pos++;
+        return token = 5;
+      // strings
+      case 34:
+        pos++;
+        value = scanString();
+        return token = 10;
+      // comments
+      case 47:
+        const start = pos - 1;
+        if (text.charCodeAt(pos + 1) === 47) {
+          pos += 2;
+          while (pos < len) {
+            if (isLineBreak(text.charCodeAt(pos))) {
+              break;
+            }
+            pos++;
+          }
+          value = text.substring(start, pos);
+          return token = 12;
+        }
+        if (text.charCodeAt(pos + 1) === 42) {
+          pos += 2;
+          const safeLength = len - 1;
+          let commentClosed = false;
+          while (pos < safeLength) {
+            const ch = text.charCodeAt(pos);
+            if (ch === 42 && text.charCodeAt(pos + 1) === 47) {
+              pos += 2;
+              commentClosed = true;
+              break;
+            }
+            pos++;
+            if (isLineBreak(ch)) {
+              if (ch === 13 && text.charCodeAt(pos) === 10) {
+                pos++;
+              }
+              lineNumber++;
+              tokenLineStartOffset = pos;
+            }
+          }
+          if (!commentClosed) {
+            pos++;
+            scanError = 1;
+          }
+          value = text.substring(start, pos);
+          return token = 13;
+        }
+        value += String.fromCharCode(code);
+        pos++;
+        return token = 16;
+      // numbers
+      case 45:
+        value += String.fromCharCode(code);
+        pos++;
+        if (pos === len || !isDigit(text.charCodeAt(pos))) {
+          return token = 16;
+        }
+      // found a minus, followed by a number so
+      // we fall through to proceed with scanning
+      // numbers
+      case 48:
+      case 49:
+      case 50:
+      case 51:
+      case 52:
+      case 53:
+      case 54:
+      case 55:
+      case 56:
+      case 57:
+        value += scanNumber();
+        return token = 11;
+      // literals and unknown symbols
+      default:
+        while (pos < len && isUnknownContentCharacter(code)) {
+          pos++;
+          code = text.charCodeAt(pos);
+        }
+        if (tokenOffset !== pos) {
+          value = text.substring(tokenOffset, pos);
+          switch (value) {
+            case "true":
+              return token = 8;
+            case "false":
+              return token = 9;
+            case "null":
+              return token = 7;
+          }
+          return token = 16;
+        }
+        value += String.fromCharCode(code);
+        pos++;
+        return token = 16;
+    }
+  }
+  function isUnknownContentCharacter(code) {
+    if (isWhiteSpace(code) || isLineBreak(code)) {
+      return false;
+    }
+    switch (code) {
+      case 125:
+      case 93:
+      case 123:
+      case 91:
+      case 34:
+      case 58:
+      case 44:
+      case 47:
+        return false;
+    }
+    return true;
+  }
+  function scanNextNonTrivia() {
+    let result;
+    do {
+      result = scanNext();
+    } while (result >= 12 && result <= 15);
+    return result;
+  }
+  return {
+    setPosition,
+    getPosition: () => pos,
+    scan: ignoreTrivia ? scanNextNonTrivia : scanNext,
+    getToken: () => token,
+    getTokenValue: () => value,
+    getTokenOffset: () => tokenOffset,
+    getTokenLength: () => pos - tokenOffset,
+    getTokenStartLine: () => lineStartOffset,
+    getTokenStartCharacter: () => tokenOffset - prevTokenLineStartOffset,
+    getTokenError: () => scanError
+  };
+}
+function isWhiteSpace(ch) {
+  return ch === 32 || ch === 9;
+}
+function isLineBreak(ch) {
+  return ch === 10 || ch === 13;
+}
+function isDigit(ch) {
+  return ch >= 48 && ch <= 57;
+}
+var CharacterCodes;
+(function(CharacterCodes2) {
+  CharacterCodes2[CharacterCodes2["lineFeed"] = 10] = "lineFeed";
+  CharacterCodes2[CharacterCodes2["carriageReturn"] = 13] = "carriageReturn";
+  CharacterCodes2[CharacterCodes2["space"] = 32] = "space";
+  CharacterCodes2[CharacterCodes2["_0"] = 48] = "_0";
+  CharacterCodes2[CharacterCodes2["_1"] = 49] = "_1";
+  CharacterCodes2[CharacterCodes2["_2"] = 50] = "_2";
+  CharacterCodes2[CharacterCodes2["_3"] = 51] = "_3";
+  CharacterCodes2[CharacterCodes2["_4"] = 52] = "_4";
+  CharacterCodes2[CharacterCodes2["_5"] = 53] = "_5";
+  CharacterCodes2[CharacterCodes2["_6"] = 54] = "_6";
+  CharacterCodes2[CharacterCodes2["_7"] = 55] = "_7";
+  CharacterCodes2[CharacterCodes2["_8"] = 56] = "_8";
+  CharacterCodes2[CharacterCodes2["_9"] = 57] = "_9";
+  CharacterCodes2[CharacterCodes2["a"] = 97] = "a";
+  CharacterCodes2[CharacterCodes2["b"] = 98] = "b";
+  CharacterCodes2[CharacterCodes2["c"] = 99] = "c";
+  CharacterCodes2[CharacterCodes2["d"] = 100] = "d";
+  CharacterCodes2[CharacterCodes2["e"] = 101] = "e";
+  CharacterCodes2[CharacterCodes2["f"] = 102] = "f";
+  CharacterCodes2[CharacterCodes2["g"] = 103] = "g";
+  CharacterCodes2[CharacterCodes2["h"] = 104] = "h";
+  CharacterCodes2[CharacterCodes2["i"] = 105] = "i";
+  CharacterCodes2[CharacterCodes2["j"] = 106] = "j";
+  CharacterCodes2[CharacterCodes2["k"] = 107] = "k";
+  CharacterCodes2[CharacterCodes2["l"] = 108] = "l";
+  CharacterCodes2[CharacterCodes2["m"] = 109] = "m";
+  CharacterCodes2[CharacterCodes2["n"] = 110] = "n";
+  CharacterCodes2[CharacterCodes2["o"] = 111] = "o";
+  CharacterCodes2[CharacterCodes2["p"] = 112] = "p";
+  CharacterCodes2[CharacterCodes2["q"] = 113] = "q";
+  CharacterCodes2[CharacterCodes2["r"] = 114] = "r";
+  CharacterCodes2[CharacterCodes2["s"] = 115] = "s";
+  CharacterCodes2[CharacterCodes2["t"] = 116] = "t";
+  CharacterCodes2[CharacterCodes2["u"] = 117] = "u";
+  CharacterCodes2[CharacterCodes2["v"] = 118] = "v";
+  CharacterCodes2[CharacterCodes2["w"] = 119] = "w";
+  CharacterCodes2[CharacterCodes2["x"] = 120] = "x";
+  CharacterCodes2[CharacterCodes2["y"] = 121] = "y";
+  CharacterCodes2[CharacterCodes2["z"] = 122] = "z";
+  CharacterCodes2[CharacterCodes2["A"] = 65] = "A";
+  CharacterCodes2[CharacterCodes2["B"] = 66] = "B";
+  CharacterCodes2[CharacterCodes2["C"] = 67] = "C";
+  CharacterCodes2[CharacterCodes2["D"] = 68] = "D";
+  CharacterCodes2[CharacterCodes2["E"] = 69] = "E";
+  CharacterCodes2[CharacterCodes2["F"] = 70] = "F";
+  CharacterCodes2[CharacterCodes2["G"] = 71] = "G";
+  CharacterCodes2[CharacterCodes2["H"] = 72] = "H";
+  CharacterCodes2[CharacterCodes2["I"] = 73] = "I";
+  CharacterCodes2[CharacterCodes2["J"] = 74] = "J";
+  CharacterCodes2[CharacterCodes2["K"] = 75] = "K";
+  CharacterCodes2[CharacterCodes2["L"] = 76] = "L";
+  CharacterCodes2[CharacterCodes2["M"] = 77] = "M";
+  CharacterCodes2[CharacterCodes2["N"] = 78] = "N";
+  CharacterCodes2[CharacterCodes2["O"] = 79] = "O";
+  CharacterCodes2[CharacterCodes2["P"] = 80] = "P";
+  CharacterCodes2[CharacterCodes2["Q"] = 81] = "Q";
+  CharacterCodes2[CharacterCodes2["R"] = 82] = "R";
+  CharacterCodes2[CharacterCodes2["S"] = 83] = "S";
+  CharacterCodes2[CharacterCodes2["T"] = 84] = "T";
+  CharacterCodes2[CharacterCodes2["U"] = 85] = "U";
+  CharacterCodes2[CharacterCodes2["V"] = 86] = "V";
+  CharacterCodes2[CharacterCodes2["W"] = 87] = "W";
+  CharacterCodes2[CharacterCodes2["X"] = 88] = "X";
+  CharacterCodes2[CharacterCodes2["Y"] = 89] = "Y";
+  CharacterCodes2[CharacterCodes2["Z"] = 90] = "Z";
+  CharacterCodes2[CharacterCodes2["asterisk"] = 42] = "asterisk";
+  CharacterCodes2[CharacterCodes2["backslash"] = 92] = "backslash";
+  CharacterCodes2[CharacterCodes2["closeBrace"] = 125] = "closeBrace";
+  CharacterCodes2[CharacterCodes2["closeBracket"] = 93] = "closeBracket";
+  CharacterCodes2[CharacterCodes2["colon"] = 58] = "colon";
+  CharacterCodes2[CharacterCodes2["comma"] = 44] = "comma";
+  CharacterCodes2[CharacterCodes2["dot"] = 46] = "dot";
+  CharacterCodes2[CharacterCodes2["doubleQuote"] = 34] = "doubleQuote";
+  CharacterCodes2[CharacterCodes2["minus"] = 45] = "minus";
+  CharacterCodes2[CharacterCodes2["openBrace"] = 123] = "openBrace";
+  CharacterCodes2[CharacterCodes2["openBracket"] = 91] = "openBracket";
+  CharacterCodes2[CharacterCodes2["plus"] = 43] = "plus";
+  CharacterCodes2[CharacterCodes2["slash"] = 47] = "slash";
+  CharacterCodes2[CharacterCodes2["formFeed"] = 12] = "formFeed";
+  CharacterCodes2[CharacterCodes2["tab"] = 9] = "tab";
+})(CharacterCodes || (CharacterCodes = {}));
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/string-intern.js
+var cachedSpaces = new Array(20).fill(0).map((_, index) => {
+  return " ".repeat(index);
+});
+var maxCachedValues = 200;
+var cachedBreakLinesWithSpaces = {
+  " ": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\n" + " ".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + " ".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r\n" + " ".repeat(index);
+    })
+  },
+  "	": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\n" + "	".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + "	".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r\n" + "	".repeat(index);
+    })
+  }
+};
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/parser.js
+var ParseOptions;
+(function(ParseOptions2) {
+  ParseOptions2.DEFAULT = {
+    allowTrailingComma: false
+  };
+})(ParseOptions || (ParseOptions = {}));
+function parseTree(text, errors = [], options = ParseOptions.DEFAULT) {
+  let currentParent = { type: "array", offset: -1, length: -1, children: [], parent: void 0 };
+  function ensurePropertyComplete(endOffset) {
+    if (currentParent.type === "property") {
+      currentParent.length = endOffset - currentParent.offset;
+      currentParent = currentParent.parent;
+    }
+  }
+  function onValue(valueNode) {
+    currentParent.children.push(valueNode);
+    return valueNode;
+  }
+  const visitor = {
+    onObjectBegin: (offset) => {
+      currentParent = onValue({ type: "object", offset, length: -1, parent: currentParent, children: [] });
+    },
+    onObjectProperty: (name, offset, length) => {
+      currentParent = onValue({ type: "property", offset, length: -1, parent: currentParent, children: [] });
+      currentParent.children.push({ type: "string", value: name, offset, length, parent: currentParent });
+    },
+    onObjectEnd: (offset, length) => {
+      ensurePropertyComplete(offset + length);
+      currentParent.length = offset + length - currentParent.offset;
+      currentParent = currentParent.parent;
+      ensurePropertyComplete(offset + length);
+    },
+    onArrayBegin: (offset, length) => {
+      currentParent = onValue({ type: "array", offset, length: -1, parent: currentParent, children: [] });
+    },
+    onArrayEnd: (offset, length) => {
+      currentParent.length = offset + length - currentParent.offset;
+      currentParent = currentParent.parent;
+      ensurePropertyComplete(offset + length);
+    },
+    onLiteralValue: (value, offset, length) => {
+      onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
+      ensurePropertyComplete(offset + length);
+    },
+    onSeparator: (sep2, offset, length) => {
+      if (currentParent.type === "property") {
+        if (sep2 === ":") {
+          currentParent.colonOffset = offset;
+        } else if (sep2 === ",") {
+          ensurePropertyComplete(offset);
+        }
+      }
+    },
+    onError: (error2, offset, length) => {
+      errors.push({ error: error2, offset, length });
+    }
+  };
+  visit(text, visitor, options);
+  const result = currentParent.children[0];
+  if (result) {
+    delete result.parent;
+  }
+  return result;
+}
+function visit(text, visitor, options = ParseOptions.DEFAULT) {
+  const _scanner = createScanner(text, false);
+  const _jsonPath = [];
+  let suppressedCallbacks = 0;
+  function toNoArgVisit(visitFunction) {
+    return visitFunction ? () => suppressedCallbacks === 0 && visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()) : () => true;
+  }
+  function toOneArgVisit(visitFunction) {
+    return visitFunction ? (arg) => suppressedCallbacks === 0 && visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()) : () => true;
+  }
+  function toOneArgVisitWithPath(visitFunction) {
+    return visitFunction ? (arg) => suppressedCallbacks === 0 && visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter(), () => _jsonPath.slice()) : () => true;
+  }
+  function toBeginVisit(visitFunction) {
+    return visitFunction ? () => {
+      if (suppressedCallbacks > 0) {
+        suppressedCallbacks++;
+      } else {
+        let cbReturn = visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter(), () => _jsonPath.slice());
+        if (cbReturn === false) {
+          suppressedCallbacks = 1;
+        }
+      }
+    } : () => true;
+  }
+  function toEndVisit(visitFunction) {
+    return visitFunction ? () => {
+      if (suppressedCallbacks > 0) {
+        suppressedCallbacks--;
+      }
+      if (suppressedCallbacks === 0) {
+        visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter());
+      }
+    } : () => true;
+  }
+  const onObjectBegin = toBeginVisit(visitor.onObjectBegin), onObjectProperty = toOneArgVisitWithPath(visitor.onObjectProperty), onObjectEnd = toEndVisit(visitor.onObjectEnd), onArrayBegin = toBeginVisit(visitor.onArrayBegin), onArrayEnd = toEndVisit(visitor.onArrayEnd), onLiteralValue = toOneArgVisitWithPath(visitor.onLiteralValue), onSeparator = toOneArgVisit(visitor.onSeparator), onComment = toNoArgVisit(visitor.onComment), onError = toOneArgVisit(visitor.onError);
+  const disallowComments = options && options.disallowComments;
+  const allowTrailingComma = options && options.allowTrailingComma;
+  function scanNext() {
+    while (true) {
+      const token = _scanner.scan();
+      switch (_scanner.getTokenError()) {
+        case 4:
+          handleError(
+            14
+            /* ParseErrorCode.InvalidUnicode */
+          );
+          break;
+        case 5:
+          handleError(
+            15
+            /* ParseErrorCode.InvalidEscapeCharacter */
+          );
+          break;
+        case 3:
+          handleError(
+            13
+            /* ParseErrorCode.UnexpectedEndOfNumber */
+          );
+          break;
+        case 1:
+          if (!disallowComments) {
+            handleError(
+              11
+              /* ParseErrorCode.UnexpectedEndOfComment */
+            );
+          }
+          break;
+        case 2:
+          handleError(
+            12
+            /* ParseErrorCode.UnexpectedEndOfString */
+          );
+          break;
+        case 6:
+          handleError(
+            16
+            /* ParseErrorCode.InvalidCharacter */
+          );
+          break;
+      }
+      switch (token) {
+        case 12:
+        case 13:
+          if (disallowComments) {
+            handleError(
+              10
+              /* ParseErrorCode.InvalidCommentToken */
+            );
+          } else {
+            onComment();
+          }
+          break;
+        case 16:
+          handleError(
+            1
+            /* ParseErrorCode.InvalidSymbol */
+          );
+          break;
+        case 15:
+        case 14:
+          break;
+        default:
+          return token;
+      }
+    }
+  }
+  function handleError(error2, skipUntilAfter = [], skipUntil = []) {
+    onError(error2);
+    if (skipUntilAfter.length + skipUntil.length > 0) {
+      let token = _scanner.getToken();
+      while (token !== 17) {
+        if (skipUntilAfter.indexOf(token) !== -1) {
+          scanNext();
+          break;
+        } else if (skipUntil.indexOf(token) !== -1) {
+          break;
+        }
+        token = scanNext();
+      }
+    }
+  }
+  function parseString(isValue) {
+    const value = _scanner.getTokenValue();
+    if (isValue) {
+      onLiteralValue(value);
+    } else {
+      onObjectProperty(value);
+      _jsonPath.push(value);
+    }
+    scanNext();
+    return true;
+  }
+  function parseLiteral() {
+    switch (_scanner.getToken()) {
+      case 11:
+        const tokenValue = _scanner.getTokenValue();
+        let value = Number(tokenValue);
+        if (isNaN(value)) {
+          handleError(
+            2
+            /* ParseErrorCode.InvalidNumberFormat */
+          );
+          value = 0;
+        }
+        onLiteralValue(value);
+        break;
+      case 7:
+        onLiteralValue(null);
+        break;
+      case 8:
+        onLiteralValue(true);
+        break;
+      case 9:
+        onLiteralValue(false);
+        break;
+      default:
+        return false;
+    }
+    scanNext();
+    return true;
+  }
+  function parseProperty() {
+    if (_scanner.getToken() !== 10) {
+      handleError(3, [], [
+        2,
+        5
+        /* SyntaxKind.CommaToken */
+      ]);
+      return false;
+    }
+    parseString(false);
+    if (_scanner.getToken() === 6) {
+      onSeparator(":");
+      scanNext();
+      if (!parseValue()) {
+        handleError(4, [], [
+          2,
+          5
+          /* SyntaxKind.CommaToken */
+        ]);
+      }
+    } else {
+      handleError(5, [], [
+        2,
+        5
+        /* SyntaxKind.CommaToken */
+      ]);
+    }
+    _jsonPath.pop();
+    return true;
+  }
+  function parseObject() {
+    onObjectBegin();
+    scanNext();
+    let needsComma = false;
+    while (_scanner.getToken() !== 2 && _scanner.getToken() !== 17) {
+      if (_scanner.getToken() === 5) {
+        if (!needsComma) {
+          handleError(4, [], []);
+        }
+        onSeparator(",");
+        scanNext();
+        if (_scanner.getToken() === 2 && allowTrailingComma) {
+          break;
+        }
+      } else if (needsComma) {
+        handleError(6, [], []);
+      }
+      if (!parseProperty()) {
+        handleError(4, [], [
+          2,
+          5
+          /* SyntaxKind.CommaToken */
+        ]);
+      }
+      needsComma = true;
+    }
+    onObjectEnd();
+    if (_scanner.getToken() !== 2) {
+      handleError(7, [
+        2
+        /* SyntaxKind.CloseBraceToken */
+      ], []);
+    } else {
+      scanNext();
+    }
+    return true;
+  }
+  function parseArray() {
+    onArrayBegin();
+    scanNext();
+    let isFirstElement = true;
+    let needsComma = false;
+    while (_scanner.getToken() !== 4 && _scanner.getToken() !== 17) {
+      if (_scanner.getToken() === 5) {
+        if (!needsComma) {
+          handleError(4, [], []);
+        }
+        onSeparator(",");
+        scanNext();
+        if (_scanner.getToken() === 4 && allowTrailingComma) {
+          break;
+        }
+      } else if (needsComma) {
+        handleError(6, [], []);
+      }
+      if (isFirstElement) {
+        _jsonPath.push(0);
+        isFirstElement = false;
+      } else {
+        _jsonPath[_jsonPath.length - 1]++;
+      }
+      if (!parseValue()) {
+        handleError(4, [], [
+          4,
+          5
+          /* SyntaxKind.CommaToken */
+        ]);
+      }
+      needsComma = true;
+    }
+    onArrayEnd();
+    if (!isFirstElement) {
+      _jsonPath.pop();
+    }
+    if (_scanner.getToken() !== 4) {
+      handleError(8, [
+        4
+        /* SyntaxKind.CloseBracketToken */
+      ], []);
+    } else {
+      scanNext();
+    }
+    return true;
+  }
+  function parseValue() {
+    switch (_scanner.getToken()) {
+      case 3:
+        return parseArray();
+      case 1:
+        return parseObject();
+      case 10:
+        return parseString(true);
+      default:
+        return parseLiteral();
+    }
+  }
+  scanNext();
+  if (_scanner.getToken() === 17) {
+    if (options.allowEmptyContent) {
+      return true;
+    }
+    handleError(4, [], []);
+    return false;
+  }
+  if (!parseValue()) {
+    handleError(4, [], []);
+    return false;
+  }
+  if (_scanner.getToken() !== 17) {
+    handleError(9, [], []);
+  }
+  return true;
+}
+function getNodeType(value) {
+  switch (typeof value) {
+    case "boolean":
+      return "boolean";
+    case "number":
+      return "number";
+    case "string":
+      return "string";
+    case "object": {
+      if (!value) {
+        return "null";
+      } else if (Array.isArray(value)) {
+        return "array";
+      }
+      return "object";
+    }
+    default:
+      return "null";
+  }
+}
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/main.js
+var ScanError;
+(function(ScanError2) {
+  ScanError2[ScanError2["None"] = 0] = "None";
+  ScanError2[ScanError2["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
+  ScanError2[ScanError2["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
+  ScanError2[ScanError2["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
+  ScanError2[ScanError2["InvalidUnicode"] = 4] = "InvalidUnicode";
+  ScanError2[ScanError2["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
+  ScanError2[ScanError2["InvalidCharacter"] = 6] = "InvalidCharacter";
+})(ScanError || (ScanError = {}));
+var SyntaxKind;
+(function(SyntaxKind2) {
+  SyntaxKind2[SyntaxKind2["OpenBraceToken"] = 1] = "OpenBraceToken";
+  SyntaxKind2[SyntaxKind2["CloseBraceToken"] = 2] = "CloseBraceToken";
+  SyntaxKind2[SyntaxKind2["OpenBracketToken"] = 3] = "OpenBracketToken";
+  SyntaxKind2[SyntaxKind2["CloseBracketToken"] = 4] = "CloseBracketToken";
+  SyntaxKind2[SyntaxKind2["CommaToken"] = 5] = "CommaToken";
+  SyntaxKind2[SyntaxKind2["ColonToken"] = 6] = "ColonToken";
+  SyntaxKind2[SyntaxKind2["NullKeyword"] = 7] = "NullKeyword";
+  SyntaxKind2[SyntaxKind2["TrueKeyword"] = 8] = "TrueKeyword";
+  SyntaxKind2[SyntaxKind2["FalseKeyword"] = 9] = "FalseKeyword";
+  SyntaxKind2[SyntaxKind2["StringLiteral"] = 10] = "StringLiteral";
+  SyntaxKind2[SyntaxKind2["NumericLiteral"] = 11] = "NumericLiteral";
+  SyntaxKind2[SyntaxKind2["LineCommentTrivia"] = 12] = "LineCommentTrivia";
+  SyntaxKind2[SyntaxKind2["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
+  SyntaxKind2[SyntaxKind2["LineBreakTrivia"] = 14] = "LineBreakTrivia";
+  SyntaxKind2[SyntaxKind2["Trivia"] = 15] = "Trivia";
+  SyntaxKind2[SyntaxKind2["Unknown"] = 16] = "Unknown";
+  SyntaxKind2[SyntaxKind2["EOF"] = 17] = "EOF";
+})(SyntaxKind || (SyntaxKind = {}));
+var parseTree2 = parseTree;
+var ParseErrorCode;
+(function(ParseErrorCode2) {
+  ParseErrorCode2[ParseErrorCode2["InvalidSymbol"] = 1] = "InvalidSymbol";
+  ParseErrorCode2[ParseErrorCode2["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
+  ParseErrorCode2[ParseErrorCode2["PropertyNameExpected"] = 3] = "PropertyNameExpected";
+  ParseErrorCode2[ParseErrorCode2["ValueExpected"] = 4] = "ValueExpected";
+  ParseErrorCode2[ParseErrorCode2["ColonExpected"] = 5] = "ColonExpected";
+  ParseErrorCode2[ParseErrorCode2["CommaExpected"] = 6] = "CommaExpected";
+  ParseErrorCode2[ParseErrorCode2["CloseBraceExpected"] = 7] = "CloseBraceExpected";
+  ParseErrorCode2[ParseErrorCode2["CloseBracketExpected"] = 8] = "CloseBracketExpected";
+  ParseErrorCode2[ParseErrorCode2["EndOfFileExpected"] = 9] = "EndOfFileExpected";
+  ParseErrorCode2[ParseErrorCode2["InvalidCommentToken"] = 10] = "InvalidCommentToken";
+  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
+  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
+  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
+  ParseErrorCode2[ParseErrorCode2["InvalidUnicode"] = 14] = "InvalidUnicode";
+  ParseErrorCode2[ParseErrorCode2["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
+  ParseErrorCode2[ParseErrorCode2["InvalidCharacter"] = 16] = "InvalidCharacter";
+})(ParseErrorCode || (ParseErrorCode = {}));
+
+// src/matrices.ts
+var MAX_JOB_BYTES = 64 * 1024;
+var MAX_TOTAL_BYTES = 256 * 1024;
+var MAX_JOBS = 64;
+var JSON_ONLY = { disallowComments: true, allowTrailingComma: false };
+var buildMatrixRows = (raw) => {
+  if (raw.trim() === "") {
+    return void 0;
+  }
+  const errors = [];
+  const root = parseTree2(raw, errors, JSON_ONLY);
+  if (root?.type !== "object" || errors.length > 0) {
+    warn("matrices: not a JSON object; sending no matrix rows.");
+    return void 0;
+  }
+  const matrixRows = {};
+  const omitted = [];
+  let total = 0;
+  for (const property of root.children ?? []) {
+    const [key, value] = property.children ?? [];
+    if (key === void 0 || value === void 0) {
+      continue;
+    }
+    const jobKey = String(key.value);
+    if (value.type !== "array") {
+      warn(`matrices.${jobKey}: not a JSON list of rows; deciding it whole.`);
+      continue;
+    }
+    if ((value.children ?? []).length === 0) {
+      continue;
+    }
+    const text = raw.slice(value.offset, value.offset + value.length);
+    const bytes = Buffer.byteLength(text);
+    if (bytes > MAX_JOB_BYTES || total + bytes > MAX_TOTAL_BYTES || Object.keys(matrixRows).length >= MAX_JOBS) {
+      omitted.push(jobKey);
+      continue;
+    }
+    matrixRows[jobKey] = text;
+    total += bytes;
+  }
+  if (omitted.length > 0) {
+    warn(
+      `matrices: too large to send in full; deciding these jobs whole: ${omitted.join(", ")}.`
+    );
+  }
+  if (Object.keys(matrixRows).length === 0 && omitted.length === 0) {
+    return void 0;
+  }
+  return { matrixRows, matrixRowsOmitted: omitted.slice(0, MAX_JOBS) };
+};
+
+// src/inputs.ts
 var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
 var MAX_IMPACT_COUNT = 1e7;
 var MAX_IMPACTS = 8;
@@ -56879,13 +57889,15 @@ var readInputs = () => {
     );
   }
   const impacts = readImpacts();
+  const matrices = buildMatrixRows(core3.getInput("matrices"));
   return {
     token,
     jobKeys,
     ignoreSignals,
     actionRef: core3.getInput("gh-action-ref"),
     githubToken: core3.getInput("github-token"),
-    ...impacts === void 0 ? {} : { impacts }
+    ...impacts === void 0 ? {} : { impacts },
+    ...matrices === void 0 ? {} : { matrices }
   };
 };
 

@@ -422,6 +422,25 @@
             "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
             "description": "The git blob sha of the workflow file at `commitSha` (`git rev-parse <commitSha>:<workflowPath>`). Matrix jobs are pruned only against the parsed version of exactly this file; without it, a matrix job is decided as a whole.",
             "example": "51d537a714c0f1c8a4e92b13d5f0e6a7c2b9d8e1"
+          },
+          "matrixRows": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "For matrix jobs whose rows a planner job builds at run time (`fromJSON`): each job's rows array, by job key, as the exact JSON text the planner emitted. Send the text unchanged; Trunk returns the rows it keeps in the same text. A job is pruned per variation only when its rows are sent and they are its whole matrix. Send at most 64 jobs, 64 KiB and 256 rows per job, and 256 KiB in all; a job over its limits is decided as a whole.",
+            "example": {
+              "tests": "[{\"suite\":\"api\",\"shard\":1},{\"suite\":\"web\",\"shard\":1}]"
+            }
+          },
+          "matrixRowsOmitted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "description": "Job keys whose rows you left out of `matrixRows` for size. Informational: those jobs are decided as a whole.",
+            "example": ["bin-packed"]
           }
         },
         "required": [
@@ -554,9 +573,49 @@
             "type": "string",
             "description": "Set as the `<job>-include` output, unchanged, for a matrix wired as `include: ${{ fromJSON(<output> || '[...]') }}`. The same rows as `matrix`, as a bare JSON array.",
             "example": "[{\"lane\":\"parallel\",\"shard\":1}]"
+          },
+          "dropSetup": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxItems": 50,
+            "description": "For a Buildkite matrix with no dimension names (`matrix: [a, b]` or `setup: [a, b]`): the positions in the step's setup list to delete, counted from 0 in the list you sent in `matrixBlocks`, ascending. Delete them from the step you upload; never every position.",
+            "example": [1]
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PruneAdjustment"
+            },
+            "maxItems": 12,
+            "description": "For a Buildkite matrix with named dimensions: entries to append, unchanged, to the step's `matrix.adjustments`. Each skips one variation. With your own adjustments, the step never has more than Buildkite's limit of 12."
           }
         },
         "description": "Present only when some legs of this matrix job are skipped and others run. Each field is the exact text for one output; a client sets it unchanged. When every leg is skipped, `run` is false and `prune` is absent."
+      },
+      "PruneAdjustment": {
+        "type": "object",
+        "properties": {
+          "with": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The variation's value for each named dimension, as strings. Buildkite matches these against your `setup` values by their string form.",
+            "example": {
+              "os": "macos",
+              "arch": "arm64"
+            }
+          },
+          "skip": {
+            "type": "string",
+            "description": "The reason Buildkite shows for the skipped variation. It starts with `Trunk Dynamic CI:`.",
+            "example": "Trunk Dynamic CI: no changed file has broken this variation."
+          }
+        },
+        "required": ["with", "skip"]
       },
       "SignalRecommendation": {
         "type": "string",
@@ -627,7 +686,7 @@
           "group": {
             "type": "object",
             "additionalProperties": {},
-            "description": "The values of `match` on the job's variation dimensions: the group of variations decided together, and what to label this variation by. Empty when the variation sets none of them.",
+            "description": "The values of `match` on the job's variation dimensions: the decision group whose verdict this variation took, and what to label this variation by. Empty when the variation sets none of them. Variations in one group can still differ in `run`, because a variation that cannot be pruned runs while its group skips, so combine variations into one line only when both `group` and `run` match.",
             "example": {
               "os": "macos-14"
             }

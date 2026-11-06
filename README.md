@@ -101,6 +101,7 @@ steps:
 | `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
 | `ignore-signals`    | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
 | `impacts`           | no       | A JSON list of how much of the codebase the change affects, one entry per measure. See [Impact reach](#impact-reach).                                                                     |
+| `matrices`          | no       | A JSON object of job key to the rows a planner job built for that job's matrix. See [A matrix built by a planner job](#a-matrix-built-by-a-planner-job).                                  |
 | `enable-annotation` | no       | Post the recommendation to the run — its annotation list and the job summary. Defaults to `false`; the step's logs are written either way.                                                |
 
 Jobs are addressed by their **key** — what the job is written as under `jobs:` in the
@@ -323,6 +324,47 @@ unit-tests:
 `<job>-include` holds the same rows as a bare array, for a matrix that reads them at
 `strategy.matrix.include`. A wrong output in the wrong place makes GitHub reject the
 matrix, which shows as a failed job the first time a variation is skipped.
+
+### A matrix built by a planner job
+
+When a planner job builds the rows at run time (`fromJSON`), the workflow file does not
+have them, so give them to the filter in its `matrices` input. The filter then runs after
+the planner, and the job reads the rows that run from `<job>-include`, or `<job>-matrix`
+when it reads a whole matrix object:
+
+```yaml
+dynamic-ci-filter:
+  needs: [plan]
+  outputs:
+    tests: ${{ steps.f.outputs.tests }}
+    tests-include: ${{ steps.f.outputs.tests-include }}
+  steps:
+    - id: f
+      continue-on-error: true
+      uses: trunk-io/dynamic-ci@v2
+      with:
+        token: ${{ secrets.TRUNK_API_TOKEN }}
+        matrices: >-
+          {"tests": ${{ needs.plan.outputs.rows || '[]' }}}
+
+tests:
+  needs: [plan, dynamic-ci-filter]
+  if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.tests != 'false' }}
+  strategy:
+    matrix:
+      include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.tests-include || needs.plan.outputs.rows) }}
+```
+
+- Pass the planner's output unchanged. The filter sends each job's rows as written, and
+  the output keeps the rows that run in the same text, so job names do not change.
+- The rows must be the job's whole matrix: an expression for all of `matrix:`, or for
+  `include:` with no matrix variables (such as `os: [linux, macos]`) beside it. A job with
+  variables beside the expression runs or skips as a whole, because a row can then add to
+  a variable's job instead of making its own.
+- The fields that name a variation are set in Dynamic CI's job settings, not here. A field
+  that changes on every run, such as a shard number, gives a new variation on every run.
+- The filter sends at most 64 jobs, 64 KiB of rows for each job and 256 KiB in all. A job
+  over these limits runs or skips as a whole, and the step logs a warning.
 
 ### Matrix legs as required checks
 

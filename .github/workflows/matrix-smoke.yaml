@@ -122,7 +122,6 @@ jobs:
           token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
           # job key -> the rows its runtime matrix is built from. Which fields
           # identify a variant is configured in Trunk, not here.
-          # trunk-ignore(actionlint/action): the `matrices` input is not released yet
           matrices: >-
             {"runtime-sharded": ${{ needs.planner.outputs.runtime-sharded-rows || '[]' }},
             "runtime-matrix-object": ${{ needs.planner.outputs.runtime-matrix-object-rows || '[]' }},

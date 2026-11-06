@@ -128,8 +128,10 @@ const jobVerdictKeysMatch: SameKeys<
   z.input<typeof JOB_VERDICT_SCHEMA>
 > = true;
 const planKeysMatch: SameKeys<WidenedPlan, Parsed> = true;
+// `dropSetup` and `adjustments` are the Buildkite plugin's outputs; a GitHub
+// plan never carries them, so the parser leaves them out on purpose.
 const pruneKeysMatch: SameKeys<
-  components["schemas"]["Prune"],
+  Omit<components["schemas"]["Prune"], "dropSetup" | "adjustments">,
   z.input<typeof PRUNE_SCHEMA>
 > = true;
 const variationKeysMatch: SameKeys<

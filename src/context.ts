@@ -192,6 +192,14 @@ export const buildRequest = async (
       : {}),
     ...(resolved === undefined ? {} : { changedFiles: resolved.changedFiles }),
     ...(inputs.impacts === undefined ? {} : { impacts: inputs.impacts }),
+    ...(inputs.matrices === undefined
+      ? {}
+      : {
+          matrixRows: inputs.matrices.matrixRows,
+          ...(inputs.matrices.matrixRowsOmitted.length > 0
+            ? { matrixRowsOmitted: inputs.matrices.matrixRowsOmitted }
+            : {}),
+        }),
   };
   return {
     request,
