@@ -11,7 +11,7 @@ import { reportFailOpen, reportRecommendations } from "./report";
 import { PLAN_REASON, PLAN_STATUS } from "./telemetry/protos";
 import { sendPlanTelemetry } from "./telemetry";
 
-const CHANGED_FILES_SOURCE_LABEL = {
+const INPUT_SOURCE_LABEL = {
   checkout: "the checkout",
   api: "the GitHub API",
 } as const satisfies Record<ChangedFilesSource, string>;
@@ -39,14 +39,14 @@ export const run = async (): Promise<void> => {
     core.info("Changed files: not sent; Trunk will fetch the diff.");
   } else {
     core.info(
-      `Changed files: ${String(request.changedFiles.totalFiles)} from ${CHANGED_FILES_SOURCE_LABEL[changedFilesSource]}.`,
+      `Changed files: ${String(request.changedFiles.totalFiles)} from ${INPUT_SOURCE_LABEL[changedFilesSource]}.`,
     );
   }
 
   core.info(
     workflowFileShaSource === undefined
       ? "Workflow file sha: not found, so matrix jobs are decided as a whole."
-      : `Workflow file sha: ${request.workflowFileSha ?? ""} from ${CHANGED_FILES_SOURCE_LABEL[workflowFileShaSource]}.`,
+      : `Workflow file sha: ${request.workflowFileSha ?? ""} from ${INPUT_SOURCE_LABEL[workflowFileShaSource]}.`,
   );
 
   const requestInputs = {

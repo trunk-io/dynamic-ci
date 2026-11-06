@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -81,6 +81,31 @@ const checkoutWithWorkflow = (): {
   };
 };
 
+/** A checkout whose workflow file is a symlink to another file. */
+const checkoutWithSymlinkedWorkflow = (): { dir: string; commit: string } => {
+  const dir = mkdtempSync(join(tmpdir(), "dci-link-"));
+  const git = (...args: readonly string[]): string =>
+    execFileSync("git", [...args], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        PATH: process.env["PATH"] ?? "",
+        HOME: dir,
+        GIT_AUTHOR_NAME: "t",
+        GIT_AUTHOR_EMAIL: "t@example.com",
+        GIT_COMMITTER_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@example.com",
+      },
+    }).trim();
+  git("init", "--quiet", "--initial-branch=main");
+  mkdirSync(join(dir, ".github", "workflows"), { recursive: true });
+  writeFileSync(join(dir, "real.yml"), "on: push\njobs: {}\n");
+  symlinkSync("../../real.yml", join(dir, PATH));
+  git("add", ".");
+  git("commit", "--quiet", "-m", "linked workflow");
+  return { dir, commit: git("rev-parse", "HEAD") };
+};
+
 describe("fromCheckout", () => {
   it("reads the file's blob sha at the commit, as git names it", async () => {
     const { dir, commit, blob } = checkoutWithWorkflow();
@@ -113,6 +138,17 @@ describe("fromCheckout", () => {
         path,
         cwd: checkout.dir,
       }),
+    ).toBeUndefined();
+  });
+});
+
+describe("fromCheckout and symlinks", () => {
+  // The link's own blob sha is not the file's, and the contents API answers
+  // `type: "symlink"`, so the two would disagree: send none.
+  it("sends none for a workflow file that is a symlink", async () => {
+    const { dir, commit } = checkoutWithSymlinkedWorkflow();
+    expect(
+      await fromCheckout({ commitSha: commit, path: PATH, cwd: dir }),
     ).toBeUndefined();
   });
 });
@@ -196,6 +232,25 @@ describe("resolveWorkflowFileSha", () => {
         cwd: mkdtempSync(join(tmpdir(), "dci-nogit-")),
       }),
     ).toEqual({ sha: API_SHA, source: "api" });
+  });
+
+  // An organization's required workflow keeps its own repository's prefix.
+  it("looks up nothing for a workflow that is not in this repository", async () => {
+    github
+      .get(GITHUB_API)
+      .intercept({ path: /^\/repos\/acme\/widgets\/contents\//, method: "GET" })
+      .reply(200, JSON.stringify({ type: "file", sha: API_SHA }), {
+        headers: { "content-type": "application/json" },
+      });
+    expect(
+      await resolveWorkflowFileSha({
+        commitSha: "a".repeat(40),
+        path: "acme/policies/.github/workflows/required.yml",
+        repo: REPO,
+        githubToken: "t",
+        cwd: mkdtempSync(join(tmpdir(), "dci-nogit-")),
+      }),
+    ).toBeUndefined();
   });
 
   it("sends none when neither can answer", async () => {

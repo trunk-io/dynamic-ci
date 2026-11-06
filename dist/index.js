@@ -56441,6 +56441,11 @@ function getOctokit(token, options, ...additionalPlugins) {
   return new GitHubWithPlugins(getOctokitOptions(token, options));
 }
 
+// src/github.ts
+var githubClient = (token) => getOctokit(token, {
+  baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com"
+});
+
 // src/changed-files.ts
 var MAX_CHANGED_FILES = 200;
 var API_PAGE_SIZE = 100;
@@ -56555,9 +56560,7 @@ var fromApi = async (pr, repo, githubToken) => {
     return void 0;
   }
   try {
-    const octokit = getOctokit(githubToken, {
-      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com"
-    });
+    const octokit = githubClient(githubToken);
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner: repo.owner,
       repo: repo.name,
@@ -56605,6 +56608,8 @@ var import_node_util2 = require("node:util");
 var API_TIMEOUT_MS2 = 1e4;
 var GIT_TIMEOUT_MS2 = 1e4;
 var BLOB_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+var REGULAR_FILE_MODES = /* @__PURE__ */ new Set(["100644", "100755"]);
+var WORKFLOW_DIRECTORY = ".github/workflows/";
 var execFileAsync2 = (0, import_node_util2.promisify)(import_node_child_process2.execFile);
 var fromCheckout2 = async ({
   commitSha,
@@ -56623,8 +56628,8 @@ var fromCheckout2 = async ({
       return void 0;
     }
     const [meta2 = "", entryPath] = entry.split("	");
-    const [, type, sha = ""] = meta2.split(" ");
-    return type === "blob" && entryPath === path && BLOB_SHA.test(sha) ? sha : void 0;
+    const [mode = "", type, sha = ""] = meta2.split(" ");
+    return REGULAR_FILE_MODES.has(mode) && type === "blob" && entryPath === path && BLOB_SHA.test(sha) ? sha : void 0;
   } catch {
     return void 0;
   }
@@ -56639,9 +56644,7 @@ var fromApi2 = async ({
     return void 0;
   }
   try {
-    const octokit = getOctokit(githubToken, {
-      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com"
-    });
+    const octokit = githubClient(githubToken);
     const { data } = await octokit.rest.repos.getContent({
       owner: repo.owner,
       repo: repo.name,
@@ -56661,7 +56664,7 @@ var resolveWorkflowFileSha = async ({
   githubToken,
   cwd
 }) => {
-  if (commitSha === "" || path === "") {
+  if (commitSha === "" || !path.startsWith(WORKFLOW_DIRECTORY)) {
     return void 0;
   }
   const checkout = await fromCheckout2({ commitSha, path, cwd });
@@ -56949,23 +56952,53 @@ var core4 = __toESM(require_core(), 1);
 var setJobOutput = (jobKey, run2) => {
   core4.setOutput(jobKey, run2 ? "true" : "false");
 };
-var setPruneOutputs = (jobKey, prune) => {
-  if (prune.exclude !== void 0) {
-    core4.setOutput(`${jobKey}-exclude`, prune.exclude);
+var PRUNE_OUTPUTS = [
+  { field: "exclude", suffix: "-exclude", shape: "array" },
+  { field: "matrix", suffix: "-matrix", shape: "object" },
+  { field: "include", suffix: "-include", shape: "array" }
+];
+var hasShape = (text, shape) => {
+  try {
+    const value = JSON.parse(text);
+    return shape === "array" ? Array.isArray(value) : typeof value === "object" && value !== null && !Array.isArray(value);
+  } catch {
+    return false;
   }
-  if (prune.matrix !== void 0) {
-    core4.setOutput(`${jobKey}-matrix`, prune.matrix);
-  }
-  if (prune.include !== void 0) {
-    core4.setOutput(`${jobKey}-include`, prune.include);
+};
+var setPruneOutputs = ({
+  jobKey,
+  prune,
+  jobKeys
+}) => {
+  for (const { field, suffix, shape } of PRUNE_OUTPUTS) {
+    const text = prune[field];
+    if (text === void 0) {
+      continue;
+    }
+    const name = `${jobKey}${suffix}`;
+    if (jobKeys.has(name)) {
+      warn(
+        `Not setting "${name}": a job has that key, and its own output would be overwritten. Every variation of "${jobKey}" runs.`
+      );
+    } else if (!hasShape(text, shape)) {
+      warn(
+        `Not setting "${name}": Trunk returned a value that is not a JSON ${shape}. Every variation of "${jobKey}" runs.`
+      );
+    } else {
+      core4.setOutput(name, text);
+    }
   }
 };
 var setOutputs = (response, requestedJobKeys) => {
   const decided = /* @__PURE__ */ new Set();
+  const jobKeys = /* @__PURE__ */ new Set([
+    ...response.jobs.map((job) => job.jobKey),
+    ...requestedJobKeys
+  ]);
   for (const job of response.jobs) {
     setJobOutput(job.jobKey, job.run);
-    if (job.prune !== void 0) {
-      setPruneOutputs(job.jobKey, job.prune);
+    if (job.run && job.prune !== void 0) {
+      setPruneOutputs({ jobKey: job.jobKey, prune: job.prune, jobKeys });
     }
     decided.add(job.jobKey);
   }
@@ -57184,7 +57217,7 @@ var sendPlanTelemetry = async (telemetry) => {
 };
 
 // src/main.ts
-var CHANGED_FILES_SOURCE_LABEL = {
+var INPUT_SOURCE_LABEL = {
   checkout: "the checkout",
   api: "the GitHub API"
 };
@@ -57204,11 +57237,11 @@ var run = async () => {
     core7.info("Changed files: not sent; Trunk will fetch the diff.");
   } else {
     core7.info(
-      `Changed files: ${String(request2.changedFiles.totalFiles)} from ${CHANGED_FILES_SOURCE_LABEL[changedFilesSource]}.`
+      `Changed files: ${String(request2.changedFiles.totalFiles)} from ${INPUT_SOURCE_LABEL[changedFilesSource]}.`
     );
   }
   core7.info(
-    workflowFileShaSource === void 0 ? "Workflow file sha: not found, so matrix jobs are decided as a whole." : `Workflow file sha: ${request2.workflowFileSha ?? ""} from ${CHANGED_FILES_SOURCE_LABEL[workflowFileShaSource]}.`
+    workflowFileShaSource === void 0 ? "Workflow file sha: not found, so matrix jobs are decided as a whole." : `Workflow file sha: ${request2.workflowFileSha ?? ""} from ${INPUT_SOURCE_LABEL[workflowFileShaSource]}.`
   );
   const requestInputs = {
     changedFiles: changedFilesSource,

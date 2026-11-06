@@ -1,11 +1,16 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { getOctokit } from "@actions/github";
 import type { Repo } from "./compat";
+import { githubClient } from "./github";
 
 const API_TIMEOUT_MS = 10_000;
 const GIT_TIMEOUT_MS = 10_000;
 const BLOB_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+// A symlink is a blob too (mode 120000), but its sha is the link's, not the file's.
+const REGULAR_FILE_MODES: ReadonlySet<string> = new Set(["100644", "100755"]);
+// A workflow from another repository (an organization's required workflow) keeps
+// that repository's prefix and is not in this one: looking it up only spends a call.
+const WORKFLOW_DIRECTORY = ".github/workflows/";
 
 export type WorkflowFileShaSource = "checkout" | "api";
 
@@ -43,8 +48,11 @@ export const fromCheckout = async ({
     }
     // `<mode> SP <type> SP <sha> TAB <path>`
     const [meta = "", entryPath] = entry.split("\t");
-    const [, type, sha = ""] = meta.split(" ");
-    return type === "blob" && entryPath === path && BLOB_SHA.test(sha)
+    const [mode = "", type, sha = ""] = meta.split(" ");
+    return REGULAR_FILE_MODES.has(mode) &&
+      type === "blob" &&
+      entryPath === path &&
+      BLOB_SHA.test(sha)
       ? sha
       : undefined;
   } catch {
@@ -68,9 +76,7 @@ export const fromApi = async ({
     return undefined;
   }
   try {
-    const octokit = getOctokit(githubToken, {
-      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com",
-    });
+    const octokit = githubClient(githubToken);
     const { data } = await octokit.rest.repos.getContent({
       owner: repo.owner,
       repo: repo.name,
@@ -109,7 +115,7 @@ export const resolveWorkflowFileSha = async ({
   githubToken: string;
   cwd: string;
 }): Promise<ResolvedWorkflowFileSha | undefined> => {
-  if (commitSha === "" || path === "") {
+  if (commitSha === "" || !path.startsWith(WORKFLOW_DIRECTORY)) {
     return undefined;
   }
   const checkout = await fromCheckout({ commitSha, path, cwd });

@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { getOctokit } from "@actions/github";
 import type { components } from "./schema/contract.js";
 import type { Repo } from "./compat";
+import { githubClient } from "./github";
 
 export type ChangedFiles = components["schemas"]["ChangedFiles"];
 type ChangedFile = components["schemas"]["ChangedFile"];
@@ -62,7 +62,7 @@ export const parseGitDiff = (
 ): ChangedFiles => {
   const counts = new Map<string, { additions: number; deletions: number }>();
   const numstatFields = fields(numstat);
-  for (let i = 0; i < numstatFields.length; ) {
+  for (let i = 0; i < numstatFields.length;) {
     const [added, deleted, ...rest] = (numstatFields[i] ?? "").split("\t");
     const lines = {
       additions: lineCount(added),
@@ -80,7 +80,7 @@ export const parseGitDiff = (
 
   const files: ChangedFile[] = [];
   const statusFields = fields(status);
-  for (let i = 0; i < statusFields.length; ) {
+  for (let i = 0; i < statusFields.length;) {
     const code = (statusFields[i] ?? "").slice(0, 1);
     const moved = code === "R" || code === "C";
     const path = statusFields[i + (moved ? 2 : 1)] ?? "";
@@ -172,9 +172,7 @@ export const fromApi = async (
     return undefined;
   }
   try {
-    const octokit = getOctokit(githubToken, {
-      baseUrl: process.env["GITHUB_API_URL"] || "https://api.github.com",
-    });
+    const octokit = githubClient(githubToken);
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner: repo.owner,
       repo: repo.name,

@@ -14,15 +14,55 @@ const setJobOutput = (jobKey: string, run: boolean): void => {
  * unused. Nothing is set when nothing is pruned, so `||` falls back to the
  * customer's own matrix.
  */
-const setPruneOutputs = (jobKey: string, prune: Prune): void => {
-  if (prune.exclude !== undefined) {
-    core.setOutput(`${jobKey}-exclude`, prune.exclude);
+const PRUNE_OUTPUTS = [
+  { field: "exclude", suffix: "-exclude", shape: "array" },
+  { field: "matrix", suffix: "-matrix", shape: "object" },
+  { field: "include", suffix: "-include", shape: "array" },
+] as const satisfies readonly {
+  field: keyof Prune;
+  suffix: string;
+  shape: "array" | "object";
+}[];
+
+/** Parsed only to check it, never re-encoded: the text is set as Trunk built it. */
+const hasShape = (text: string, shape: "array" | "object"): boolean => {
+  try {
+    const value: unknown = JSON.parse(text);
+    return shape === "array"
+      ? Array.isArray(value)
+      : typeof value === "object" && value !== null && !Array.isArray(value);
+  } catch {
+    return false;
   }
-  if (prune.matrix !== undefined) {
-    core.setOutput(`${jobKey}-matrix`, prune.matrix);
-  }
-  if (prune.include !== undefined) {
-    core.setOutput(`${jobKey}-include`, prune.include);
+};
+
+const setPruneOutputs = ({
+  jobKey,
+  prune,
+  jobKeys,
+}: {
+  jobKey: string;
+  prune: Prune;
+  jobKeys: ReadonlySet<string>;
+}): void => {
+  for (const { field, suffix, shape } of PRUNE_OUTPUTS) {
+    const text = prune[field];
+    if (text === undefined) {
+      continue;
+    }
+    const name = `${jobKey}${suffix}`;
+    // Not set, so the matrix falls back to its `||` default and every leg runs.
+    if (jobKeys.has(name)) {
+      warn(
+        `Not setting "${name}": a job has that key, and its own output would be overwritten. Every variation of "${jobKey}" runs.`,
+      );
+    } else if (!hasShape(text, shape)) {
+      warn(
+        `Not setting "${name}": Trunk returned a value that is not a JSON ${shape}. Every variation of "${jobKey}" runs.`,
+      );
+    } else {
+      core.setOutput(name, text);
+    }
   }
 };
 
@@ -41,10 +81,15 @@ export const setOutputs = (
   requestedJobKeys: string[],
 ): void => {
   const decided = new Set<string>();
+  const jobKeys = new Set([
+    ...response.jobs.map((job) => job.jobKey),
+    ...requestedJobKeys,
+  ]);
   for (const job of response.jobs) {
     setJobOutput(job.jobKey, job.run);
-    if (job.prune !== undefined) {
-      setPruneOutputs(job.jobKey, job.prune);
+    // A skipped job has no matrix to prune.
+    if (job.run && job.prune !== undefined) {
+      setPruneOutputs({ jobKey: job.jobKey, prune: job.prune, jobKeys });
     }
     decided.add(job.jobKey);
   }

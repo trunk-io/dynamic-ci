@@ -80,6 +80,83 @@ describe("setOutputs", () => {
     ]);
   });
 
+  it("sets no prune output for a job that is skipped, even if Trunk sent one", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: false,
+            summary: "Skip",
+            signals: [],
+            prune: { exclude: '[{"os":"macos"}]' },
+          },
+        ],
+      },
+      ["test"],
+    );
+    expect(setOutput.mock.calls).toEqual([["test", "false"]]);
+  });
+
+  // `test-matrix` is both `test`'s prune output and a job's own output; setting
+  // both would leave one of them wrong.
+  it("does not set a prune output whose name is a job's key, and says so", () => {
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "test",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune: { matrix: '{"include":[{"os":"linux"}]}' },
+          },
+          { jobKey: "test-matrix", run: false, summary: "Skip", signals: [] },
+        ],
+      },
+      ["test", "test-matrix"],
+    );
+    expect({
+      outputs: setOutput.mock.calls,
+      warnings: warning.mock.calls,
+    }).toEqual({
+      outputs: [
+        ["test", "true"],
+        ["test-matrix", "false"],
+      ],
+      warnings: [[expect.stringContaining('Not setting "test-matrix"')]],
+    });
+  });
+
+  it.each([
+    { why: "is not JSON", prune: { exclude: '[{"os":' } },
+    {
+      why: "is an object where an array goes",
+      prune: { exclude: '{"os":"macos"}' },
+    },
+    { why: "is an array where an object goes", prune: { matrix: "[]" } },
+    { why: "is null", prune: { include: "null" } },
+  ])(
+    "drops a prune output that $why, so the matrix falls back to its default",
+    ({ prune }) => {
+      setOutputs(
+        {
+          jobs: [
+            { jobKey: "test", run: true, summary: "Run", signals: [], prune },
+          ],
+        },
+        ["test"],
+      );
+      expect({
+        outputs: setOutput.mock.calls,
+        warnings: warning.mock.calls.length,
+      }).toEqual({
+        outputs: [["test", "true"]],
+        warnings: 1,
+      });
+    },
+  );
+
   it("sets no prune output when every leg is skipped, so the job's if: skips it", () => {
     setOutputs(
       {
