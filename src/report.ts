@@ -38,8 +38,33 @@ const matrixValue = (value: unknown): string =>
   typeof value === "string" && value !== "" ? value : JSON.stringify(value);
 
 /**
+ * Names a group by the values its members vary over, for when they share none
+ * (a one-axis matrix always lands here): `domain={ci, admin-portal}`.
+ */
+const varyingValues = (members: readonly VariationVerdict[]): string => {
+  const keys = new Set(members.flatMap((member) => Object.keys(member.match)));
+  return [...keys]
+    .toSorted()
+    .map((key) => {
+      const values = new Map<string, string>();
+      for (const member of members) {
+        if (key in member.match) {
+          const value = member.match[key];
+          values.set(JSON.stringify(value), matrixValue(value));
+        }
+      }
+      const listed = [...values.values()];
+      return listed.length === 1
+        ? `${key}=${listed.join("")}`
+        : `${key}={${listed.join(", ")}}`;
+    })
+    .join(", ");
+};
+
+/**
  * Variations that share a verdict and a summary were decided together (one
- * decision group), so they print as one line, named by the values they share.
+ * decision group), so they print as one line, named by the values they share,
+ * or by the values they vary over when they share none.
  */
 interface VariationGroup {
   run: boolean;
@@ -80,7 +105,7 @@ const variationGroups = (
     return {
       run: first.run,
       summary: first.summary,
-      label: shared === "" ? "(no shared values)" : shared,
+      label: shared === "" ? varyingValues(members) : shared,
       count: members.length,
     };
   });

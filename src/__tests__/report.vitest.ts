@@ -252,3 +252,43 @@ describe("a job decided per matrix variation", () => {
     ]);
   });
 });
+
+describe("a one-axis matrix decided per variation", () => {
+  const greenSummary =
+    "The job should skip because this pull request is a draft and reliably green (100.0% pass rate over 13 runs).";
+  const notRequiredSummary =
+    "The job should skip because this pull request is a draft and this job is not required to merge.";
+  const oneAxis = {
+    jobs: [
+      {
+        jobKey: "domain-integration-tests",
+        run: false,
+        summary: "Decided per matrix variation: 0 of 5 run.",
+        signals: [],
+        variations: [
+          ...["flaky-tests", "dynamic-ci", "merge-queue"].map((domain) => ({
+            match: { domain },
+            run: false,
+            summary: greenSummary,
+          })),
+          ...["ci", "admin-portal"].map((domain) => ({
+            match: { domain },
+            run: false,
+            summary: notRequiredSummary,
+          })),
+        ],
+      },
+    ],
+  } as const satisfies DynamicCiResponse;
+
+  it("names each group by the values it varies over", async () => {
+    await reportRecommendations(oneAxis);
+
+    expect(info.mock.calls.map((call) => String(call[0]))).toEqual([
+      "Trunk Dynamic CI Filter recommendations:",
+      "  domain-integration-tests: SKIP — Decided per matrix variation: 0 of 5 run.",
+      `    - [SKIP] domain={flaky-tests, dynamic-ci, merge-queue} ×3: ${greenSummary}`,
+      `    - [SKIP] domain={ci, admin-portal} ×2: ${notRequiredSummary}`,
+    ]);
+  });
+});
