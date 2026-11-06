@@ -260,6 +260,11 @@ export interface components {
              * @example .github/workflows/ci.yaml
              */
             workflowPath: string;
+            /**
+             * @description The git blob sha of the workflow file at `commitSha` (`git rev-parse <commitSha>:<workflowPath>`). Matrix jobs are pruned only against the parsed version of exactly this file; without it, a matrix job is decided as a whole.
+             * @example 51d537a714c0f1c8a4e92b13d5f0e6a7c2b9d8e1
+             */
+            workflowFileSha?: string;
         };
         JobVerdict: {
             /**
@@ -279,6 +284,9 @@ export interface components {
             summary: string;
             /** @description The audit trail behind `summary`, abstentions included. */
             signals: components["schemas"]["SignalResult"][];
+            /** @description One verdict per matrix variation, for a job decided per variation. Informational: act on `run` and `prune`, never on these. */
+            variations?: components["schemas"]["VariationVerdict"][];
+            prune?: components["schemas"]["Prune"];
         };
         PlanImpact: {
             /**
@@ -323,6 +331,24 @@ export interface components {
             /** @example widgets */
             name: string;
         };
+        /** @description Present only when some legs of this matrix job are skipped and others run. Each field is the exact text for one output; a client sets it unchanged. When every leg is skipped, `run` is false and `prune` is absent. */
+        Prune: {
+            /**
+             * @description Set as the `<job>-exclude` output, unchanged, for a matrix declared with axes and wired as `exclude: ${{ fromJSON(<output> || '[...your own excludes...]') }}`. A JSON array: your own `exclude` entries first, then one entry per pruned leg. Do not parse or re-encode it: GitHub matches `exclude` by JSON type.
+             * @example [{"os":"macos-14","node":20}]
+             */
+            exclude?: string;
+            /**
+             * @description Set as the `<job>-matrix` output, unchanged, for a matrix written as `matrix: ${{ fromJSON(<output> || '{"include":[...]}') }}`. A JSON object `{"include": [...]}` holding the rows that run, each exactly as written in your literal, so leg names do not change.
+             * @example {"include":[{"lane":"parallel","shard":1}]}
+             */
+            matrix?: string;
+            /**
+             * @description Set as the `<job>-include` output, unchanged, for a matrix wired as `include: ${{ fromJSON(<output> || '[...]') }}`. The same rows as `matrix`, as a bare JSON array.
+             * @example [{"lane":"parallel","shard":1}]
+             */
+            include?: string;
+        };
         /**
          * @description One signal's contribution. `MUST_RUN` and `NEVER_RUN` are hard verdicts (a single one decides, with `MUST_RUN` winning a tie); `VOTE_RUN` and `VOTE_NO_RUN` are weighted votes. `INCOMPLETE` means the signal applies but lacks evidence — two of them fail the job safe to running. `ABSTAIN` means the signal does not apply at all and is excluded from the tally entirely, which is what makes it different from `INCOMPLETE`.
          * @example VOTE_NO_RUN
@@ -349,6 +375,28 @@ export interface components {
          * @enum {string}
          */
         SignalType: "estimated-cost" | "previous-result-on-pr" | "historical-pass-rate" | "diff-driven-volatility" | "force-override" | "merge-failure" | "mid-pr-stack" | "required-check" | "merge-queue-is-required" | "paths-filter" | "draft-pull-request" | "impact-reach";
+        VariationVerdict: {
+            /**
+             * @description The variation's matrix values, each as typed JSON. Informational: a number may lose how it was written (`3.10` reads as `3.1`), so never build a matrix output from it; set `prune` instead.
+             * @example {
+             *       "os": "macos-14",
+             *       "node": 20
+             *     }
+             */
+            match: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Whether this variation's legs should run.
+             * @example false
+             */
+            run: boolean;
+            /**
+             * @description One-line rationale for this variation's verdict, safe to show to a user.
+             * @example The job should skip because no changed file has ever broken it.
+             */
+            summary: string;
+        };
     };
     responses: never;
     parameters: never;
