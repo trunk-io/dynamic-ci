@@ -17,6 +17,7 @@ import { createServer, type ServerApi } from "./__fixtures__/msw";
 import {
   PLAN_REASON,
   PLAN_STATUS,
+  INPUT_SOURCE,
   PlanRequestMetrics,
 } from "../telemetry/protos";
 import { runAction } from "../main";
@@ -79,6 +80,8 @@ const decodeTelemetry = (
   reason: string;
   attempts: number;
   durationMs: number;
+  changedFilesSource: number;
+  workflowFileShaSource: number;
 } => {
   const decoded = PlanRequestMetrics.decode(payload) as unknown as {
     action_version?: string;
@@ -88,6 +91,8 @@ const decodeTelemetry = (
     // protobufjs decodes int64 as a `Long` object, not a number, so `seconds` is
     // deliberately untyped here and converted below.
     duration?: { seconds?: unknown; nanos?: number };
+    changed_files_source?: number;
+    workflow_file_sha_source?: number;
   };
   return {
     actionVersion: decoded.action_version ?? "",
@@ -97,6 +102,8 @@ const decodeTelemetry = (
     durationMs:
       Number(decoded.duration?.seconds ?? 0) * 1_000 +
       (decoded.duration?.nanos ?? 0) / 1_000_000,
+    changedFilesSource: decoded.changed_files_source ?? 0,
+    workflowFileShaSource: decoded.workflow_file_sha_source ?? 0,
   };
 };
 
@@ -675,6 +682,8 @@ describe("the action end to end", () => {
         status: PLAN_STATUS.success,
         reason: PLAN_REASON.none,
         attempts: 1,
+        changedFilesSource: INPUT_SOURCE.none,
+        workflowFileShaSource: INPUT_SOURCE.none,
       });
       // Sent as a `google.protobuf.Duration`, so it has to survive the seconds/nanos
       // split rather than arriving as a raw millisecond count.

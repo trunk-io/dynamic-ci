@@ -40,6 +40,14 @@ export const PLAN_REASON = {
   workflowNotRecognized: "workflow_not_recognized",
 } as const;
 
+// trunk1's `InputSource`: where the action read one input of the plan request.
+export const INPUT_SOURCE = {
+  unspecified: 0,
+  none: 1,
+  checkout: 2,
+  githubApi: 3,
+} as const;
+
 export const PlanRequestMetrics: protobuf.Type = new protobuf.Type(
   "PlanRequestMetrics",
 )
@@ -50,5 +58,7 @@ export const PlanRequestMetrics: protobuf.Type = new protobuf.Type(
   .add(new protobuf.Field("attempts", 5, "uint32"))
   .add(new protobuf.Field("duration", 6, "Duration"))
   .add(new protobuf.Field("job_count", 7, "uint32"))
+  .add(new protobuf.Field("changed_files_source", 8, "int32"))
+  .add(new protobuf.Field("workflow_file_sha_source", 9, "int32"))
   .add(Repo)
   .add(Duration);

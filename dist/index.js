@@ -56895,9 +56895,15 @@ var PLAN_REASON = {
   repoNotEnabled: "repo_not_enabled",
   workflowNotRecognized: "workflow_not_recognized"
 };
+var INPUT_SOURCE = {
+  unspecified: 0,
+  none: 1,
+  checkout: 2,
+  githubApi: 3
+};
 var PlanRequestMetrics = new import_protobufjs.default.Type(
   "PlanRequestMetrics"
-).add(new import_protobufjs.default.Field("action_version", 1, "string")).add(new import_protobufjs.default.Field("repo", 2, "Repo")).add(new import_protobufjs.default.Field("status", 3, "int32")).add(new import_protobufjs.default.Field("reason", 4, "string")).add(new import_protobufjs.default.Field("attempts", 5, "uint32")).add(new import_protobufjs.default.Field("duration", 6, "Duration")).add(new import_protobufjs.default.Field("job_count", 7, "uint32")).add(Repo).add(Duration);
+).add(new import_protobufjs.default.Field("action_version", 1, "string")).add(new import_protobufjs.default.Field("repo", 2, "Repo")).add(new import_protobufjs.default.Field("status", 3, "int32")).add(new import_protobufjs.default.Field("reason", 4, "string")).add(new import_protobufjs.default.Field("attempts", 5, "uint32")).add(new import_protobufjs.default.Field("duration", 6, "Duration")).add(new import_protobufjs.default.Field("job_count", 7, "uint32")).add(new import_protobufjs.default.Field("changed_files_source", 8, "int32")).add(new import_protobufjs.default.Field("workflow_file_sha_source", 9, "int32")).add(Repo).add(Duration);
 
 // src/outcome.ts
 var NOTICE_REASON = {
@@ -57117,6 +57123,11 @@ var durationOf = (durationMs) => {
 };
 var FULL_SHA = /^[0-9a-f]{40}$/i;
 var actionVersionLabel = (ref) => `github/${FULL_SHA.test(ref) ? ref.slice(0, 7) : ref || "unknown"}`;
+var INPUT_SOURCE_OF = {
+  checkout: INPUT_SOURCE.checkout,
+  api: INPUT_SOURCE.githubApi
+};
+var inputSource = (source) => source === void 0 ? INPUT_SOURCE.none : INPUT_SOURCE_OF[source];
 var sendPlanTelemetry = async (telemetry) => {
   if (telemetryDisabled()) {
     return;
@@ -57129,7 +57140,13 @@ var sendPlanTelemetry = async (telemetry) => {
       reason: telemetry.outcome.reason,
       attempts: telemetry.attempts,
       duration: durationOf(telemetry.durationMs),
-      job_count: telemetry.jobCount
+      job_count: telemetry.jobCount,
+      ...telemetry.inputs === void 0 ? {} : {
+        changed_files_source: inputSource(telemetry.inputs.changedFiles),
+        workflow_file_sha_source: inputSource(
+          telemetry.inputs.workflowFileSha
+        )
+      }
     });
     const buffer = PlanRequestMetrics.encode(message).finish();
     await (0, import_exponential_backoff2.backOff)(
@@ -57193,6 +57210,10 @@ var run = async () => {
   core7.info(
     workflowFileShaSource === void 0 ? "Workflow file sha: not found, so matrix jobs are decided as a whole." : `Workflow file sha: ${request2.workflowFileSha ?? ""} from ${CHANGED_FILES_SOURCE_LABEL[workflowFileShaSource]}.`
   );
+  const requestInputs = {
+    changedFiles: changedFilesSource,
+    workflowFileSha: workflowFileShaSource
+  };
   const startedAt = Date.now();
   try {
     const result = await requestRecommendations({
@@ -57211,7 +57232,8 @@ var run = async () => {
       outcome: outcomeForResponse(result.response),
       attempts: result.attempts,
       durationMs: Date.now() - startedAt,
-      jobCount: result.response.jobs.length
+      jobCount: result.response.jobs.length,
+      inputs: requestInputs
     });
   } catch (error2) {
     await failOpen(
@@ -57225,7 +57247,8 @@ var run = async () => {
       outcome: outcomeForError(error2),
       attempts: error2 instanceof RecommendationError ? error2.attempts ?? 0 : 0,
       durationMs: Date.now() - startedAt,
-      jobCount: 0
+      jobCount: 0,
+      inputs: requestInputs
     });
   }
 };

@@ -49,6 +49,10 @@ export const run = async (): Promise<void> => {
       : `Workflow file sha: ${request.workflowFileSha ?? ""} from ${CHANGED_FILES_SOURCE_LABEL[workflowFileShaSource]}.`,
   );
 
+  const requestInputs = {
+    changedFiles: changedFilesSource,
+    workflowFileSha: workflowFileShaSource,
+  };
   const startedAt = Date.now();
   try {
     const result = await requestRecommendations({
@@ -68,6 +72,7 @@ export const run = async (): Promise<void> => {
       attempts: result.attempts,
       durationMs: Date.now() - startedAt,
       jobCount: result.response.jobs.length,
+      inputs: requestInputs,
     });
   } catch (error) {
     await failOpen(
@@ -83,6 +88,7 @@ export const run = async (): Promise<void> => {
         error instanceof RecommendationError ? (error.attempts ?? 0) : 0,
       durationMs: Date.now() - startedAt,
       jobCount: 0,
+      inputs: requestInputs,
     });
   }
 };
