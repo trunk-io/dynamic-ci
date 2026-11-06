@@ -79,6 +79,7 @@ outputs were right.
 | `axes-runtime-include`   | static axes plus runtime include       | none    | Only the include rows are known, so the job can only be skipped whole   |
 | `bin-packed`             | runtime include, bin-packed            | none    | Rows with nested arrays and no stable field: skipped whole only         |
 | `name-collision`         | runtime include, colliding names       | matrix  | Two rows that render one name; pruning by row still works               |
+| `runtime-default-name`   | runtime include, no `name:`            | matrix  | GitHub appends each row's values in the row's key order                 |
 
 A fixture marked PINNED records what GitHub actually does with the outputs
 `simulate` emits, where that differs from what the outputs meant (`expect` in

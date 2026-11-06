@@ -515,6 +515,29 @@ export const FIXTURES: Fixture[] = [
     ),
     prune: [{ suite: "web" }],
   },
+  {
+    key: "runtime-default-name",
+    shape: "runtime include, no name:",
+    shows:
+      "no name:, so GitHub appends each row's values in the order the row writes its keys, not sorted",
+    prefix: "runtime-default-name",
+    wiring: "matrix",
+    legs: [
+      {
+        values: { zone: "b", arch: "x64" },
+        name: "runtime-default-name (b, x64)",
+      },
+      {
+        values: { zone: "a", arch: "arm64", python: 3.1 },
+        name: "runtime-default-name (a, arm64, 3.1)",
+      },
+      {
+        values: { arch: "x64", zone: "c" },
+        name: "runtime-default-name (x64, c)",
+      },
+    ],
+    prune: [{ zone: "a" }],
+  },
 ];
 
 /** The rows the planner job emits for a runtime fixture. */
@@ -528,4 +551,5 @@ export const RUNTIME_KEYS: readonly string[] = [
   "axes-runtime-include",
   "bin-packed",
   "name-collision",
+  "runtime-default-name",
 ];
