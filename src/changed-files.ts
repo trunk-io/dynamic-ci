@@ -62,7 +62,7 @@ export const parseGitDiff = (
 ): ChangedFiles => {
   const counts = new Map<string, { additions: number; deletions: number }>();
   const numstatFields = fields(numstat);
-  for (let i = 0; i < numstatFields.length;) {
+  for (let i = 0; i < numstatFields.length; ) {
     const [added, deleted, ...rest] = (numstatFields[i] ?? "").split("\t");
     const lines = {
       additions: lineCount(added),
@@ -80,7 +80,7 @@ export const parseGitDiff = (
 
   const files: ChangedFile[] = [];
   const statusFields = fields(status);
-  for (let i = 0; i < statusFields.length;) {
+  for (let i = 0; i < statusFields.length; ) {
     const code = (statusFields[i] ?? "").slice(0, 1);
     const moved = code === "R" || code === "C";
     const path = statusFields[i + (moved ? 2 : 1)] ?? "";
