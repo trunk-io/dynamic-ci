@@ -59,6 +59,8 @@ on:
     - cron: 43 6 * * 1 # simulate: Mondays
   workflow_dispatch:
     inputs:
+      # smoke: `mode` only picks where the filter outputs come from.
+      # trunk-ignore(checkov/CKV_GHA_7)
       mode:
         description: Where the pruning outputs come from
         type: choice
@@ -123,7 +125,6 @@ jobs:
           token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
           # Job key -> the rows its matrix is built from. Which fields identify
           # a variation is configured in Trunk, not here.
-          # trunk-ignore(actionlint/action): the `matrices` input is not released yet
           matrices: >-
             {"test": ${{ needs.plan.outputs.test-rows || '[]' }}}
         env:
