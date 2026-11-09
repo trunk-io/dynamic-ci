@@ -52,7 +52,7 @@ jobs:
 
       - name: Run Dynamic CI Filter
         id: ci-filter
-        uses: trunk-io/dynamic-ci-filter@v1
+        uses: trunk-io/dynamic-ci@v1
         with:
           token: ${{ secrets.TRUNK_API_TOKEN }}
 
@@ -83,7 +83,7 @@ steps:
 
   - name: Run Dynamic CI Filter
     id: ci-filter
-    uses: trunk-io/dynamic-ci-filter@v1
+    uses: trunk-io/dynamic-ci@v1
     with:
       token: ${{ secrets.TRUNK_API_TOKEN }}
       job-keys: unit-tests
@@ -238,7 +238,7 @@ job's limit per source. Sending nothing leaves every verdict as it is.
 ```yaml
 - id: affected
   run: echo "count=$(npx nx show projects --affected --base=origin/main | wc -l)" >> "$GITHUB_OUTPUT"
-- uses: trunk-io/dynamic-ci-filter@v1
+- uses: trunk-io/dynamic-ci@v1
   with:
     token: ${{ secrets.TRUNK_TOKEN }}
     impacts: |
@@ -341,7 +341,7 @@ dynamic-ci-filter:
   steps:
     - id: f
       continue-on-error: true
-      uses: trunk-io/dynamic-ci@v2
+      uses: trunk-io/dynamic-ci@v1
       with:
         token: ${{ secrets.TRUNK_API_TOKEN }}
         matrices: >-
