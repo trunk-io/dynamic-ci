@@ -83,15 +83,16 @@ outputs were right.
 
 ## The fixtures in `matrix-smoke.yaml`
 
-| Fixture           | Shape                               | Wiring  | What it settles                                               |
-| ----------------- | ----------------------------------- | ------- | ------------------------------------------------------------- |
-| `number-exclude`  | number axis, string exclude         | exclude | `"18"` in an exclude removes the number `18` leg              |
-| `bool-exclude`    | boolean axis, string exclude        | exclude | PINNED: `"false"` in an exclude does not remove a `false` leg |
-| `float-values`    | float axis, nothing excluded        | none    | Whether `3.10` (renders `3.1`) and `"3.10"` are separate legs |
-| `float-exclude`   | float axis, string exclude          | exclude | PINNED: excluding `"3.10"` also removes the number `3.1`      |
-| `context-name`    | `name:` reads `github.*`            | exclude | A name that can't be rendered from the matrix values alone    |
-| `runs-on-include` | include-only, `runs-on` from matrix | none    | Legs told apart only by runner and values, named by GitHub    |
-| `name-collision`  | runtime include, colliding names    | matrix  | Two rows that render one name; pruning by row still works     |
+| Fixture                | Shape                               | Wiring  | What it settles                                               |
+| ---------------------- | ----------------------------------- | ------- | ------------------------------------------------------------- |
+| `number-exclude`       | number axis, string exclude         | exclude | `"18"` in an exclude removes the number `18` leg              |
+| `bool-exclude`         | boolean axis, string exclude        | exclude | PINNED: `"false"` in an exclude does not remove a `false` leg |
+| `float-values`         | float axis, nothing excluded        | none    | Whether `3.10` (renders `3.1`) and `"3.10"` are separate legs |
+| `float-exclude`        | float axis, string exclude          | exclude | PINNED: excluding `"3.10"` also removes the number `3.1`      |
+| `context-name`         | `name:` reads `github.*`            | exclude | A name that can't be rendered from the matrix values alone    |
+| `runs-on-include`      | include-only, `runs-on` from matrix | none    | Legs told apart only by runner and values, named by GitHub    |
+| `name-collision`       | runtime include, colliding names    | matrix  | Two rows that render one name; pruning by row still works     |
+| `runtime-default-name` | runtime include, no `name:`         | matrix  | GitHub appends each row's values in the row's key order       |
 
 A fixture or example marked PINNED records what GitHub actually does with the outputs
 `simulate` emits, where that differs from what the outputs meant (`expect` in

@@ -50,6 +50,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       name-collision-rows: ${{ steps.rows.outputs.name-collision-rows }}
+      runtime-default-name-rows: ${{ steps.rows.outputs.runtime-default-name-rows }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,6 +82,8 @@ jobs:
       runs-on-include: ${{ steps.live.outputs.runs-on-include || steps.sim.outputs.runs-on-include }}
       name-collision: ${{ steps.live.outputs.name-collision || steps.sim.outputs.name-collision }}
       name-collision-matrix: ${{ steps.live.outputs.name-collision-matrix || steps.sim.outputs.name-collision-matrix }}
+      runtime-default-name: ${{ steps.live.outputs.runtime-default-name || steps.sim.outputs.runtime-default-name }}
+      runtime-default-name-matrix: ${{ steps.live.outputs.runtime-default-name-matrix || steps.sim.outputs.runtime-default-name-matrix }}
     # trunk-ignore-end(actionlint/expression)
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +97,8 @@ jobs:
           # job key -> the rows its runtime matrix is built from. Which fields
           # identify a variant is configured in Trunk, not here.
           matrices: >-
-            {"name-collision": ${{ needs.planner.outputs.name-collision-rows || '[]' }}}
+            {"name-collision": ${{ needs.planner.outputs.name-collision-rows || '[]' }},
+            "runtime-default-name": ${{ needs.planner.outputs.runtime-default-name-rows || '[]' }}}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
@@ -242,6 +246,21 @@ jobs:
         env:
           MATRIX: ${{ toJSON(matrix) }}
 
+  # No name:, so GitHub appends each runtime row's values to the job key, in the
+  # order the row writes its keys.
+  runtime-default-name:
+    needs: [planner, filter]
+    if: ${{ !cancelled() && needs.filter.outputs.runtime-default-name != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.filter.outputs.runtime-default-name-matrix || format('{{"include":{0}}}', needs.planner.outputs.runtime-default-name-rows)) }}
+    steps:
+      - run: echo "${MATRIX}"
+        env:
+          MATRIX: ${{ toJSON(matrix) }}
+
   # ---------------------------------------------------------------------------
   # Did GitHub create exactly the legs the outputs kept, under the predicted names?
   # ---------------------------------------------------------------------------
@@ -257,6 +276,7 @@ jobs:
       - context-name
       - runs-on-include
       - name-collision
+      - runtime-default-name
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
