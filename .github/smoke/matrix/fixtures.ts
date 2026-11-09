@@ -1,5 +1,7 @@
 // The matrix smoke test's expectations: one entry per fixture job in
-// .github/workflows/matrix-smoke.yaml.
+// .github/workflows/matrix-smoke.yaml. The `Fixture` type is shared with the
+// examples: each .github/workflows/matrix-example-<name>.yaml has its own answer
+// key in examples/<name>.ts, with every leg written out.
 //
 // THE YAML IS THE INPUT AND THIS FILE IS THE ANSWER KEY. Each matrix is written
 // twice on purpose — once as a workflow author would write it, once here as the
@@ -40,7 +42,8 @@ export interface Fixture {
   shows: string;
   /**
    * Every check run this fixture produces starts with this, including the single
-   * one a whole-job skip reports under the bare job name; no other fixture's does.
+   * one a whole-job skip reports under the bare job name; no other fixture's in
+   * the same workflow does.
    */
   prefix: string;
   wiring: Wiring;
@@ -103,101 +106,6 @@ export const FIXTURES: Fixture[] = [
   // ---------------------------------------------------------------------------
   // Static matrices: every value is written in the workflow file
   // ---------------------------------------------------------------------------
-  {
-    key: "all-axes-named",
-    shape: "axes, all in name:",
-    shows:
-      "the baseline: static axes, every axis in name:, one combination excluded by its typed values",
-    prefix: "All axes · ",
-    wiring: "exclude",
-    legs: named(
-      axes({ os: ["linux", "macos"], node: [18, 20] }),
-      (v) => `All axes · Test (${s(v["os"])}, node ${s(v["node"])})`,
-    ),
-    prune: [{ os: "macos", node: "20" }],
-  },
-  {
-    key: "some-axes-named",
-    shape: "axes, some in name:",
-    shows:
-      "name: shows os but not node, so two legs share each name; a partial exclude ({os}) removes both",
-    prefix: "Some axes · ",
-    wiring: "exclude",
-    identityDims: ["os"],
-    legs: named(
-      axes({ os: ["linux", "macos"], node: [18, 20] }),
-      (v) => `Some axes · Test (${s(v["os"])})`,
-    ),
-    prune: [{ os: "macos" }],
-  },
-  {
-    key: "default-name",
-    shape: "axes, no name:",
-    shows:
-      "no name:, so GitHub appends the axis values itself; a key added by include is left out of the name",
-    prefix: "default-name",
-    wiring: "exclude",
-    legs: [
-      {
-        values: {
-          os: "linux",
-          arch: "amd64",
-          tier: { name: "gold", level: 1 },
-        },
-        // Observed: the include-only `tier` key isn't in the default name.
-        name: "default-name (linux, amd64)",
-      },
-      {
-        values: { os: "linux", arch: "arm64" },
-        name: "default-name (linux, arm64)",
-      },
-      {
-        values: { os: "macos", arch: "amd64" },
-        name: "default-name (macos, amd64)",
-      },
-      {
-        values: { os: "macos", arch: "arm64" },
-        name: "default-name (macos, arm64)",
-      },
-    ],
-    prune: [{ os: "macos", arch: "arm64" }],
-  },
-  {
-    key: "shard-axis",
-    shape: "axes, one of them a shard index",
-    shows:
-      "a shard declared as an axis; pruning one suite removes it across all its shards",
-    prefix: "Shard axis · ",
-    wiring: "exclude",
-    legs: named(
-      axes({ suite: ["unit", "integration"], shard: [1, 2] }),
-      (v) => `Shard axis · ${s(v["suite"])} (${s(v["shard"])}/2)`,
-    ),
-    prune: [{ suite: "integration" }],
-  },
-  {
-    key: "object-axis",
-    shape: "axis of objects",
-    shows:
-      "an axis whose values are objects (the README's platform.target example), excluded by the whole object",
-    prefix: "Object · ",
-    wiring: "exclude",
-    legs: [
-      {
-        values: {
-          platform: { target: "x86_64-unknown-linux-gnu", os: "ubuntu-latest" },
-        },
-        name: "Object · Test for x86_64-unknown-linux-gnu",
-      },
-      {
-        values: {
-          platform: { target: "aarch64-apple-darwin", os: "macos-14" },
-        },
-        name: "Object · Test for aarch64-apple-darwin",
-      },
-    ],
-    prune: [{ platform: { target: "aarch64-apple-darwin", os: "macos-14" } }],
-  },
   {
     key: "number-exclude",
     shape: "number axis, string exclude",
@@ -275,94 +183,6 @@ export const FIXTURES: Fixture[] = [
     prune: [{ os: "macos" }],
   },
   {
-    key: "axes-include-projected",
-    shape: "axes plus static include, exclude on axes only",
-    shows:
-      "include extends one axis leg and adds another; excluded by the axis keys only, the leg include extends comes back",
-    prefix: "Projected · ",
-    wiring: "exclude",
-    legs: [
-      {
-        values: { os: "linux", node: 18 },
-        name: "Projected · Test (linux, 18)",
-      },
-      {
-        values: { os: "linux", node: 20, experimental: true },
-        name: "Projected · Test (linux, 20)",
-      },
-      {
-        values: { os: "macos", node: 18 },
-        name: "Projected · Test (macos, 18)",
-      },
-      {
-        values: { os: "macos", node: 20 },
-        name: "Projected · Test (macos, 20)",
-      },
-      {
-        values: { os: "windows", node: 22 },
-        name: "Projected · Test (windows, 22)",
-      },
-    ],
-    identityDims: ["os", "node"],
-    prune: [{ node: "20" }],
-    expect: {
-      ran: [
-        "Projected · Test (linux, 18)",
-        "Projected · Test (linux, 20)",
-        "Projected · Test (macos, 18)",
-        "Projected · Test (windows, 22)",
-      ],
-      note: "observed: an include entry whose combination was excluded is added back as a new leg",
-    },
-  },
-  {
-    key: "include-only-literal",
-    shape: "include-only, literal fallback",
-    shows:
-      "include rows can't be excluded from, so the rows live in a fromJSON(output || '<literal>') fallback",
-    prefix: "Include-only · ",
-    wiring: "matrix",
-    legs: named(
-      [
-        { lane: "parallel", shard: 1, shard_count: 1 },
-        { lane: "serial", shard: 1, shard_count: 3 },
-        { lane: "serial", shard: 2, shard_count: 3 },
-        { lane: "serial", shard: 3, shard_count: 3 },
-      ],
-      (v) =>
-        `Include-only · ${s(v["lane"])} tests ${s(v["shard"])}/${s(v["shard_count"])}`,
-    ),
-    prune: [{ lane: "serial" }],
-  },
-  {
-    key: "all-pruned",
-    shape: "every leg pruned",
-    shows:
-      "with every leg pruned, <job>-matrix is {include: []} and <job> is false; the if: must skip the job before GitHub evaluates the empty matrix",
-    prefix: "All-pruned · ",
-    wiring: "matrix",
-    legs: named(
-      [{ lane: "parallel" }, { lane: "serial" }],
-      (v) => `All-pruned · ${s(v["lane"])}`,
-    ),
-    prune: "all",
-    skippedName: "All-pruned · ${{ matrix.lane }}",
-  },
-  {
-    key: "whole-job-skipped",
-    shape: "whole job skipped",
-    shows:
-      "today's behavior: a skipped matrix job reports ONE check under its unexpanded name, which is why a fan-in job must be the required check",
-    prefix: "Whole · ",
-    wiring: "exclude",
-    legs: named(
-      axes({ os: ["linux", "macos"] }),
-      (v) => `Whole · Test (${s(v["os"])})`,
-    ),
-    prune: "all",
-    skippedName: "Whole · Test (${{ matrix.os }})",
-  },
-  {
     key: "runs-on-include",
     shape: "include-only, no name:, runs-on from matrix",
     shows:
@@ -380,124 +200,9 @@ export const FIXTURES: Fixture[] = [
       },
     ],
   },
-  {
-    key: "reusable-inputs",
-    shape: "reusable workflow, matrix from inputs",
-    shows:
-      "a reusable workflow whose matrix comes from caller inputs set to literals; check runs are named 'caller / callee'",
-    prefix: "Reusable",
-    wiring: "exclude",
-    legs: named(
-      axes({ os: ["linux", "macos"] }),
-      (v) => `Reusable / Test (${s(v["os"])})`,
-    ),
-    prune: [{ os: "macos" }],
-  },
-
   // ---------------------------------------------------------------------------
   // Runtime matrices: rows built by the planner job
   // ---------------------------------------------------------------------------
-  {
-    key: "runtime-sharded",
-    shape: "runtime include, stable fields × shards",
-    shows:
-      "stable suite/compat fields × per-run shard fields; the name uses && || defaults, a boolean and numbers",
-    prefix: "Runtime sharded · ",
-    wiring: "matrix",
-    legs: named(
-      [
-        {
-          suite: "api",
-          compat: false,
-          group: 1,
-          concurrency: 2,
-          artifact_key: "api-1",
-        },
-        {
-          suite: "api",
-          compat: false,
-          group: 2,
-          concurrency: 2,
-          artifact_key: "api-2",
-        },
-        {
-          suite: "api",
-          compat: true,
-          group: 1,
-          concurrency: 1,
-          artifact_key: "api-compat-1",
-        },
-        {
-          suite: "worker",
-          compat: false,
-          group: 1,
-          concurrency: 2,
-          artifact_key: "worker-1",
-        },
-        {
-          suite: "worker",
-          compat: false,
-          group: 2,
-          concurrency: 2,
-          artifact_key: "worker-2",
-        },
-      ],
-      (v) =>
-        `Runtime sharded · ${s(v["suite"])}${v["compat"] === true ? " compat" : ""} (${s(v["group"])}/${s(v["concurrency"])})`,
-    ),
-    // Decided on suite and compat: every worker shard goes together.
-    prune: [{ suite: "worker", compat: "false" }],
-  },
-  {
-    key: "runtime-matrix-object",
-    shape: "runtime matrix object",
-    shows:
-      "a planner that emits the whole strategy.matrix object rather than an include array",
-    prefix: "Runtime object · ",
-    wiring: "matrix",
-    legs: named(
-      [
-        { image: "gateway" },
-        { image: "scheduler" },
-        { image: "indexer" },
-        { image: "notifier" },
-      ],
-      (v) => `Runtime object · Build ${s(v["image"])}`,
-    ),
-    prune: [{ image: "scheduler" }],
-  },
-  {
-    key: "axes-runtime-include",
-    shape: "static axes plus runtime include",
-    shows:
-      "the action would hold only the include rows, not the expanded legs, so this job can only be skipped whole",
-    prefix: "Axes+runtime · ",
-    wiring: "none",
-    rows: [{ os: "linux", extra: "lint" }, { os: "windows" }],
-    legs: [
-      {
-        values: { os: "linux", extra: "lint" },
-        name: "Axes+runtime · Build (linux)",
-      },
-      { values: { os: "macos" }, name: "Axes+runtime · Build (macos)" },
-      { values: { os: "windows" }, name: "Axes+runtime · Build (windows)" },
-    ],
-  },
-  {
-    key: "bin-packed",
-    shape: "runtime include, bin-packed",
-    shows:
-      "packed package lists in nested arrays; no field is stable across runs, so the job can only be skipped whole",
-    prefix: "Bin-packed · ",
-    wiring: "none",
-    legs: named(
-      [
-        { group: "pkg-a+pkg-b", legs: ["pkg-a", "pkg-b"], filters: "a|b" },
-        { group: "pkg-c", legs: ["pkg-c"], filters: "c" },
-      ],
-      (v) => `Bin-packed · Tests (${s(v["group"])})`,
-    ),
-  },
   {
     key: "name-collision",
     shape: "runtime include, colliding names",
@@ -522,10 +227,4 @@ export const rowsOf = (fixture: Fixture): Row[] =>
   fixture.rows ?? fixture.legs.map((leg) => leg.values);
 
 /** The runtime fixtures, whose matrices the planner job builds. */
-export const RUNTIME_KEYS: readonly string[] = [
-  "runtime-sharded",
-  "runtime-matrix-object",
-  "axes-runtime-include",
-  "bin-packed",
-  "name-collision",
-];
+export const RUNTIME_KEYS: readonly string[] = ["name-collision"];

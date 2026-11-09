@@ -1,0 +1,255 @@
+# Example: matrices Trunk can only skip whole, and why the fan-in job must be
+# the required check.
+#
+# Use this when a matrix has no stable way to tell its variations apart from one
+# run to the next. Trunk then gives the job one verdict, and either every
+# variation runs or the job is skipped whole. Two shapes here can't be told
+# apart:
+#   build           static axes plus rows a planner adds at runtime. Trunk sees
+#                   only the planned rows, not the variations GitHub expands
+#                   them into.
+#   package-tests   bin-packed rows: the planner regroups packages every run,
+#                   so no field means the same thing twice.
+#   test            a plain static matrix, skipped whole here to show what a
+#                   skipped matrix reports.
+#
+# What to configure in Trunk
+#   No variation dimensions for build or package-tests: each gets one verdict
+#   for the whole matrix. (test could have os, as in the static-axes example.)
+#
+# What the filter emits for each matrix job
+#   <job>   'false' when the job is skipped, otherwise 'true'
+#   Gate each job on it with `!= 'false'`. A job with no verdict runs.
+#
+# Required checks
+#   Require "Tests pass", never a matrix job's check. A matrix skipped whole
+#   reports ONE check, skipped, under its unexpanded name, e.g.
+#   "Test (${{ matrix.os }})", so a required "Test (linux)" would never report
+#   and the pull request would wait forever.
+#
+# This file is also a smoke test of how GitHub handles those outputs. Whatever
+# is marked `smoke:` is the test's harness: leave it out of your workflow.
+# .github/smoke/matrix/README.md says what the test asserts, and
+# .github/smoke/matrix/examples/skip-whole-only.ts is its answer key.
+name: "Matrix example: skip whole only"
+# smoke: the mode says where the filter's outputs come from (see the README).
+run-name: Matrix example skip-whole-only (${{ inputs.mode || (github.event.schedule == '59 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+on:
+  # smoke: yours would run on every pull request.
+  pull_request:
+    paths:
+      - .github/workflows/matrix-example-skip-whole-only.yaml
+      - .github/smoke/matrix/**
+  # smoke: schedules run only from the default branch. MODE below tells them
+  # apart by cron string, so change both together.
+  schedule:
+    - cron: 59 */4 * * * # live: builds staging's history for every leg
+    - cron: 43 6 * * 1 # simulate: Mondays
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Where the pruning outputs come from
+        type: choice
+        options: [simulate, live]
+        default: simulate
+
+# smoke
+env:
+  MODE: ${{ inputs.mode || (github.event.schedule == '59 */4 * * *' && 'live') || 'simulate' }}
+
+jobs:
+  # The planner: writes the rows for both runtime matrices, as JSON arrays.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build-rows: ${{ steps.plan.outputs.build-rows }}
+      package-tests-rows: ${{ steps.plan.outputs.package-tests-rows }}
+    steps:
+      # Yours computes the rows. smoke: these are fixed, so the answer key knows
+      # what to expect.
+      - id: plan
+        run: |
+          # Extends the linux variation, and adds a windows one.
+          build='[{"os":"linux","extra":"lint"},{"os":"windows"}]'
+          # Packages packed into groups by size; the grouping changes every run.
+          packages='[
+            {"group":"pkg-a+pkg-b","legs":["pkg-a","pkg-b"],"filters":"a|b"},
+            {"group":"pkg-c","legs":["pkg-c"],"filters":"c"}
+          ]'
+          # An output is one line, so compact the JSON first.
+          echo "build-rows=$(jq -c . <<<"${build}")" >> "${GITHUB_OUTPUT}"
+          echo "package-tests-rows=$(jq -c . <<<"${packages}")" >> "${GITHUB_OUTPUT}"
+
+  dynamic-ci-filter:
+    name: Dynamic CI Filter
+    # After the planner, because it reads the planned rows.
+    needs: [plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Per-job outputs are set at runtime, so re-export each one by name.
+    # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
+    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+    # and so cannot be declared in action.yaml.
+    outputs:
+      build: ${{ steps.ci-filter.outputs.build || steps.sim.outputs.build }}
+      package-tests: ${{ steps.ci-filter.outputs.package-tests || steps.sim.outputs.package-tests }}
+      test: ${{ steps.ci-filter.outputs.test || steps.sim.outputs.test }}
+      test-exclude: ${{ steps.ci-filter.outputs.test-exclude || steps.sim.outputs.test-exclude }}
+    # trunk-ignore-end(actionlint/expression)
+    steps:
+      # Check out first, with full history, so the action can read the changed files.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Run Dynamic CI Filter
+        id: ci-filter
+        if: env.MODE == 'live' # smoke
+        # smoke: yours is trunk-io/dynamic-ci-filter@v1; this is the action at this commit.
+        uses: ./
+        with:
+          # smoke: yours is your organization's token, secrets.TRUNK_API_TOKEN.
+          token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
+          # Job key -> the planner's rows. With no variation dimensions
+          # configured, Trunk still decides each of these jobs whole.
+          matrices: >-
+            {"build": ${{ needs.plan.outputs.build-rows || '[]' }},
+            "package-tests": ${{ needs.plan.outputs.package-tests-rows || '[]' }}}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io # smoke
+
+      # smoke: in simulate mode, emit the outputs the answer key asks for instead.
+      - uses: actions/setup-node@v4
+        if: env.MODE != 'live'
+        with:
+          node-version: "24"
+      - id: sim
+        if: env.MODE != 'live'
+        run: node .github/smoke/matrix/smoke.ts simulate skip-whole-only
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: [plan, dynamic-ci-filter]
+    # Always compare against 'false'. A job with no verdict (an outage, a job
+    # Trunk hasn't seen yet) has no output, and runs.
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.build != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        include: ${{ fromJSON(needs.plan.outputs.build-rows) }}
+    steps:
+      - name: Build
+        run: echo "Building on ${OS} ${EXTRA}"
+        env:
+          OS: ${{ matrix.os }}
+          EXTRA: ${{ matrix.extra }}
+
+  package-tests:
+    name: Package tests (${{ matrix.group }})
+    needs: [plan, dynamic-ci-filter]
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.package-tests != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.package-tests-rows) }}
+    steps:
+      - name: Run tests
+        run: echo "Testing ${GROUP} (filter ${FILTERS})"
+        env:
+          GROUP: ${{ matrix.group }}
+          FILTERS: ${{ matrix.filters }}
+
+  # smoke: Trunk skips this job whole, to show the one check it reports.
+  test:
+    name: Test (${{ matrix.os }})
+    needs: [dynamic-ci-filter]
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.test != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [linux, macos]
+        exclude: ${{ fromJSON(needs.dynamic-ci-filter.outputs.test-exclude || '[]') }}
+    steps:
+      - name: Run tests
+        run: echo "Testing on ${OS}"
+        env:
+          OS: ${{ matrix.os }}
+
+  # The fan-in job, and the one check to require. It passes when every gated job
+  # succeeded or was skipped. Never gate it: a gate that can be skipped cannot
+  # report.
+  tests-pass:
+    name: Tests pass
+    needs: [build, package-tests, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a gated job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  # ---------------------------------------------------------------------------
+  # smoke: everything below is the smoke test, not part of the example.
+  # Did GitHub create exactly the legs the outputs kept, under the predicted names?
+  # ---------------------------------------------------------------------------
+  verdict:
+    name: Smoke verdict
+    needs: [plan, dynamic-ci-filter, build, package-tests, test]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Compare the check runs against the answer key
+        id: verdict
+        continue-on-error: true
+        run: node .github/smoke/matrix/smoke.ts verdict skip-whole-only
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # observed.json is the golden data: every name GitHub rendered, per job.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: matrix-smoke-out
+          path: matrix-smoke-out/
+
+      - name: Trunk Analytics Uploader (Staging)
+        if: ${{ !cancelled() }}
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: matrix-smoke-out/junit.xml
+          org-slug: trunk-staging-org
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          allow-missing-junit-files: false
+          previous-step-outcome: ${{ steps.verdict.outcome }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      # The uploader re-fails the job too, but only with a token; a fork has none.
+      - name: Fail if the verdict failed
+        if: ${{ steps.verdict.outcome == 'failure' }}
+        run: exit 1

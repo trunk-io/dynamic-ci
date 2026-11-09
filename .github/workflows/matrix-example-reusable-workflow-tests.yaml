@@ -1,8 +1,8 @@
-# Called only by matrix-smoke.yaml's `reusable-inputs` job. Its matrix comes from
-# the caller's inputs, which the caller sets to literals: static in effect, but
-# not written in this file's matrix. Check runs are named
-# "<caller name> / <this job's name>".
-name: Matrix Smoke (reusable)
+# The reusable workflow matrix-example-reusable-workflow.yaml calls. Its matrix
+# comes from the caller's inputs: the values to run over, and the variations
+# Trunk skipped. Check runs are named "<caller job's name> / <this job's name>",
+# e.g. "Unit / Test (linux)".
+name: "Matrix example: reusable workflow (called)"
 
 on:
   workflow_call:
@@ -27,8 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(inputs.oses) }}
+        # The variations Trunk skipped, passed through by the caller.
         exclude: ${{ fromJSON(inputs.exclude) }}
     steps:
-      - run: echo "${MATRIX}"
+      - name: Run tests
+        run: echo "Testing on ${OS}"
         env:
-          MATRIX: ${{ toJSON(matrix) }}
+          OS: ${{ matrix.os }}

@@ -25,7 +25,7 @@ jobs:
 
   # An UNGATED job whose matrix evaluates to `{"include": []}`. <job> is set to
   # "false" whenever every leg is pruned, on the assumption that GitHub fails
-  # such a job; matrix-smoke's `all-pruned` fixture covers the gated half.
+  # such a job; the include-list example's `integration` job covers the gated half.
   empty-matrix:
     name: Empty · ${{ matrix.lane }}
     needs: [emit]
@@ -41,7 +41,7 @@ jobs:
   # Axes plus a static include, with an exclude entry that carries
   # `experimental`, a key only the include adds. Observed on a pull request:
   # GitHub fails the job before any leg exists, with no check run and no error
-  # annotation. matrix-smoke's `axes-include-projected` is the working form:
+  # annotation. The axes-with-include example's `test` job is the working form:
   # the same exclude limited to the axis keys.
   include-key-exclude:
     name: Include-key exclude · Test (${{ matrix.os }}, ${{ matrix.node }})
