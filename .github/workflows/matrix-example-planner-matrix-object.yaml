@@ -1,0 +1,214 @@
+# Example: a matrix built at runtime by a planner job that writes the whole
+# matrix object, where Trunk skips individual matrix variations.
+#
+# Use this shape when an upstream job writes `strategy.matrix` itself, e.g.
+# {"include":[{"image":"gateway"},...]} for the images a change touches,
+# and the job reads it with fromJSON. Each row is a matrix variation, and
+# GitHub runs each as its own job.
+#
+# What to configure in Trunk
+#   Nothing in this file opts a job into per-variation verdicts. In Trunk, each
+#   matrix job lists its variation dimensions: the row fields that identify a
+#   matrix variation from one run to the next.
+#     build   image
+#   A job with no dimensions configured gets one verdict for the whole matrix.
+#
+# What the filter needs, and emits
+#   The filter's `matrices` input takes each job's rows, so pass it the matrix's
+#   `include` list; the planner needn't change. For each such job it emits:
+#     build          'false' when every row is skipped, otherwise 'true'
+#     build-matrix   the whole matrix, minus the skipped rows: {"include":[...]}
+#   GitHub never creates a job for a row that was removed, so it costs nothing
+#   and reports nothing.
+#
+# Required checks
+#   Require "Tests pass", never one variation's check. A skipped variation never
+#   reports, and a matrix skipped whole reports one check under its unexpanded
+#   name.
+#
+# This file is also a smoke test of how GitHub handles those outputs. Whatever
+# is marked `smoke:` is the test's harness: leave it out of your workflow.
+# .github/smoke/matrix/README.md says what the test asserts, and
+# .github/smoke/matrix/examples/planner-matrix-object.ts is its answer key.
+name: "Matrix example: planner matrix object"
+# smoke: the mode says where the filter's outputs come from (see the README).
+run-name: Matrix example planner-matrix-object (${{ inputs.mode || (github.event.schedule == '47 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+on:
+  # smoke: yours would run on every pull request.
+  pull_request:
+    paths:
+      - .github/workflows/matrix-example-planner-matrix-object.yaml
+      - .github/smoke/matrix/**
+  # smoke: schedules run only from the default branch. MODE below tells them
+  # apart by cron string, so change both together.
+  schedule:
+    - cron: 47 */4 * * * # live: builds staging's history for every leg
+    - cron: 43 6 * * 1 # simulate: Mondays
+  workflow_dispatch:
+    inputs:
+      # smoke: `mode` only picks where the filter outputs come from.
+      # trunk-ignore(checkov/CKV_GHA_7)
+      mode:
+        description: Where the pruning outputs come from
+        type: choice
+        options: [simulate, live]
+        default: simulate
+
+# smoke
+env:
+  MODE: ${{ inputs.mode || (github.event.schedule == '47 */4 * * *' && 'live') || 'simulate' }}
+
+jobs:
+  # The planner: writes the build job's whole matrix, as a JSON object.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build-matrix: ${{ steps.plan.outputs.build-matrix }}
+    steps:
+      # Yours computes the matrix, e.g. from the images a change touches.
+      # smoke: this one is fixed, so the answer key knows what to expect.
+      - id: plan
+        run: |
+          matrix='{"include":[
+            {"image":"gateway"},
+            {"image":"scheduler"},
+            {"image":"indexer"},
+            {"image":"notifier"}
+          ]}'
+          # An output is one line, so compact the JSON first.
+          echo "build-matrix=$(jq -c . <<<"${matrix}")" >> "${GITHUB_OUTPUT}"
+
+  dynamic-ci-filter:
+    name: Dynamic CI Filter
+    # After the planner, because it reads the planned rows.
+    needs: [plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Per-job outputs are set at runtime, so re-export each one by name.
+    # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
+    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+    # and so cannot be declared in action.yaml.
+    outputs:
+      build: ${{ steps.ci-filter.outputs.build || steps.sim.outputs.build }}
+      build-matrix: ${{ steps.ci-filter.outputs.build-matrix || steps.sim.outputs.build-matrix }}
+    # trunk-ignore-end(actionlint/expression)
+    steps:
+      # Check out first, with full history, so the action can read the changed files.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Run Dynamic CI Filter
+        id: ci-filter
+        if: env.MODE == 'live' # smoke
+        # smoke: yours is trunk-io/dynamic-ci-filter@v1; this is the action at this commit.
+        uses: ./
+        with:
+          # smoke: yours is your organization's token, secrets.TRUNK_API_TOKEN.
+          token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
+          # Job key -> the rows its matrix is built from: the planner's include
+          # list. Which fields identify a variation is configured in Trunk, not here.
+          matrices: >-
+            {"build": ${{ needs.plan.outputs.build-matrix && toJSON(fromJSON(needs.plan.outputs.build-matrix).include) || '[]' }}}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io # smoke
+
+      # smoke: in simulate mode, emit the outputs the answer key asks for instead.
+      - uses: actions/setup-node@v4
+        if: env.MODE != 'live'
+        with:
+          node-version: "24"
+      - id: sim
+        if: env.MODE != 'live'
+        run: node .github/smoke/matrix/smoke.ts simulate planner-matrix-object
+
+  build:
+    name: Build ${{ matrix.image }}
+    needs: [plan, dynamic-ci-filter]
+    # Always compare against 'false'. A job with no verdict (an outage, a job
+    # Trunk hasn't seen yet) has no output, and runs.
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.build != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      # The filter's matrix, with the skipped rows removed. With no output, fall
+      # back to the planner's whole matrix.
+      matrix: ${{ fromJSON(needs.dynamic-ci-filter.outputs.build-matrix || needs.plan.outputs.build-matrix) }}
+    steps:
+      - name: Build
+        run: echo "Building the ${IMAGE} image"
+        env:
+          IMAGE: ${{ matrix.image }}
+
+  # The fan-in job, and the one check to require. It passes when every gated job
+  # succeeded or was skipped. Never gate it: a gate that can be skipped cannot
+  # report.
+  tests-pass:
+    name: Tests pass
+    needs: [build]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a gated job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  # ---------------------------------------------------------------------------
+  # smoke: everything below is the smoke test, not part of the example.
+  # Did GitHub create exactly the legs the outputs kept, under the predicted names?
+  # ---------------------------------------------------------------------------
+  verdict:
+    name: Smoke verdict
+    needs: [plan, dynamic-ci-filter, build]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Compare the check runs against the answer key
+        id: verdict
+        continue-on-error: true
+        run: node .github/smoke/matrix/smoke.ts verdict planner-matrix-object
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # observed.json is the golden data: every name GitHub rendered, per job.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: matrix-smoke-out
+          path: matrix-smoke-out/
+
+      - name: Trunk Analytics Uploader (Staging)
+        if: ${{ !cancelled() }}
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: matrix-smoke-out/junit.xml
+          org-slug: trunk-staging-org
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          allow-missing-junit-files: false
+          previous-step-outcome: ${{ steps.verdict.outcome }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      # The uploader re-fails the job too, but only with a token; a fork has none.
+      - name: Fail if the verdict failed
+        if: ${{ steps.verdict.outcome == 'failure' }}
+        run: exit 1

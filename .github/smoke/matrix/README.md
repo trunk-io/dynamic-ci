@@ -15,8 +15,7 @@ prune per leg, written as a workflow author would write it. It does two jobs:
 | -------------------------------------------- | ------------------------------------------------------------------ |
 | `../../workflows/matrix-example-<name>.yaml` | One customer-shaped example per file; see [Examples](#examples)    |
 | `examples/<name>.ts`                         | Each example's answer key, every leg written out                   |
-| `../../workflows/matrix-smoke.yaml`          | One job per remaining matrix shape, plus planner, filter, verdict  |
-| `../../workflows/matrix-smoke-reusable.yaml` | The reusable workflow the `reusable-inputs` fixture calls          |
+| `../../workflows/matrix-smoke.yaml`          | One job per shape that only tests GitHub's rules, plus verdict     |
 | `../../workflows/matrix-probes.yaml`         | By-hand probes whose answer is a failed job, so expected to go red |
 | `fixtures.ts`                                | `matrix-smoke.yaml`'s answer key, and the `Fixture` type           |
 | `smoke.ts`                                   | `planner`, `simulate` and `verdict`, run by the workflows' jobs    |
@@ -30,14 +29,20 @@ filter emits, and which check to require. It is also a smoke test of its own:
 everything marked `smoke:` is harness (the mode switch, the simulated outputs,
 the verdict job), and a customer leaves it out.
 
-| Example           | Shape                                            | Wiring  | What it shows                                                         |
-| ----------------- | ------------------------------------------------ | ------- | --------------------------------------------------------------------- |
-| `static-axes`     | axes, all in `name:` (`test`) and some (`build`) | exclude | The baseline exclude; a name that leaves an axis out shares a check   |
-| `planner-include` | runtime include, stable fields, shards           | matrix  | A planner's rows through `matrices`; `&&`/`\|\|` defaults in the name |
+| Example                 | Shape                                                   | Wiring  | What it shows                                                             |
+| ----------------------- | ------------------------------------------------------- | ------- | ------------------------------------------------------------------------- |
+| `static-axes`           | axes, all in `name:` (`test`) and some (`build`)        | exclude | The baseline exclude; a name that leaves an axis out shares a check       |
+| `axes-with-include`     | axes plus static include (`test`); no `name:` (`build`) | exclude | PINNED: include adds back an excluded variation; GitHub's default name    |
+| `shards`                | axes, one a shard index                                 | exclude | A suite skipped with all its shards, by an exclude that leaves out shard  |
+| `platform-objects`      | axis of objects                                         | exclude | An exclude matches an object-valued axis by the whole object              |
+| `include-list`          | include-only, literal fallback; every row skipped       | matrix  | Rows in `fromJSON(output \|\| '<literal>')`; `if:` before an empty matrix |
+| `planner-include`       | runtime include, stable fields, shards                  | matrix  | A planner's rows through `matrices`; `&&`/`\|\|` defaults in the name     |
+| `planner-matrix-object` | runtime matrix object                                   | matrix  | A planner that writes the whole matrix; its `include` goes to `matrices`  |
+| `reusable-workflow`     | reusable workflow, matrix from caller inputs            | exclude | The exclude passed as an input; the `caller / callee` check name          |
+| `skip-whole-only`       | axes plus runtime include; bin-packed; skipped whole    | none    | Shapes Trunk can only skip whole; the one check a skipped matrix reports  |
 
-`matrix-smoke.yaml`'s fixtures move into examples like these one at a time.
-Shapes that only test GitHub's matching rules (`bool-exclude`, `float-*`,
-`number-exclude`, `context-name`) stay there.
+`reusable-workflow` calls `matrix-example-reusable-workflow-tests.yaml`.
+Shapes that only test GitHub's own rules stay in `matrix-smoke.yaml`.
 
 ## Two modes
 
@@ -78,30 +83,19 @@ outputs were right.
 
 ## The fixtures in `matrix-smoke.yaml`
 
-| Fixture                  | Shape                                 | Wiring  | What it settles                                                         |
-| ------------------------ | ------------------------------------- | ------- | ----------------------------------------------------------------------- |
-| `default-name`           | axes, no `name:`                      | exclude | GitHub's default name suffix, which leaves out keys added by include    |
-| `shard-axis`             | axes, one a shard index               | exclude | A suite pruned across all its shards                                    |
-| `object-axis`            | axis of objects                       | exclude | An exclude matches an object-valued axis by the whole object            |
-| `number-exclude`         | number axis, string exclude           | exclude | `"18"` in an exclude removes the number `18` leg                        |
-| `bool-exclude`           | boolean axis, string exclude          | exclude | PINNED: `"false"` in an exclude does not remove a `false` leg           |
-| `float-values`           | float axis, nothing excluded          | none    | Whether `3.10` (renders `3.1`) and `"3.10"` are separate legs           |
-| `float-exclude`          | float axis, string exclude            | exclude | PINNED: excluding `"3.10"` also removes the number `3.1`                |
-| `context-name`           | `name:` reads `github.*`              | exclude | A name that can't be rendered from the matrix values alone              |
-| `axes-include-projected` | axes plus static include              | exclude | PINNED: excluded by axis keys only, the leg include extends comes back  |
-| `include-only-literal`   | include-only, literal fallback        | matrix  | Include rows kept in `fromJSON(output \|\| '<literal>')`                |
-| `all-pruned`             | every leg pruned                      | matrix  | `<job>` is `false`, so `if:` skips before the empty matrix is evaluated |
-| `whole-job-skipped`      | whole job skipped                     | exclude | Today's whole-job skip: one check run, unexpanded name                  |
-| `runs-on-include`        | include-only, `runs-on` from matrix   | none    | Legs told apart only by runner and values, named by GitHub              |
-| `reusable-inputs`        | reusable workflow, matrix from inputs | exclude | A matrix from caller inputs set to literals; the `caller / callee` name |
-| `runtime-matrix-object`  | runtime matrix object                 | matrix  | A planner that emits the whole matrix object                            |
-| `axes-runtime-include`   | static axes plus runtime include      | none    | Only the include rows are known, so the job can only be skipped whole   |
-| `bin-packed`             | runtime include, bin-packed           | none    | Rows with nested arrays and no stable field: skipped whole only         |
-| `name-collision`         | runtime include, colliding names      | matrix  | Two rows that render one name; pruning by row still works               |
+| Fixture           | Shape                               | Wiring  | What it settles                                               |
+| ----------------- | ----------------------------------- | ------- | ------------------------------------------------------------- |
+| `number-exclude`  | number axis, string exclude         | exclude | `"18"` in an exclude removes the number `18` leg              |
+| `bool-exclude`    | boolean axis, string exclude        | exclude | PINNED: `"false"` in an exclude does not remove a `false` leg |
+| `float-values`    | float axis, nothing excluded        | none    | Whether `3.10` (renders `3.1`) and `"3.10"` are separate legs |
+| `float-exclude`   | float axis, string exclude          | exclude | PINNED: excluding `"3.10"` also removes the number `3.1`      |
+| `context-name`    | `name:` reads `github.*`            | exclude | A name that can't be rendered from the matrix values alone    |
+| `runs-on-include` | include-only, `runs-on` from matrix | none    | Legs told apart only by runner and values, named by GitHub    |
+| `name-collision`  | runtime include, colliding names    | matrix  | Two rows that render one name; pruning by row still works     |
 
-A fixture marked PINNED records what GitHub actually does with the outputs
+A fixture or example marked PINNED records what GitHub actually does with the outputs
 `simulate` emits, where that differs from what the outputs meant (`expect` in
-`fixtures.ts`). It stays green while GitHub behaves that way, and goes red if
+its answer key). It stays green while GitHub behaves that way, and goes red if
 GitHub changes. A pin applies only when the filter emitted exactly those
 outputs: in `live` mode, the fixture gets the ordinary check instead.
 
