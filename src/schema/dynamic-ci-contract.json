@@ -24,7 +24,7 @@
       "post": {
         "operationId": "dynamicCi.generatePlan",
         "summary": "Generate a CI skip plan",
-        "description": "Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
+        "description": "Requires the **Generate Dynamic CI plans** permission.\n\nReturns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
         "requestBody": {
           "required": true,
           "content": {
@@ -53,7 +53,7 @@
       "post": {
         "operationId": "dynamicCi.generateBuildkitePlan",
         "summary": "Generate a CI skip plan for a Buildkite pipeline",
-        "description": "As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
+        "description": "Requires the **Generate Dynamic CI plans** permission.\n\nAs [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
         "requestBody": {
           "required": true,
           "content": {
