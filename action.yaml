@@ -1,7 +1,8 @@
 name: Trunk Dynamic CI Filter
 description:
   Recommends which CI jobs to run for the current diff, using your org's own CI
-  history. Runs as a pre-step or pre-job and emits a per-job run/skip output.
+  history. Runs as a filter job before your work and emits a per-job run/skip
+  output.
 author: trunk.io
 branding:
   icon: filter
@@ -12,9 +13,8 @@ inputs:
     description: Trunk organization API token.
     required: true
   job-keys:
-    description:
-      Job(s) to scope the recommendation to (pre-step mode) — a single job key
-      or a comma-separated list of job keys, as written under `jobs:` in the
+    description: Job(s) to scope the recommendation to — a single job key or a
+      comma-separated list of job keys, as written under `jobs:` in the
       workflow file (the value `github.job` reports). Leave unset to return
       recommendations for every keyed job in this workflow.
     required: false
