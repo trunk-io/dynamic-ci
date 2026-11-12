@@ -103,7 +103,8 @@ skip your entire test suite the first time something goes wrong.
 The action is built so that it can never block your CI:
 
 - A transport error, non-2xx response, malformed response, or a request exceeding the
-  latency budget (30s by default) all produce `'true'` for every job in scope.
+  latency budget (30s by default) all leave every job's output unset, which your
+  `!= 'false'` conditionals read as "run".
 - Unexpected failures — a missing token, for example — are caught too, and emit no
   outputs at all, which your `!= 'false'` conditionals read as "run".
 - It never calls `core.setFailed`, so the step itself always succeeds. Failing the
