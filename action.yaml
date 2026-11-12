@@ -21,11 +21,9 @@ inputs:
   ignore-signals:
     description:
       Optional comma-separated list of signal identifiers to exclude from the
-      recommendation. Valid identifiers are estimated-cost,
-      previous-result-on-pr, historical-pass-rate, diff-driven-volatility,
-      force-override, merge-failure, mid-pr-stack, and required-check. An
-      unrecognized identifier makes the action fail open (recommend running
-      everything) rather than silently ignore the setting.
+      recommendation, such as estimated-cost. The README's Signals section
+      lists them. An identifier this action version does not know is warned
+      about and still sent, so a typo has no effect.
     required: false
   impacts:
     description:
