@@ -24,8 +24,6 @@ merge-queue branch, so you do not need to special-case the queue in your workflo
 
 ## Usage
 
-### Pre-job mode (recommended)
-
 One upstream job asks for verdicts for the whole workflow, and every downstream job
 gates on its outputs. This captures the most savings, because a skipped job never
 boots a runner.
@@ -69,36 +67,12 @@ jobs:
       - run: make test
 ```
 
-### Pre-step mode
-
-A single job asks only about itself and skips its own work. Simpler to adopt, but
-the runner has already booted by the time the verdict arrives.
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-    with:
-      fetch-depth: 0
-      filter: blob:none
-
-  - name: Run Dynamic CI Filter
-    id: ci-filter
-    uses: trunk-io/dynamic-ci@v1
-    with:
-      token: ${{ secrets.TRUNK_API_TOKEN }}
-      job-keys: unit-tests
-
-  - name: Unit Tests
-    if: steps.ci-filter.outputs.unit-tests != 'false'
-    run: make test
-```
-
 ## Inputs
 
 | Input               | Required | Description                                                                                                                                                                               |
 | ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `token`             | yes      | Trunk organization API token. Find it at app.trunk.io → Settings → Manage Organization → Organization API Token.                                                                          |
-| `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job (fan-out).                                                     |
+| `job-keys`          | no       | A job key, or comma-separated list of job keys, to scope the recommendation to. Leave unset to get a verdict for every job.                                                               |
 | `ignore-signals`    | no       | Comma-separated signal identifiers to exclude from the recommendation. Forwarded to the service as given; an identifier this action version does not know is warned about and still sent. |
 | `impacts`           | no       | A JSON list of how much of the codebase the change affects, one entry per measure. See [Impact reach](#impact-reach).                                                                     |
 | `matrices`          | no       | A JSON object of job key to the rows a planner job built for that job's matrix. See [A matrix built by a planner job](#a-matrix-built-by-a-planner-job).                                  |
@@ -129,7 +103,8 @@ skip your entire test suite the first time something goes wrong.
 The action is built so that it can never block your CI:
 
 - A transport error, non-2xx response, malformed response, or a request exceeding the
-  latency budget (30s by default) all produce `'true'` for every job in scope.
+  latency budget (30s by default) all leave every job's output unset, which your
+  `!= 'false'` conditionals read as "run".
 - Unexpected failures — a missing token, for example — are caught too, and emit no
   outputs at all, which your `!= 'false'` conditionals read as "run".
 - It never calls `core.setFailed`, so the step itself always succeeds. Failing the
@@ -175,12 +150,9 @@ GitHub's queue runs `merge_group` events on `gh-readonly-queue/*` branches, whic
 branch check already covers. Use the action the same way everywhere and let the branch
 check do the work.
 
-The guarantee holds in both modes, with slightly different mechanics:
-
-- With `job-keys` set, every named job comes back as an explicit `'true'`.
-- In fan-out mode the response carries no verdicts, so no outputs are set at all — which
-  your `!= 'false'` conditions already read as "run". This is one more reason never to
-  write `== 'true'`.
+On a merge-queue branch the response carries no verdicts, so no outputs are set at all —
+which your `!= 'false'` conditions already read as "run". This is one more reason never to
+write `== 'true'`.
 
 **Other merge queues are not covered.** The check matches the `trunk-merge/` and
 `gh-readonly-queue/` prefixes only, so a third-party queue that validates on some other
