@@ -15,7 +15,9 @@ export interface paths {
         put?: never;
         /**
          * Generate a CI skip plan
-         * @description Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.
+         * @description Requires the **Generate Dynamic CI plans** permission.
+         *
+         *     Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.
          *
          *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
          *
@@ -39,7 +41,9 @@ export interface paths {
         put?: never;
         /**
          * Generate a CI skip plan for a Buildkite pipeline
-         * @description As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.
+         * @description Requires the **Generate Dynamic CI plans** permission.
+         *
+         *     As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.
          *
          *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
          *
