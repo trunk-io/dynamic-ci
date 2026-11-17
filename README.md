@@ -93,6 +93,10 @@ The output is named for the job key verbatim. GitHub already constrains a `jobs:
 what an expression can dereference, so a job written as `unit-tests` is read back as
 `steps.ci-filter.outputs.unit-tests` with no transformation to work out.
 
+Run inside a reusable workflow, the action decides the jobs of the workflow that calls it,
+so a job it calls is keyed `<caller>/<job>`. Its output is also set under `<job>`, which is
+what a gate inside the called workflow reads, unless another job has that name.
+
 **Always write `!= 'false'`, never `== 'true'`.** A job with no verdict — a service
 outage, a job the service has never seen, a job whose key it has not resolved yet —
 emits no output at all, and `!= 'false'` correctly runs it. Writing `== 'true'` would silently

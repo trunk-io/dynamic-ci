@@ -81,15 +81,22 @@ export const setOutputs = (
   requestedJobKeys: string[],
 ): void => {
   const decided = new Set<string>();
-  const jobKeys = new Set([
+  const ownKeys = new Set([
     ...response.jobs.map((job) => job.jobKey),
     ...requestedJobKeys,
   ]);
+  const aliases = calledJobAliases(response, ownKeys);
+  const jobKeys = new Set([...ownKeys, ...aliases.values()]);
   for (const job of response.jobs) {
-    setJobOutput(job.jobKey, job.run);
-    // A skipped job has no matrix to prune.
-    if (job.run && job.prune !== undefined) {
-      setPruneOutputs({ jobKey: job.jobKey, prune: job.prune, jobKeys });
+    const alias = aliases.get(job.jobKey);
+    for (const name of alias === undefined
+      ? [job.jobKey]
+      : [job.jobKey, alias]) {
+      setJobOutput(name, job.run);
+      // A skipped job has no matrix to prune.
+      if (job.run && job.prune !== undefined) {
+        setPruneOutputs({ jobKey: name, prune: job.prune, jobKeys });
+      }
     }
     decided.add(job.jobKey);
   }
@@ -99,6 +106,38 @@ export const setOutputs = (
       setJobOutput(jobKey, true);
     }
   }
+};
+
+/**
+ * A job in a called workflow has the key `caller/callee`, but a gate inside that
+ * workflow can only name `callee`, so each called job is also given that name,
+ * unless another job has it or two callers call a job of that name.
+ */
+const calledJobAliases = (
+  response: DynamicCiResponse,
+  ownKeys: ReadonlySet<string>,
+): Map<string, string> => {
+  const byCallee = Map.groupBy(
+    response.jobs.flatMap((job) => {
+      const callee = job.jobKey.split("/").at(-1);
+      return job.jobKey.includes("/") && callee !== undefined
+        ? [{ jobKey: job.jobKey, callee }]
+        : [];
+    }),
+    ({ callee }) => callee,
+  );
+  return new Map(
+    [...byCallee].flatMap(([callee, called]) => {
+      const [only] = called;
+      if (called.length === 1 && only !== undefined && !ownKeys.has(callee)) {
+        return [[only.jobKey, callee] as const];
+      }
+      warn(
+        `Not setting "${callee}" for ${called.map(({ jobKey }) => `"${jobKey}"`).join(", ")}: another job has that name. A gate in the called workflow that reads "${callee}" runs.`,
+      );
+      return [];
+    }),
+  );
 };
 
 /**
