@@ -58020,14 +58020,19 @@ var setPruneOutputs = ({
 };
 var setOutputs = (response, requestedJobKeys) => {
   const decided = /* @__PURE__ */ new Set();
-  const jobKeys = /* @__PURE__ */ new Set([
+  const ownKeys = /* @__PURE__ */ new Set([
     ...response.jobs.map((job) => job.jobKey),
     ...requestedJobKeys
   ]);
+  const aliases = calledJobAliases(response, ownKeys);
+  const jobKeys = /* @__PURE__ */ new Set([...ownKeys, ...aliases.values()]);
   for (const job of response.jobs) {
-    setJobOutput(job.jobKey, job.run);
-    if (job.run && job.prune !== void 0) {
-      setPruneOutputs({ jobKey: job.jobKey, prune: job.prune, jobKeys });
+    const alias = aliases.get(job.jobKey);
+    for (const name of alias === void 0 ? [job.jobKey] : [job.jobKey, alias]) {
+      setJobOutput(name, job.run);
+      if (job.run && job.prune !== void 0) {
+        setPruneOutputs({ jobKey: name, prune: job.prune, jobKeys });
+      }
     }
     decided.add(job.jobKey);
   }
@@ -58037,6 +58042,27 @@ var setOutputs = (response, requestedJobKeys) => {
       setJobOutput(jobKey, true);
     }
   }
+};
+var calledJobAliases = (response, ownKeys) => {
+  const byCallee = Map.groupBy(
+    response.jobs.flatMap((job) => {
+      const callee = job.jobKey.split("/").at(-1);
+      return job.jobKey.includes("/") && callee !== void 0 ? [{ jobKey: job.jobKey, callee }] : [];
+    }),
+    ({ callee }) => callee
+  );
+  return new Map(
+    [...byCallee].flatMap(([callee, called]) => {
+      const [only] = called;
+      if (called.length === 1 && only !== void 0 && !ownKeys.has(callee)) {
+        return [[only.jobKey, callee]];
+      }
+      warn(
+        `Not setting "${callee}" for ${called.map(({ jobKey }) => `"${jobKey}"`).join(", ")}: another job has that name. A gate in the called workflow that reads "${callee}" runs.`
+      );
+      return [];
+    })
+  );
 };
 var setFailOpenOutputs = (jobKeys) => {
   for (const jobKey of jobKeys) {

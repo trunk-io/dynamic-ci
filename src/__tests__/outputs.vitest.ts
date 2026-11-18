@@ -220,6 +220,80 @@ describe("setOutputs", () => {
       ["e2e-chrome", "true"],
     ]);
   });
+
+  // The filter ran inside the called workflow, whose gates read `Diff`.
+  it("also names a called job's outputs for the job key its own workflow gives it", () => {
+    const include = '[{"name":"Unit"}]';
+    setOutputs(
+      {
+        jobs: [
+          {
+            jobKey: "build-tests/Diff",
+            run: false,
+            summary: "Skip",
+            signals: [],
+          },
+          {
+            jobKey: "build-tests/Suite",
+            run: true,
+            summary: "Run",
+            signals: [],
+            prune: { include },
+          },
+          { jobKey: "build-tests", run: true, summary: "Run", signals: [] },
+        ],
+      },
+      [],
+    );
+    expect({
+      outputs: setOutput.mock.calls,
+      warnings: warning.mock.calls,
+    }).toEqual({
+      outputs: [
+        ["build-tests/Diff", "false"],
+        ["Diff", "false"],
+        ["build-tests/Suite", "true"],
+        ["build-tests/Suite-include", include],
+        ["Suite", "true"],
+        ["Suite-include", include],
+        ["build-tests", "true"],
+      ],
+      warnings: [],
+    });
+  });
+
+  it.each([
+    {
+      case: "another job has the name",
+      jobKeys: ["build", "ci/build"],
+    },
+    {
+      case: "two callers call a job of that name",
+      jobKeys: ["unit/build", "e2e/build"],
+    },
+  ])(
+    "does not name a called job's outputs for its own key when $case",
+    ({ jobKeys }) => {
+      setOutputs(
+        {
+          jobs: jobKeys.map((jobKey) => ({
+            jobKey,
+            run: false,
+            summary: "Skip",
+            signals: [],
+          })),
+        },
+        [],
+      );
+      expect({
+        outputs: setOutput.mock.calls,
+        warnings: warning.mock.calls,
+      }).toEqual({
+        outputs: jobKeys.map((jobKey) => [jobKey, "false"]),
+        warnings: [[expect.stringContaining('Not setting "build"')]],
+      });
+    },
+  );
 });
 
 describe("setFailOpenOutputs", () => {
