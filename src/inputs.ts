@@ -21,7 +21,51 @@ export interface ActionInputs {
   impacts?: Impact[];
   /** Each runtime matrix job's rows, as the planner's text, from the `matrices` input. */
   matrices?: MatrixRows;
+  /** The `job` context's identity of this job; GitHub Enterprise Server and older runners leave it empty. */
+  job: JobIdentity;
 }
+
+export interface JobIdentity {
+  workflowRef?: string;
+  workflowSha?: string;
+  checkRunId?: number;
+}
+
+export const MAX_JOB_IDENTITY_LENGTH = 1024;
+const COMMIT_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+const CHECK_RUN_ID = /^[1-9][0-9]*$/;
+
+/**
+ * Trunk refuses the whole plan over a malformed value, so one is warned about
+ * and left out rather than sent.
+ */
+const readJobIdentity = (): JobIdentity => {
+  const workflowRef = core.getInput("job-workflow-ref").trim();
+  const workflowSha = core.getInput("job-workflow-sha").trim();
+  const checkRunId = core.getInput("job-check-run-id").trim();
+  const dropped = (input: string): void => {
+    warn(`${input}: not a value GitHub sets; leaving it out of the request.`);
+  };
+  if (workflowRef.length > MAX_JOB_IDENTITY_LENGTH) {
+    dropped("job-workflow-ref");
+  }
+  if (workflowSha !== "" && !COMMIT_SHA.test(workflowSha)) {
+    dropped("job-workflow-sha");
+  }
+  const runId = Number(checkRunId);
+  const validRunId =
+    CHECK_RUN_ID.test(checkRunId) && Number.isSafeInteger(runId);
+  if (checkRunId !== "" && !validRunId) {
+    dropped("job-check-run-id");
+  }
+  return {
+    ...(workflowRef !== "" && workflowRef.length <= MAX_JOB_IDENTITY_LENGTH
+      ? { workflowRef }
+      : {}),
+    ...(COMMIT_SHA.test(workflowSha) ? { workflowSha } : {}),
+    ...(validRunId ? { checkRunId: runId } : {}),
+  };
+};
 
 const MAX_IMPACT_COUNT = 10_000_000;
 const MAX_IMPACTS = 8;
@@ -162,5 +206,6 @@ export const readInputs = (): ActionInputs => {
     githubToken: core.getInput("github-token"),
     ...(impacts === undefined ? {} : { impacts }),
     ...(matrices === undefined ? {} : { matrices }),
+    job: readJobIdentity(),
   };
 };

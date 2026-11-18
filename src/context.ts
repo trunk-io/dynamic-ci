@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { warn } from "./annotations";
 import type { DynamicCiRequest, Repo } from "./compat";
 import * as z from "zod";
-import type { ActionInputs } from "./inputs";
+import {
+  type ActionInputs,
+  type JobIdentity,
+  MAX_JOB_IDENTITY_LENGTH,
+} from "./inputs";
 import {
   type ChangedFilesSource,
   type PullRequestDiff,
@@ -125,6 +129,27 @@ const pullRequestDiff = (
   };
 };
 
+const filterJobIdentity = (
+  job: JobIdentity,
+): Pick<
+  DynamicCiRequest,
+  "filterJobKey" | "jobWorkflowRef" | "jobWorkflowSha" | "checkRunId"
+> => {
+  const filterJobKey = process.env["GITHUB_JOB"] ?? "";
+  return {
+    ...(filterJobKey !== "" && filterJobKey.length <= MAX_JOB_IDENTITY_LENGTH
+      ? { filterJobKey }
+      : {}),
+    ...(job.workflowRef === undefined
+      ? {}
+      : { jobWorkflowRef: job.workflowRef }),
+    ...(job.workflowSha === undefined
+      ? {}
+      : { jobWorkflowSha: job.workflowSha }),
+    ...(job.checkRunId === undefined ? {} : { checkRunId: job.checkRunId }),
+  };
+};
+
 export interface BuiltRequest {
   request: DynamicCiRequest;
   /** Absent when `changedFiles` was not sent and Trunk will fetch the diff. */
@@ -186,6 +211,7 @@ export const buildRequest = async (
     ...(workflowFile === undefined
       ? {}
       : { workflowFileSha: workflowFile.sha }),
+    ...filterJobIdentity(inputs.job),
     jobKeys: inputs.jobKeys,
     ...(inputs.ignoreSignals.length > 0
       ? { ignoreSignals: inputs.ignoreSignals }

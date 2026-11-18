@@ -51661,7 +51661,7 @@ var dynamic_ci_contract_default = {
       post: {
         operationId: "dynamicCi.generatePlan",
         summary: "Generate a CI skip plan",
-        description: "Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run \u2014 that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
+        description: "Requires the **Generate Dynamic CI plans** permission.\n\nReturns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.\n\n**Fail open.** A job absent from `jobs` must be run \u2014 that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
         requestBody: {
           required: true,
           content: {
@@ -51690,7 +51690,7 @@ var dynamic_ci_contract_default = {
       post: {
         operationId: "dynamicCi.generateBuildkitePlan",
         summary: "Generate a CI skip plan for a Buildkite pipeline",
-        description: "As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run \u2014 that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
+        description: "Requires the **Generate Dynamic CI plans** permission.\n\nAs [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.\n\n**Fail open.** A job absent from `jobs` must be run \u2014 that is the contract, not an error. Treat any non-200 the same way.\n\nSend the changed files as `changedFiles` when you can compute them. Without it, Trunk fetches the diff between `baseSha` and `commitSha` through your GitHub App installation, which needs both commits on GitHub.",
         requestBody: {
           required: true,
           content: {
@@ -51727,7 +51727,7 @@ var dynamic_ci_contract_default = {
         type: "apiKey",
         in: "header",
         name: "x-trunk-token",
-        description: "A short-lived token that Trunk's own tools send in the `x-trunk-token` header: the `trunk` CLI after `trunk auth login`, and the `trunk-io/login` action in a GitHub Actions run. Your own integrations should use an API key instead. Never send `Authorization` and `x-trunk-token` on the same request.\n\n**A token from a GitHub Actions run can only upload impacted targets** (`PUT /v2/impacted-targets`), for the repository the run belongs to; every other endpoint refuses it."
+        description: "A short-lived token that Trunk's own tools send in the `x-trunk-token` header: the `trunk` CLI after `trunk auth login`, and the `trunk-io/login` action in a GitHub Actions run. Your own integrations should use an API key instead. Never send `Authorization` and `x-trunk-token` on the same request.\n\n**A token from a GitHub Actions run can only upload and read impacted targets** (`PUT /v2/impacted-targets` and `GET /v2/pull-requests/{id}/impacted-targets`), for the repository the run belongs to. On a pull request from a fork it can also call the Flaky Tests CLI endpoints. Every other endpoint refuses it."
       }
     },
     schemas: {
@@ -51758,8 +51758,8 @@ var dynamic_ci_contract_default = {
           },
           runId: {
             type: "string",
-            description: "`BUILDKITE_BUILD_ID`, recorded so the plan can later be scored against the build's outcome.",
-            example: "01a0a151-99d4-4097-8806-a837f0830d9d"
+            description: "`BUILDKITE_BUILD_NUMBER`, recorded so the plan can later be scored against the build's outcome. Not `BUILDKITE_BUILD_ID`: a build Trunk started before queue is matched by its number.",
+            example: "4821"
           },
           runAttempt: {
             type: "integer",
@@ -51838,6 +51838,12 @@ var dynamic_ci_contract_default = {
             example: {
               "build-image": ["amd64", "arm64"]
             }
+          },
+          rbqDispatchId: {
+            type: "string",
+            format: "uuid",
+            description: "Set by Trunk's Run Before Queue on a build it created (`TRUNK_RBQ_DISPATCH_ID`). Send it unchanged when the variable is present.",
+            example: "3f9d2c1e-7a4b-4e8f-9c2d-5b6a7e8f9a0b"
           }
         },
         required: [
@@ -52059,6 +52065,32 @@ var dynamic_ci_contract_default = {
             pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$",
             description: "The git blob sha of the workflow file at `commitSha` (`git rev-parse <commitSha>:<workflowPath>`). Matrix jobs are pruned only against the parsed version of exactly this file; without it, a matrix job is decided as a whole.",
             example: "51d537a714c0f1c8a4e92b13d5f0e6a7c2b9d8e1"
+          },
+          filterJobKey: {
+            type: "string",
+            minLength: 1,
+            maxLength: 1024,
+            description: "`GITHUB_JOB`: the key of the job this request is sent from, in the workflow file that defines it.",
+            example: "dynamic-ci"
+          },
+          jobWorkflowRef: {
+            type: "string",
+            minLength: 1,
+            maxLength: 1024,
+            description: "`job.workflow_ref`: the workflow file that defines the job this request is sent from. Inside a reusable workflow it names the called file, where `workflowPath` names the calling one. Omit it when GitHub leaves it empty.",
+            example: "octo-org/octo-repo/.github/workflows/reusable-tests.yaml@refs/heads/main"
+          },
+          jobWorkflowSha: {
+            type: "string",
+            pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$",
+            description: "`job.workflow_sha`: the commit that workflow file was read from. Omit it when GitHub leaves it empty.",
+            example: "9fd89fd49ccc84094552b62860aa14089c88c4a4"
+          },
+          checkRunId: {
+            type: "integer",
+            exclusiveMinimum: 0,
+            description: "`job.check_run_id`: the check run of the job this request is sent from. Inside a reusable workflow it tells apart the jobs that call one file. Omit it when GitHub leaves it empty.",
+            example: 135132011429
           },
           matrixRows: {
             type: "object",
@@ -52528,6 +52560,1073 @@ var requestRecommendations = async ({
 
 // src/context.ts
 var import_node_fs = require("node:fs");
+
+// src/inputs.ts
+var core3 = __toESM(require_core(), 1);
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/scanner.js
+function createScanner(text, ignoreTrivia = false) {
+  const len = text.length;
+  let pos = 0, value = "", tokenOffset = 0, token = 16, lineNumber = 0, lineStartOffset = 0, tokenLineStartOffset = 0, prevTokenLineStartOffset = 0, scanError = 0;
+  function scanHexDigits(count, exact) {
+    let digits = 0;
+    let value2 = 0;
+    while (digits < count || !exact) {
+      let ch = text.charCodeAt(pos);
+      if (ch >= 48 && ch <= 57) {
+        value2 = value2 * 16 + ch - 48;
+      } else if (ch >= 65 && ch <= 70) {
+        value2 = value2 * 16 + ch - 65 + 10;
+      } else if (ch >= 97 && ch <= 102) {
+        value2 = value2 * 16 + ch - 97 + 10;
+      } else {
+        break;
+      }
+      pos++;
+      digits++;
+    }
+    if (digits < count) {
+      value2 = -1;
+    }
+    return value2;
+  }
+  function setPosition(newPosition) {
+    pos = newPosition;
+    value = "";
+    tokenOffset = 0;
+    token = 16;
+    scanError = 0;
+  }
+  function scanNumber() {
+    let start = pos;
+    if (text.charCodeAt(pos) === 48) {
+      pos++;
+    } else {
+      pos++;
+      while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+      }
+    }
+    if (pos < text.length && text.charCodeAt(pos) === 46) {
+      pos++;
+      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+          pos++;
+        }
+      } else {
+        scanError = 3;
+        return text.substring(start, pos);
+      }
+    }
+    let end = pos;
+    if (pos < text.length && (text.charCodeAt(pos) === 69 || text.charCodeAt(pos) === 101)) {
+      pos++;
+      if (pos < text.length && text.charCodeAt(pos) === 43 || text.charCodeAt(pos) === 45) {
+        pos++;
+      }
+      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        pos++;
+        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+          pos++;
+        }
+        end = pos;
+      } else {
+        scanError = 3;
+      }
+    }
+    return text.substring(start, end);
+  }
+  function scanString() {
+    let result = "", start = pos;
+    while (true) {
+      if (pos >= len) {
+        result += text.substring(start, pos);
+        scanError = 2;
+        break;
+      }
+      const ch = text.charCodeAt(pos);
+      if (ch === 34) {
+        result += text.substring(start, pos);
+        pos++;
+        break;
+      }
+      if (ch === 92) {
+        result += text.substring(start, pos);
+        pos++;
+        if (pos >= len) {
+          scanError = 2;
+          break;
+        }
+        const ch2 = text.charCodeAt(pos++);
+        switch (ch2) {
+          case 34:
+            result += '"';
+            break;
+          case 92:
+            result += "\\";
+            break;
+          case 47:
+            result += "/";
+            break;
+          case 98:
+            result += "\b";
+            break;
+          case 102:
+            result += "\f";
+            break;
+          case 110:
+            result += "\n";
+            break;
+          case 114:
+            result += "\r";
+            break;
+          case 116:
+            result += "	";
+            break;
+          case 117:
+            const ch3 = scanHexDigits(4, true);
+            if (ch3 >= 0) {
+              result += String.fromCharCode(ch3);
+            } else {
+              scanError = 4;
+            }
+            break;
+          default:
+            scanError = 5;
+        }
+        start = pos;
+        continue;
+      }
+      if (ch >= 0 && ch <= 31) {
+        if (isLineBreak(ch)) {
+          result += text.substring(start, pos);
+          scanError = 2;
+          break;
+        } else {
+          scanError = 6;
+        }
+      }
+      pos++;
+    }
+    return result;
+  }
+  function scanNext() {
+    value = "";
+    scanError = 0;
+    tokenOffset = pos;
+    lineStartOffset = lineNumber;
+    prevTokenLineStartOffset = tokenLineStartOffset;
+    if (pos >= len) {
+      tokenOffset = len;
+      return token = 17;
+    }
+    let code = text.charCodeAt(pos);
+    if (isWhiteSpace(code)) {
+      do {
+        pos++;
+        value += String.fromCharCode(code);
+        code = text.charCodeAt(pos);
+      } while (isWhiteSpace(code));
+      return token = 15;
+    }
+    if (isLineBreak(code)) {
+      pos++;
+      value += String.fromCharCode(code);
+      if (code === 13 && text.charCodeAt(pos) === 10) {
+        pos++;
+        value += "\n";
+      }
+      lineNumber++;
+      tokenLineStartOffset = pos;
+      return token = 14;
+    }
+    switch (code) {
+      // tokens: []{}:,
+      case 123:
+        pos++;
+        return token = 1;
+      case 125:
+        pos++;
+        return token = 2;
+      case 91:
+        pos++;
+        return token = 3;
+      case 93:
+        pos++;
+        return token = 4;
+      case 58:
+        pos++;
+        return token = 6;
+      case 44:
+        pos++;
+        return token = 5;
+      // strings
+      case 34:
+        pos++;
+        value = scanString();
+        return token = 10;
+      // comments
+      case 47:
+        const start = pos - 1;
+        if (text.charCodeAt(pos + 1) === 47) {
+          pos += 2;
+          while (pos < len) {
+            if (isLineBreak(text.charCodeAt(pos))) {
+              break;
+            }
+            pos++;
+          }
+          value = text.substring(start, pos);
+          return token = 12;
+        }
+        if (text.charCodeAt(pos + 1) === 42) {
+          pos += 2;
+          const safeLength = len - 1;
+          let commentClosed = false;
+          while (pos < safeLength) {
+            const ch = text.charCodeAt(pos);
+            if (ch === 42 && text.charCodeAt(pos + 1) === 47) {
+              pos += 2;
+              commentClosed = true;
+              break;
+            }
+            pos++;
+            if (isLineBreak(ch)) {
+              if (ch === 13 && text.charCodeAt(pos) === 10) {
+                pos++;
+              }
+              lineNumber++;
+              tokenLineStartOffset = pos;
+            }
+          }
+          if (!commentClosed) {
+            pos++;
+            scanError = 1;
+          }
+          value = text.substring(start, pos);
+          return token = 13;
+        }
+        value += String.fromCharCode(code);
+        pos++;
+        return token = 16;
+      // numbers
+      case 45:
+        value += String.fromCharCode(code);
+        pos++;
+        if (pos === len || !isDigit(text.charCodeAt(pos))) {
+          return token = 16;
+        }
+      // found a minus, followed by a number so
+      // we fall through to proceed with scanning
+      // numbers
+      case 48:
+      case 49:
+      case 50:
+      case 51:
+      case 52:
+      case 53:
+      case 54:
+      case 55:
+      case 56:
+      case 57:
+        value += scanNumber();
+        return token = 11;
+      // literals and unknown symbols
+      default:
+        while (pos < len && isUnknownContentCharacter(code)) {
+          pos++;
+          code = text.charCodeAt(pos);
+        }
+        if (tokenOffset !== pos) {
+          value = text.substring(tokenOffset, pos);
+          switch (value) {
+            case "true":
+              return token = 8;
+            case "false":
+              return token = 9;
+            case "null":
+              return token = 7;
+          }
+          return token = 16;
+        }
+        value += String.fromCharCode(code);
+        pos++;
+        return token = 16;
+    }
+  }
+  function isUnknownContentCharacter(code) {
+    if (isWhiteSpace(code) || isLineBreak(code)) {
+      return false;
+    }
+    switch (code) {
+      case 125:
+      case 93:
+      case 123:
+      case 91:
+      case 34:
+      case 58:
+      case 44:
+      case 47:
+        return false;
+    }
+    return true;
+  }
+  function scanNextNonTrivia() {
+    let result;
+    do {
+      result = scanNext();
+    } while (result >= 12 && result <= 15);
+    return result;
+  }
+  return {
+    setPosition,
+    getPosition: () => pos,
+    scan: ignoreTrivia ? scanNextNonTrivia : scanNext,
+    getToken: () => token,
+    getTokenValue: () => value,
+    getTokenOffset: () => tokenOffset,
+    getTokenLength: () => pos - tokenOffset,
+    getTokenStartLine: () => lineStartOffset,
+    getTokenStartCharacter: () => tokenOffset - prevTokenLineStartOffset,
+    getTokenError: () => scanError
+  };
+}
+function isWhiteSpace(ch) {
+  return ch === 32 || ch === 9;
+}
+function isLineBreak(ch) {
+  return ch === 10 || ch === 13;
+}
+function isDigit(ch) {
+  return ch >= 48 && ch <= 57;
+}
+var CharacterCodes;
+(function(CharacterCodes2) {
+  CharacterCodes2[CharacterCodes2["lineFeed"] = 10] = "lineFeed";
+  CharacterCodes2[CharacterCodes2["carriageReturn"] = 13] = "carriageReturn";
+  CharacterCodes2[CharacterCodes2["space"] = 32] = "space";
+  CharacterCodes2[CharacterCodes2["_0"] = 48] = "_0";
+  CharacterCodes2[CharacterCodes2["_1"] = 49] = "_1";
+  CharacterCodes2[CharacterCodes2["_2"] = 50] = "_2";
+  CharacterCodes2[CharacterCodes2["_3"] = 51] = "_3";
+  CharacterCodes2[CharacterCodes2["_4"] = 52] = "_4";
+  CharacterCodes2[CharacterCodes2["_5"] = 53] = "_5";
+  CharacterCodes2[CharacterCodes2["_6"] = 54] = "_6";
+  CharacterCodes2[CharacterCodes2["_7"] = 55] = "_7";
+  CharacterCodes2[CharacterCodes2["_8"] = 56] = "_8";
+  CharacterCodes2[CharacterCodes2["_9"] = 57] = "_9";
+  CharacterCodes2[CharacterCodes2["a"] = 97] = "a";
+  CharacterCodes2[CharacterCodes2["b"] = 98] = "b";
+  CharacterCodes2[CharacterCodes2["c"] = 99] = "c";
+  CharacterCodes2[CharacterCodes2["d"] = 100] = "d";
+  CharacterCodes2[CharacterCodes2["e"] = 101] = "e";
+  CharacterCodes2[CharacterCodes2["f"] = 102] = "f";
+  CharacterCodes2[CharacterCodes2["g"] = 103] = "g";
+  CharacterCodes2[CharacterCodes2["h"] = 104] = "h";
+  CharacterCodes2[CharacterCodes2["i"] = 105] = "i";
+  CharacterCodes2[CharacterCodes2["j"] = 106] = "j";
+  CharacterCodes2[CharacterCodes2["k"] = 107] = "k";
+  CharacterCodes2[CharacterCodes2["l"] = 108] = "l";
+  CharacterCodes2[CharacterCodes2["m"] = 109] = "m";
+  CharacterCodes2[CharacterCodes2["n"] = 110] = "n";
+  CharacterCodes2[CharacterCodes2["o"] = 111] = "o";
+  CharacterCodes2[CharacterCodes2["p"] = 112] = "p";
+  CharacterCodes2[CharacterCodes2["q"] = 113] = "q";
+  CharacterCodes2[CharacterCodes2["r"] = 114] = "r";
+  CharacterCodes2[CharacterCodes2["s"] = 115] = "s";
+  CharacterCodes2[CharacterCodes2["t"] = 116] = "t";
+  CharacterCodes2[CharacterCodes2["u"] = 117] = "u";
+  CharacterCodes2[CharacterCodes2["v"] = 118] = "v";
+  CharacterCodes2[CharacterCodes2["w"] = 119] = "w";
+  CharacterCodes2[CharacterCodes2["x"] = 120] = "x";
+  CharacterCodes2[CharacterCodes2["y"] = 121] = "y";
+  CharacterCodes2[CharacterCodes2["z"] = 122] = "z";
+  CharacterCodes2[CharacterCodes2["A"] = 65] = "A";
+  CharacterCodes2[CharacterCodes2["B"] = 66] = "B";
+  CharacterCodes2[CharacterCodes2["C"] = 67] = "C";
+  CharacterCodes2[CharacterCodes2["D"] = 68] = "D";
+  CharacterCodes2[CharacterCodes2["E"] = 69] = "E";
+  CharacterCodes2[CharacterCodes2["F"] = 70] = "F";
+  CharacterCodes2[CharacterCodes2["G"] = 71] = "G";
+  CharacterCodes2[CharacterCodes2["H"] = 72] = "H";
+  CharacterCodes2[CharacterCodes2["I"] = 73] = "I";
+  CharacterCodes2[CharacterCodes2["J"] = 74] = "J";
+  CharacterCodes2[CharacterCodes2["K"] = 75] = "K";
+  CharacterCodes2[CharacterCodes2["L"] = 76] = "L";
+  CharacterCodes2[CharacterCodes2["M"] = 77] = "M";
+  CharacterCodes2[CharacterCodes2["N"] = 78] = "N";
+  CharacterCodes2[CharacterCodes2["O"] = 79] = "O";
+  CharacterCodes2[CharacterCodes2["P"] = 80] = "P";
+  CharacterCodes2[CharacterCodes2["Q"] = 81] = "Q";
+  CharacterCodes2[CharacterCodes2["R"] = 82] = "R";
+  CharacterCodes2[CharacterCodes2["S"] = 83] = "S";
+  CharacterCodes2[CharacterCodes2["T"] = 84] = "T";
+  CharacterCodes2[CharacterCodes2["U"] = 85] = "U";
+  CharacterCodes2[CharacterCodes2["V"] = 86] = "V";
+  CharacterCodes2[CharacterCodes2["W"] = 87] = "W";
+  CharacterCodes2[CharacterCodes2["X"] = 88] = "X";
+  CharacterCodes2[CharacterCodes2["Y"] = 89] = "Y";
+  CharacterCodes2[CharacterCodes2["Z"] = 90] = "Z";
+  CharacterCodes2[CharacterCodes2["asterisk"] = 42] = "asterisk";
+  CharacterCodes2[CharacterCodes2["backslash"] = 92] = "backslash";
+  CharacterCodes2[CharacterCodes2["closeBrace"] = 125] = "closeBrace";
+  CharacterCodes2[CharacterCodes2["closeBracket"] = 93] = "closeBracket";
+  CharacterCodes2[CharacterCodes2["colon"] = 58] = "colon";
+  CharacterCodes2[CharacterCodes2["comma"] = 44] = "comma";
+  CharacterCodes2[CharacterCodes2["dot"] = 46] = "dot";
+  CharacterCodes2[CharacterCodes2["doubleQuote"] = 34] = "doubleQuote";
+  CharacterCodes2[CharacterCodes2["minus"] = 45] = "minus";
+  CharacterCodes2[CharacterCodes2["openBrace"] = 123] = "openBrace";
+  CharacterCodes2[CharacterCodes2["openBracket"] = 91] = "openBracket";
+  CharacterCodes2[CharacterCodes2["plus"] = 43] = "plus";
+  CharacterCodes2[CharacterCodes2["slash"] = 47] = "slash";
+  CharacterCodes2[CharacterCodes2["formFeed"] = 12] = "formFeed";
+  CharacterCodes2[CharacterCodes2["tab"] = 9] = "tab";
+})(CharacterCodes || (CharacterCodes = {}));
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/string-intern.js
+var cachedSpaces = new Array(20).fill(0).map((_, index) => {
+  return " ".repeat(index);
+});
+var maxCachedValues = 200;
+var cachedBreakLinesWithSpaces = {
+  " ": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\n" + " ".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + " ".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r\n" + " ".repeat(index);
+    })
+  },
+  "	": {
+    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\n" + "	".repeat(index);
+    }),
+    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r" + "	".repeat(index);
+    }),
+    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
+      return "\r\n" + "	".repeat(index);
+    })
+  }
+};
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/parser.js
+var ParseOptions;
+(function(ParseOptions2) {
+  ParseOptions2.DEFAULT = {
+    allowTrailingComma: false
+  };
+})(ParseOptions || (ParseOptions = {}));
+function parseTree(text, errors = [], options = ParseOptions.DEFAULT) {
+  let currentParent = { type: "array", offset: -1, length: -1, children: [], parent: void 0 };
+  function ensurePropertyComplete(endOffset) {
+    if (currentParent.type === "property") {
+      currentParent.length = endOffset - currentParent.offset;
+      currentParent = currentParent.parent;
+    }
+  }
+  function onValue(valueNode) {
+    currentParent.children.push(valueNode);
+    return valueNode;
+  }
+  const visitor = {
+    onObjectBegin: (offset) => {
+      currentParent = onValue({ type: "object", offset, length: -1, parent: currentParent, children: [] });
+    },
+    onObjectProperty: (name, offset, length) => {
+      currentParent = onValue({ type: "property", offset, length: -1, parent: currentParent, children: [] });
+      currentParent.children.push({ type: "string", value: name, offset, length, parent: currentParent });
+    },
+    onObjectEnd: (offset, length) => {
+      ensurePropertyComplete(offset + length);
+      currentParent.length = offset + length - currentParent.offset;
+      currentParent = currentParent.parent;
+      ensurePropertyComplete(offset + length);
+    },
+    onArrayBegin: (offset, length) => {
+      currentParent = onValue({ type: "array", offset, length: -1, parent: currentParent, children: [] });
+    },
+    onArrayEnd: (offset, length) => {
+      currentParent.length = offset + length - currentParent.offset;
+      currentParent = currentParent.parent;
+      ensurePropertyComplete(offset + length);
+    },
+    onLiteralValue: (value, offset, length) => {
+      onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
+      ensurePropertyComplete(offset + length);
+    },
+    onSeparator: (sep2, offset, length) => {
+      if (currentParent.type === "property") {
+        if (sep2 === ":") {
+          currentParent.colonOffset = offset;
+        } else if (sep2 === ",") {
+          ensurePropertyComplete(offset);
+        }
+      }
+    },
+    onError: (error2, offset, length) => {
+      errors.push({ error: error2, offset, length });
+    }
+  };
+  visit(text, visitor, options);
+  const result = currentParent.children[0];
+  if (result) {
+    delete result.parent;
+  }
+  return result;
+}
+function visit(text, visitor, options = ParseOptions.DEFAULT) {
+  const _scanner = createScanner(text, false);
+  const _jsonPath = [];
+  let suppressedCallbacks = 0;
+  function toNoArgVisit(visitFunction) {
+    return visitFunction ? () => suppressedCallbacks === 0 && visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()) : () => true;
+  }
+  function toOneArgVisit(visitFunction) {
+    return visitFunction ? (arg) => suppressedCallbacks === 0 && visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()) : () => true;
+  }
+  function toOneArgVisitWithPath(visitFunction) {
+    return visitFunction ? (arg) => suppressedCallbacks === 0 && visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter(), () => _jsonPath.slice()) : () => true;
+  }
+  function toBeginVisit(visitFunction) {
+    return visitFunction ? () => {
+      if (suppressedCallbacks > 0) {
+        suppressedCallbacks++;
+      } else {
+        let cbReturn = visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter(), () => _jsonPath.slice());
+        if (cbReturn === false) {
+          suppressedCallbacks = 1;
+        }
+      }
+    } : () => true;
+  }
+  function toEndVisit(visitFunction) {
+    return visitFunction ? () => {
+      if (suppressedCallbacks > 0) {
+        suppressedCallbacks--;
+      }
+      if (suppressedCallbacks === 0) {
+        visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter());
+      }
+    } : () => true;
+  }
+  const onObjectBegin = toBeginVisit(visitor.onObjectBegin), onObjectProperty = toOneArgVisitWithPath(visitor.onObjectProperty), onObjectEnd = toEndVisit(visitor.onObjectEnd), onArrayBegin = toBeginVisit(visitor.onArrayBegin), onArrayEnd = toEndVisit(visitor.onArrayEnd), onLiteralValue = toOneArgVisitWithPath(visitor.onLiteralValue), onSeparator = toOneArgVisit(visitor.onSeparator), onComment = toNoArgVisit(visitor.onComment), onError = toOneArgVisit(visitor.onError);
+  const disallowComments = options && options.disallowComments;
+  const allowTrailingComma = options && options.allowTrailingComma;
+  function scanNext() {
+    while (true) {
+      const token = _scanner.scan();
+      switch (_scanner.getTokenError()) {
+        case 4:
+          handleError(
+            14
+            /* ParseErrorCode.InvalidUnicode */
+          );
+          break;
+        case 5:
+          handleError(
+            15
+            /* ParseErrorCode.InvalidEscapeCharacter */
+          );
+          break;
+        case 3:
+          handleError(
+            13
+            /* ParseErrorCode.UnexpectedEndOfNumber */
+          );
+          break;
+        case 1:
+          if (!disallowComments) {
+            handleError(
+              11
+              /* ParseErrorCode.UnexpectedEndOfComment */
+            );
+          }
+          break;
+        case 2:
+          handleError(
+            12
+            /* ParseErrorCode.UnexpectedEndOfString */
+          );
+          break;
+        case 6:
+          handleError(
+            16
+            /* ParseErrorCode.InvalidCharacter */
+          );
+          break;
+      }
+      switch (token) {
+        case 12:
+        case 13:
+          if (disallowComments) {
+            handleError(
+              10
+              /* ParseErrorCode.InvalidCommentToken */
+            );
+          } else {
+            onComment();
+          }
+          break;
+        case 16:
+          handleError(
+            1
+            /* ParseErrorCode.InvalidSymbol */
+          );
+          break;
+        case 15:
+        case 14:
+          break;
+        default:
+          return token;
+      }
+    }
+  }
+  function handleError(error2, skipUntilAfter = [], skipUntil = []) {
+    onError(error2);
+    if (skipUntilAfter.length + skipUntil.length > 0) {
+      let token = _scanner.getToken();
+      while (token !== 17) {
+        if (skipUntilAfter.indexOf(token) !== -1) {
+          scanNext();
+          break;
+        } else if (skipUntil.indexOf(token) !== -1) {
+          break;
+        }
+        token = scanNext();
+      }
+    }
+  }
+  function parseString(isValue) {
+    const value = _scanner.getTokenValue();
+    if (isValue) {
+      onLiteralValue(value);
+    } else {
+      onObjectProperty(value);
+      _jsonPath.push(value);
+    }
+    scanNext();
+    return true;
+  }
+  function parseLiteral() {
+    switch (_scanner.getToken()) {
+      case 11:
+        const tokenValue = _scanner.getTokenValue();
+        let value = Number(tokenValue);
+        if (isNaN(value)) {
+          handleError(
+            2
+            /* ParseErrorCode.InvalidNumberFormat */
+          );
+          value = 0;
+        }
+        onLiteralValue(value);
+        break;
+      case 7:
+        onLiteralValue(null);
+        break;
+      case 8:
+        onLiteralValue(true);
+        break;
+      case 9:
+        onLiteralValue(false);
+        break;
+      default:
+        return false;
+    }
+    scanNext();
+    return true;
+  }
+  function parseProperty() {
+    if (_scanner.getToken() !== 10) {
+      handleError(3, [], [
+        2,
+        5
+        /* SyntaxKind.CommaToken */
+      ]);
+      return false;
+    }
+    parseString(false);
+    if (_scanner.getToken() === 6) {
+      onSeparator(":");
+      scanNext();
+      if (!parseValue()) {
+        handleError(4, [], [
+          2,
+          5
+          /* SyntaxKind.CommaToken */
+        ]);
+      }
+    } else {
+      handleError(5, [], [
+        2,
+        5
+        /* SyntaxKind.CommaToken */
+      ]);
+    }
+    _jsonPath.pop();
+    return true;
+  }
+  function parseObject() {
+    onObjectBegin();
+    scanNext();
+    let needsComma = false;
+    while (_scanner.getToken() !== 2 && _scanner.getToken() !== 17) {
+      if (_scanner.getToken() === 5) {
+        if (!needsComma) {
+          handleError(4, [], []);
+        }
+        onSeparator(",");
+        scanNext();
+        if (_scanner.getToken() === 2 && allowTrailingComma) {
+          break;
+        }
+      } else if (needsComma) {
+        handleError(6, [], []);
+      }
+      if (!parseProperty()) {
+        handleError(4, [], [
+          2,
+          5
+          /* SyntaxKind.CommaToken */
+        ]);
+      }
+      needsComma = true;
+    }
+    onObjectEnd();
+    if (_scanner.getToken() !== 2) {
+      handleError(7, [
+        2
+        /* SyntaxKind.CloseBraceToken */
+      ], []);
+    } else {
+      scanNext();
+    }
+    return true;
+  }
+  function parseArray() {
+    onArrayBegin();
+    scanNext();
+    let isFirstElement = true;
+    let needsComma = false;
+    while (_scanner.getToken() !== 4 && _scanner.getToken() !== 17) {
+      if (_scanner.getToken() === 5) {
+        if (!needsComma) {
+          handleError(4, [], []);
+        }
+        onSeparator(",");
+        scanNext();
+        if (_scanner.getToken() === 4 && allowTrailingComma) {
+          break;
+        }
+      } else if (needsComma) {
+        handleError(6, [], []);
+      }
+      if (isFirstElement) {
+        _jsonPath.push(0);
+        isFirstElement = false;
+      } else {
+        _jsonPath[_jsonPath.length - 1]++;
+      }
+      if (!parseValue()) {
+        handleError(4, [], [
+          4,
+          5
+          /* SyntaxKind.CommaToken */
+        ]);
+      }
+      needsComma = true;
+    }
+    onArrayEnd();
+    if (!isFirstElement) {
+      _jsonPath.pop();
+    }
+    if (_scanner.getToken() !== 4) {
+      handleError(8, [
+        4
+        /* SyntaxKind.CloseBracketToken */
+      ], []);
+    } else {
+      scanNext();
+    }
+    return true;
+  }
+  function parseValue() {
+    switch (_scanner.getToken()) {
+      case 3:
+        return parseArray();
+      case 1:
+        return parseObject();
+      case 10:
+        return parseString(true);
+      default:
+        return parseLiteral();
+    }
+  }
+  scanNext();
+  if (_scanner.getToken() === 17) {
+    if (options.allowEmptyContent) {
+      return true;
+    }
+    handleError(4, [], []);
+    return false;
+  }
+  if (!parseValue()) {
+    handleError(4, [], []);
+    return false;
+  }
+  if (_scanner.getToken() !== 17) {
+    handleError(9, [], []);
+  }
+  return true;
+}
+function getNodeType(value) {
+  switch (typeof value) {
+    case "boolean":
+      return "boolean";
+    case "number":
+      return "number";
+    case "string":
+      return "string";
+    case "object": {
+      if (!value) {
+        return "null";
+      } else if (Array.isArray(value)) {
+        return "array";
+      }
+      return "object";
+    }
+    default:
+      return "null";
+  }
+}
+
+// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/main.js
+var ScanError;
+(function(ScanError2) {
+  ScanError2[ScanError2["None"] = 0] = "None";
+  ScanError2[ScanError2["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
+  ScanError2[ScanError2["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
+  ScanError2[ScanError2["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
+  ScanError2[ScanError2["InvalidUnicode"] = 4] = "InvalidUnicode";
+  ScanError2[ScanError2["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
+  ScanError2[ScanError2["InvalidCharacter"] = 6] = "InvalidCharacter";
+})(ScanError || (ScanError = {}));
+var SyntaxKind;
+(function(SyntaxKind2) {
+  SyntaxKind2[SyntaxKind2["OpenBraceToken"] = 1] = "OpenBraceToken";
+  SyntaxKind2[SyntaxKind2["CloseBraceToken"] = 2] = "CloseBraceToken";
+  SyntaxKind2[SyntaxKind2["OpenBracketToken"] = 3] = "OpenBracketToken";
+  SyntaxKind2[SyntaxKind2["CloseBracketToken"] = 4] = "CloseBracketToken";
+  SyntaxKind2[SyntaxKind2["CommaToken"] = 5] = "CommaToken";
+  SyntaxKind2[SyntaxKind2["ColonToken"] = 6] = "ColonToken";
+  SyntaxKind2[SyntaxKind2["NullKeyword"] = 7] = "NullKeyword";
+  SyntaxKind2[SyntaxKind2["TrueKeyword"] = 8] = "TrueKeyword";
+  SyntaxKind2[SyntaxKind2["FalseKeyword"] = 9] = "FalseKeyword";
+  SyntaxKind2[SyntaxKind2["StringLiteral"] = 10] = "StringLiteral";
+  SyntaxKind2[SyntaxKind2["NumericLiteral"] = 11] = "NumericLiteral";
+  SyntaxKind2[SyntaxKind2["LineCommentTrivia"] = 12] = "LineCommentTrivia";
+  SyntaxKind2[SyntaxKind2["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
+  SyntaxKind2[SyntaxKind2["LineBreakTrivia"] = 14] = "LineBreakTrivia";
+  SyntaxKind2[SyntaxKind2["Trivia"] = 15] = "Trivia";
+  SyntaxKind2[SyntaxKind2["Unknown"] = 16] = "Unknown";
+  SyntaxKind2[SyntaxKind2["EOF"] = 17] = "EOF";
+})(SyntaxKind || (SyntaxKind = {}));
+var parseTree2 = parseTree;
+var ParseErrorCode;
+(function(ParseErrorCode2) {
+  ParseErrorCode2[ParseErrorCode2["InvalidSymbol"] = 1] = "InvalidSymbol";
+  ParseErrorCode2[ParseErrorCode2["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
+  ParseErrorCode2[ParseErrorCode2["PropertyNameExpected"] = 3] = "PropertyNameExpected";
+  ParseErrorCode2[ParseErrorCode2["ValueExpected"] = 4] = "ValueExpected";
+  ParseErrorCode2[ParseErrorCode2["ColonExpected"] = 5] = "ColonExpected";
+  ParseErrorCode2[ParseErrorCode2["CommaExpected"] = 6] = "CommaExpected";
+  ParseErrorCode2[ParseErrorCode2["CloseBraceExpected"] = 7] = "CloseBraceExpected";
+  ParseErrorCode2[ParseErrorCode2["CloseBracketExpected"] = 8] = "CloseBracketExpected";
+  ParseErrorCode2[ParseErrorCode2["EndOfFileExpected"] = 9] = "EndOfFileExpected";
+  ParseErrorCode2[ParseErrorCode2["InvalidCommentToken"] = 10] = "InvalidCommentToken";
+  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
+  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
+  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
+  ParseErrorCode2[ParseErrorCode2["InvalidUnicode"] = 14] = "InvalidUnicode";
+  ParseErrorCode2[ParseErrorCode2["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
+  ParseErrorCode2[ParseErrorCode2["InvalidCharacter"] = 16] = "InvalidCharacter";
+})(ParseErrorCode || (ParseErrorCode = {}));
+
+// src/matrices.ts
+var MAX_JOB_BYTES = 64 * 1024;
+var MAX_TOTAL_BYTES = 256 * 1024;
+var MAX_JOBS = 64;
+var JSON_ONLY = { disallowComments: true, allowTrailingComma: false };
+var buildMatrixRows = (raw) => {
+  if (raw.trim() === "") {
+    return void 0;
+  }
+  const errors = [];
+  const root = parseTree2(raw, errors, JSON_ONLY);
+  if (root?.type !== "object" || errors.length > 0) {
+    warn("matrices: not a JSON object; sending no matrix rows.");
+    return void 0;
+  }
+  const matrixRows = {};
+  const omitted = [];
+  let total = 0;
+  for (const property of root.children ?? []) {
+    const [key, value] = property.children ?? [];
+    if (key === void 0 || value === void 0) {
+      continue;
+    }
+    const jobKey = String(key.value);
+    if (value.type !== "array") {
+      warn(`matrices.${jobKey}: not a JSON list of rows; deciding it whole.`);
+      continue;
+    }
+    if ((value.children ?? []).length === 0) {
+      continue;
+    }
+    const text = raw.slice(value.offset, value.offset + value.length);
+    const bytes = Buffer.byteLength(text);
+    if (bytes > MAX_JOB_BYTES || total + bytes > MAX_TOTAL_BYTES || Object.keys(matrixRows).length >= MAX_JOBS) {
+      omitted.push(jobKey);
+      continue;
+    }
+    matrixRows[jobKey] = text;
+    total += bytes;
+  }
+  if (omitted.length > 0) {
+    warn(
+      `matrices: too large to send in full; deciding these jobs whole: ${omitted.join(", ")}.`
+    );
+  }
+  if (Object.keys(matrixRows).length === 0 && omitted.length === 0) {
+    return void 0;
+  }
+  return { matrixRows, matrixRowsOmitted: omitted.slice(0, MAX_JOBS) };
+};
+
+// src/inputs.ts
+var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
+var MAX_JOB_IDENTITY_LENGTH = 1024;
+var COMMIT_SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+var CHECK_RUN_ID = /^[1-9][0-9]*$/;
+var readJobIdentity = () => {
+  const workflowRef = core3.getInput("job-workflow-ref").trim();
+  const workflowSha = core3.getInput("job-workflow-sha").trim();
+  const checkRunId = core3.getInput("job-check-run-id").trim();
+  const dropped = (input) => {
+    warn(`${input}: not a value GitHub sets; leaving it out of the request.`);
+  };
+  if (workflowRef.length > MAX_JOB_IDENTITY_LENGTH) {
+    dropped("job-workflow-ref");
+  }
+  if (workflowSha !== "" && !COMMIT_SHA.test(workflowSha)) {
+    dropped("job-workflow-sha");
+  }
+  const runId = Number(checkRunId);
+  const validRunId = CHECK_RUN_ID.test(checkRunId) && Number.isSafeInteger(runId);
+  if (checkRunId !== "" && !validRunId) {
+    dropped("job-check-run-id");
+  }
+  return {
+    ...workflowRef !== "" && workflowRef.length <= MAX_JOB_IDENTITY_LENGTH ? { workflowRef } : {},
+    ...COMMIT_SHA.test(workflowSha) ? { workflowSha } : {},
+    ...validRunId ? { checkRunId: runId } : {}
+  };
+};
+var MAX_IMPACT_COUNT = 1e7;
+var MAX_IMPACTS = 8;
+var IMPACT_ENTRY = strictObject({
+  source: string2().regex(
+    /^[a-z0-9][a-z0-9._-]{0,63}$/,
+    "must be lowercase letters, digits, '.', '_' or '-', at most 64 characters"
+  ),
+  count: number2().int().min(0).max(MAX_IMPACT_COUNT).optional(),
+  all: boolean2().optional()
+}).refine(({ count, all }) => all === true || count !== void 0, {
+  message: "needs a count unless all is true"
+});
+var describeIssue = (error2) => error2.issues.map(
+  (issue2) => issue2.path.length === 0 ? issue2.message : `${issue2.path.join(".")}: ${issue2.message}`
+).join("; ");
+var readImpacts = () => {
+  const raw = core3.getInput("impacts").trim();
+  if (raw === "") {
+    return void 0;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    warn("impacts: not valid JSON; sending no impacts.");
+    return void 0;
+  }
+  if (!Array.isArray(parsed)) {
+    warn("impacts: not a JSON list; sending no impacts.");
+    return void 0;
+  }
+  const impacts = [];
+  parsed.forEach((item, index) => {
+    const entry = IMPACT_ENTRY.safeParse(item);
+    if (!entry.success) {
+      warn(
+        `impacts[${String(index)}]: ${describeIssue(entry.error)}; dropping it.`
+      );
+      return;
+    }
+    const { source, count, all = false } = entry.data;
+    if (impacts.some((impact) => impact.source === source)) {
+      warn(`impacts: lists ${source} more than once; keeping the first.`);
+      return;
+    }
+    if (impacts.length >= MAX_IMPACTS) {
+      warn(
+        `impacts: more than ${String(MAX_IMPACTS)} entries; dropping ${source}.`
+      );
+      return;
+    }
+    impacts.push({ source, all, ...count === void 0 ? {} : { count } });
+  });
+  return impacts.length === 0 ? void 0 : impacts;
+};
+var splitList = (raw) => raw.split(",").map((entry) => entry.trim()).filter(Boolean);
+var applyAnnotationSetting = () => {
+  const raw = core3.getInput("enable-annotation").trim().toLowerCase();
+  setAnnotationsEnabled(raw === "true");
+  if (raw !== "" && raw !== "false" && raw !== "true") {
+    warn(
+      `enable-annotation: "${raw}" is not "true" or "false"; treating it as false.`
+    );
+  }
+};
+var readInputs = () => {
+  applyAnnotationSetting();
+  const token = core3.getInput("token", { required: true });
+  core3.setSecret(token);
+  const jobKeys = splitList(core3.getInput("job-keys"));
+  const ignoreSignals = splitList(core3.getInput("ignore-signals"));
+  for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
+    warn(
+      `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`
+    );
+  }
+  const impacts = readImpacts();
+  const matrices = buildMatrixRows(core3.getInput("matrices"));
+  return {
+    token,
+    jobKeys,
+    ignoreSignals,
+    actionRef: core3.getInput("gh-action-ref"),
+    githubToken: core3.getInput("github-token"),
+    ...impacts === void 0 ? {} : { impacts },
+    ...matrices === void 0 ? {} : { matrices },
+    job: readJobIdentity()
+  };
+};
 
 // src/changed-files.ts
 var import_node_child_process = require("node:child_process");
@@ -53006,7 +54105,7 @@ function expand(template, context3) {
     return template.replace(/\/$/, "");
   }
 }
-function parse3(options) {
+function parse4(options) {
   let method = options.method.toUpperCase();
   let url2 = (options.url || "/").replace(/:([a-z]\w+)/g, "{$1}");
   let headers = Object.assign({}, options.headers);
@@ -53070,7 +54169,7 @@ function parse3(options) {
   );
 }
 function endpointWithDefaults(defaults2, route, options) {
-  return parse3(merge2(defaults2, route, options));
+  return parse4(merge2(defaults2, route, options));
 }
 function withDefaults(oldDefaults, newDefaults) {
   const DEFAULTS2 = merge2(oldDefaults, newDefaults);
@@ -53079,7 +54178,7 @@ function withDefaults(oldDefaults, newDefaults) {
     DEFAULTS: DEFAULTS2,
     defaults: withDefaults.bind(null, DEFAULTS2),
     merge: merge2.bind(null, DEFAULTS2),
-    parse: parse3
+    parse: parse4
   });
 }
 var endpoint = withDefaults(null, DEFAULTS);
@@ -56810,6 +57909,15 @@ var pullRequestDiff = (event, prNumber) => {
     ...pr.deletions === void 0 ? {} : { deletions: pr.deletions }
   };
 };
+var filterJobIdentity = (job) => {
+  const filterJobKey = process.env["GITHUB_JOB"] ?? "";
+  return {
+    ...filterJobKey !== "" && filterJobKey.length <= MAX_JOB_IDENTITY_LENGTH ? { filterJobKey } : {},
+    ...job.workflowRef === void 0 ? {} : { jobWorkflowRef: job.workflowRef },
+    ...job.workflowSha === void 0 ? {} : { jobWorkflowSha: job.workflowSha },
+    ...job.checkRunId === void 0 ? {} : { checkRunId: job.checkRunId }
+  };
+};
 var buildRequest = async (inputs) => {
   const event = readEvent();
   const baseSha = event.pull_request?.base?.sha ?? null;
@@ -56846,6 +57954,7 @@ var buildRequest = async (inputs) => {
     ...process.env["GITHUB_EVENT_NAME"] ? { eventName: process.env["GITHUB_EVENT_NAME"] } : {},
     workflowPath,
     ...workflowFile === void 0 ? {} : { workflowFileSha: workflowFile.sha },
+    ...filterJobIdentity(inputs.job),
     jobKeys: inputs.jobKeys,
     ...inputs.ignoreSignals.length > 0 ? { ignoreSignals: inputs.ignoreSignals } : {},
     ...resolved === void 0 ? {} : { changedFiles: resolved.changedFiles },
@@ -56859,1045 +57968,6 @@ var buildRequest = async (inputs) => {
     request: request2,
     ...resolved === void 0 ? {} : { changedFilesSource: resolved.source },
     ...workflowFile === void 0 ? {} : { workflowFileShaSource: workflowFile.source }
-  };
-};
-
-// src/inputs.ts
-var core3 = __toESM(require_core(), 1);
-
-// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/scanner.js
-function createScanner(text, ignoreTrivia = false) {
-  const len = text.length;
-  let pos = 0, value = "", tokenOffset = 0, token = 16, lineNumber = 0, lineStartOffset = 0, tokenLineStartOffset = 0, prevTokenLineStartOffset = 0, scanError = 0;
-  function scanHexDigits(count, exact) {
-    let digits = 0;
-    let value2 = 0;
-    while (digits < count || !exact) {
-      let ch = text.charCodeAt(pos);
-      if (ch >= 48 && ch <= 57) {
-        value2 = value2 * 16 + ch - 48;
-      } else if (ch >= 65 && ch <= 70) {
-        value2 = value2 * 16 + ch - 65 + 10;
-      } else if (ch >= 97 && ch <= 102) {
-        value2 = value2 * 16 + ch - 97 + 10;
-      } else {
-        break;
-      }
-      pos++;
-      digits++;
-    }
-    if (digits < count) {
-      value2 = -1;
-    }
-    return value2;
-  }
-  function setPosition(newPosition) {
-    pos = newPosition;
-    value = "";
-    tokenOffset = 0;
-    token = 16;
-    scanError = 0;
-  }
-  function scanNumber() {
-    let start = pos;
-    if (text.charCodeAt(pos) === 48) {
-      pos++;
-    } else {
-      pos++;
-      while (pos < text.length && isDigit(text.charCodeAt(pos))) {
-        pos++;
-      }
-    }
-    if (pos < text.length && text.charCodeAt(pos) === 46) {
-      pos++;
-      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
-        pos++;
-        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
-          pos++;
-        }
-      } else {
-        scanError = 3;
-        return text.substring(start, pos);
-      }
-    }
-    let end = pos;
-    if (pos < text.length && (text.charCodeAt(pos) === 69 || text.charCodeAt(pos) === 101)) {
-      pos++;
-      if (pos < text.length && text.charCodeAt(pos) === 43 || text.charCodeAt(pos) === 45) {
-        pos++;
-      }
-      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
-        pos++;
-        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
-          pos++;
-        }
-        end = pos;
-      } else {
-        scanError = 3;
-      }
-    }
-    return text.substring(start, end);
-  }
-  function scanString() {
-    let result = "", start = pos;
-    while (true) {
-      if (pos >= len) {
-        result += text.substring(start, pos);
-        scanError = 2;
-        break;
-      }
-      const ch = text.charCodeAt(pos);
-      if (ch === 34) {
-        result += text.substring(start, pos);
-        pos++;
-        break;
-      }
-      if (ch === 92) {
-        result += text.substring(start, pos);
-        pos++;
-        if (pos >= len) {
-          scanError = 2;
-          break;
-        }
-        const ch2 = text.charCodeAt(pos++);
-        switch (ch2) {
-          case 34:
-            result += '"';
-            break;
-          case 92:
-            result += "\\";
-            break;
-          case 47:
-            result += "/";
-            break;
-          case 98:
-            result += "\b";
-            break;
-          case 102:
-            result += "\f";
-            break;
-          case 110:
-            result += "\n";
-            break;
-          case 114:
-            result += "\r";
-            break;
-          case 116:
-            result += "	";
-            break;
-          case 117:
-            const ch3 = scanHexDigits(4, true);
-            if (ch3 >= 0) {
-              result += String.fromCharCode(ch3);
-            } else {
-              scanError = 4;
-            }
-            break;
-          default:
-            scanError = 5;
-        }
-        start = pos;
-        continue;
-      }
-      if (ch >= 0 && ch <= 31) {
-        if (isLineBreak(ch)) {
-          result += text.substring(start, pos);
-          scanError = 2;
-          break;
-        } else {
-          scanError = 6;
-        }
-      }
-      pos++;
-    }
-    return result;
-  }
-  function scanNext() {
-    value = "";
-    scanError = 0;
-    tokenOffset = pos;
-    lineStartOffset = lineNumber;
-    prevTokenLineStartOffset = tokenLineStartOffset;
-    if (pos >= len) {
-      tokenOffset = len;
-      return token = 17;
-    }
-    let code = text.charCodeAt(pos);
-    if (isWhiteSpace(code)) {
-      do {
-        pos++;
-        value += String.fromCharCode(code);
-        code = text.charCodeAt(pos);
-      } while (isWhiteSpace(code));
-      return token = 15;
-    }
-    if (isLineBreak(code)) {
-      pos++;
-      value += String.fromCharCode(code);
-      if (code === 13 && text.charCodeAt(pos) === 10) {
-        pos++;
-        value += "\n";
-      }
-      lineNumber++;
-      tokenLineStartOffset = pos;
-      return token = 14;
-    }
-    switch (code) {
-      // tokens: []{}:,
-      case 123:
-        pos++;
-        return token = 1;
-      case 125:
-        pos++;
-        return token = 2;
-      case 91:
-        pos++;
-        return token = 3;
-      case 93:
-        pos++;
-        return token = 4;
-      case 58:
-        pos++;
-        return token = 6;
-      case 44:
-        pos++;
-        return token = 5;
-      // strings
-      case 34:
-        pos++;
-        value = scanString();
-        return token = 10;
-      // comments
-      case 47:
-        const start = pos - 1;
-        if (text.charCodeAt(pos + 1) === 47) {
-          pos += 2;
-          while (pos < len) {
-            if (isLineBreak(text.charCodeAt(pos))) {
-              break;
-            }
-            pos++;
-          }
-          value = text.substring(start, pos);
-          return token = 12;
-        }
-        if (text.charCodeAt(pos + 1) === 42) {
-          pos += 2;
-          const safeLength = len - 1;
-          let commentClosed = false;
-          while (pos < safeLength) {
-            const ch = text.charCodeAt(pos);
-            if (ch === 42 && text.charCodeAt(pos + 1) === 47) {
-              pos += 2;
-              commentClosed = true;
-              break;
-            }
-            pos++;
-            if (isLineBreak(ch)) {
-              if (ch === 13 && text.charCodeAt(pos) === 10) {
-                pos++;
-              }
-              lineNumber++;
-              tokenLineStartOffset = pos;
-            }
-          }
-          if (!commentClosed) {
-            pos++;
-            scanError = 1;
-          }
-          value = text.substring(start, pos);
-          return token = 13;
-        }
-        value += String.fromCharCode(code);
-        pos++;
-        return token = 16;
-      // numbers
-      case 45:
-        value += String.fromCharCode(code);
-        pos++;
-        if (pos === len || !isDigit(text.charCodeAt(pos))) {
-          return token = 16;
-        }
-      // found a minus, followed by a number so
-      // we fall through to proceed with scanning
-      // numbers
-      case 48:
-      case 49:
-      case 50:
-      case 51:
-      case 52:
-      case 53:
-      case 54:
-      case 55:
-      case 56:
-      case 57:
-        value += scanNumber();
-        return token = 11;
-      // literals and unknown symbols
-      default:
-        while (pos < len && isUnknownContentCharacter(code)) {
-          pos++;
-          code = text.charCodeAt(pos);
-        }
-        if (tokenOffset !== pos) {
-          value = text.substring(tokenOffset, pos);
-          switch (value) {
-            case "true":
-              return token = 8;
-            case "false":
-              return token = 9;
-            case "null":
-              return token = 7;
-          }
-          return token = 16;
-        }
-        value += String.fromCharCode(code);
-        pos++;
-        return token = 16;
-    }
-  }
-  function isUnknownContentCharacter(code) {
-    if (isWhiteSpace(code) || isLineBreak(code)) {
-      return false;
-    }
-    switch (code) {
-      case 125:
-      case 93:
-      case 123:
-      case 91:
-      case 34:
-      case 58:
-      case 44:
-      case 47:
-        return false;
-    }
-    return true;
-  }
-  function scanNextNonTrivia() {
-    let result;
-    do {
-      result = scanNext();
-    } while (result >= 12 && result <= 15);
-    return result;
-  }
-  return {
-    setPosition,
-    getPosition: () => pos,
-    scan: ignoreTrivia ? scanNextNonTrivia : scanNext,
-    getToken: () => token,
-    getTokenValue: () => value,
-    getTokenOffset: () => tokenOffset,
-    getTokenLength: () => pos - tokenOffset,
-    getTokenStartLine: () => lineStartOffset,
-    getTokenStartCharacter: () => tokenOffset - prevTokenLineStartOffset,
-    getTokenError: () => scanError
-  };
-}
-function isWhiteSpace(ch) {
-  return ch === 32 || ch === 9;
-}
-function isLineBreak(ch) {
-  return ch === 10 || ch === 13;
-}
-function isDigit(ch) {
-  return ch >= 48 && ch <= 57;
-}
-var CharacterCodes;
-(function(CharacterCodes2) {
-  CharacterCodes2[CharacterCodes2["lineFeed"] = 10] = "lineFeed";
-  CharacterCodes2[CharacterCodes2["carriageReturn"] = 13] = "carriageReturn";
-  CharacterCodes2[CharacterCodes2["space"] = 32] = "space";
-  CharacterCodes2[CharacterCodes2["_0"] = 48] = "_0";
-  CharacterCodes2[CharacterCodes2["_1"] = 49] = "_1";
-  CharacterCodes2[CharacterCodes2["_2"] = 50] = "_2";
-  CharacterCodes2[CharacterCodes2["_3"] = 51] = "_3";
-  CharacterCodes2[CharacterCodes2["_4"] = 52] = "_4";
-  CharacterCodes2[CharacterCodes2["_5"] = 53] = "_5";
-  CharacterCodes2[CharacterCodes2["_6"] = 54] = "_6";
-  CharacterCodes2[CharacterCodes2["_7"] = 55] = "_7";
-  CharacterCodes2[CharacterCodes2["_8"] = 56] = "_8";
-  CharacterCodes2[CharacterCodes2["_9"] = 57] = "_9";
-  CharacterCodes2[CharacterCodes2["a"] = 97] = "a";
-  CharacterCodes2[CharacterCodes2["b"] = 98] = "b";
-  CharacterCodes2[CharacterCodes2["c"] = 99] = "c";
-  CharacterCodes2[CharacterCodes2["d"] = 100] = "d";
-  CharacterCodes2[CharacterCodes2["e"] = 101] = "e";
-  CharacterCodes2[CharacterCodes2["f"] = 102] = "f";
-  CharacterCodes2[CharacterCodes2["g"] = 103] = "g";
-  CharacterCodes2[CharacterCodes2["h"] = 104] = "h";
-  CharacterCodes2[CharacterCodes2["i"] = 105] = "i";
-  CharacterCodes2[CharacterCodes2["j"] = 106] = "j";
-  CharacterCodes2[CharacterCodes2["k"] = 107] = "k";
-  CharacterCodes2[CharacterCodes2["l"] = 108] = "l";
-  CharacterCodes2[CharacterCodes2["m"] = 109] = "m";
-  CharacterCodes2[CharacterCodes2["n"] = 110] = "n";
-  CharacterCodes2[CharacterCodes2["o"] = 111] = "o";
-  CharacterCodes2[CharacterCodes2["p"] = 112] = "p";
-  CharacterCodes2[CharacterCodes2["q"] = 113] = "q";
-  CharacterCodes2[CharacterCodes2["r"] = 114] = "r";
-  CharacterCodes2[CharacterCodes2["s"] = 115] = "s";
-  CharacterCodes2[CharacterCodes2["t"] = 116] = "t";
-  CharacterCodes2[CharacterCodes2["u"] = 117] = "u";
-  CharacterCodes2[CharacterCodes2["v"] = 118] = "v";
-  CharacterCodes2[CharacterCodes2["w"] = 119] = "w";
-  CharacterCodes2[CharacterCodes2["x"] = 120] = "x";
-  CharacterCodes2[CharacterCodes2["y"] = 121] = "y";
-  CharacterCodes2[CharacterCodes2["z"] = 122] = "z";
-  CharacterCodes2[CharacterCodes2["A"] = 65] = "A";
-  CharacterCodes2[CharacterCodes2["B"] = 66] = "B";
-  CharacterCodes2[CharacterCodes2["C"] = 67] = "C";
-  CharacterCodes2[CharacterCodes2["D"] = 68] = "D";
-  CharacterCodes2[CharacterCodes2["E"] = 69] = "E";
-  CharacterCodes2[CharacterCodes2["F"] = 70] = "F";
-  CharacterCodes2[CharacterCodes2["G"] = 71] = "G";
-  CharacterCodes2[CharacterCodes2["H"] = 72] = "H";
-  CharacterCodes2[CharacterCodes2["I"] = 73] = "I";
-  CharacterCodes2[CharacterCodes2["J"] = 74] = "J";
-  CharacterCodes2[CharacterCodes2["K"] = 75] = "K";
-  CharacterCodes2[CharacterCodes2["L"] = 76] = "L";
-  CharacterCodes2[CharacterCodes2["M"] = 77] = "M";
-  CharacterCodes2[CharacterCodes2["N"] = 78] = "N";
-  CharacterCodes2[CharacterCodes2["O"] = 79] = "O";
-  CharacterCodes2[CharacterCodes2["P"] = 80] = "P";
-  CharacterCodes2[CharacterCodes2["Q"] = 81] = "Q";
-  CharacterCodes2[CharacterCodes2["R"] = 82] = "R";
-  CharacterCodes2[CharacterCodes2["S"] = 83] = "S";
-  CharacterCodes2[CharacterCodes2["T"] = 84] = "T";
-  CharacterCodes2[CharacterCodes2["U"] = 85] = "U";
-  CharacterCodes2[CharacterCodes2["V"] = 86] = "V";
-  CharacterCodes2[CharacterCodes2["W"] = 87] = "W";
-  CharacterCodes2[CharacterCodes2["X"] = 88] = "X";
-  CharacterCodes2[CharacterCodes2["Y"] = 89] = "Y";
-  CharacterCodes2[CharacterCodes2["Z"] = 90] = "Z";
-  CharacterCodes2[CharacterCodes2["asterisk"] = 42] = "asterisk";
-  CharacterCodes2[CharacterCodes2["backslash"] = 92] = "backslash";
-  CharacterCodes2[CharacterCodes2["closeBrace"] = 125] = "closeBrace";
-  CharacterCodes2[CharacterCodes2["closeBracket"] = 93] = "closeBracket";
-  CharacterCodes2[CharacterCodes2["colon"] = 58] = "colon";
-  CharacterCodes2[CharacterCodes2["comma"] = 44] = "comma";
-  CharacterCodes2[CharacterCodes2["dot"] = 46] = "dot";
-  CharacterCodes2[CharacterCodes2["doubleQuote"] = 34] = "doubleQuote";
-  CharacterCodes2[CharacterCodes2["minus"] = 45] = "minus";
-  CharacterCodes2[CharacterCodes2["openBrace"] = 123] = "openBrace";
-  CharacterCodes2[CharacterCodes2["openBracket"] = 91] = "openBracket";
-  CharacterCodes2[CharacterCodes2["plus"] = 43] = "plus";
-  CharacterCodes2[CharacterCodes2["slash"] = 47] = "slash";
-  CharacterCodes2[CharacterCodes2["formFeed"] = 12] = "formFeed";
-  CharacterCodes2[CharacterCodes2["tab"] = 9] = "tab";
-})(CharacterCodes || (CharacterCodes = {}));
-
-// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/string-intern.js
-var cachedSpaces = new Array(20).fill(0).map((_, index) => {
-  return " ".repeat(index);
-});
-var maxCachedValues = 200;
-var cachedBreakLinesWithSpaces = {
-  " ": {
-    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
-      return "\n" + " ".repeat(index);
-    }),
-    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
-      return "\r" + " ".repeat(index);
-    }),
-    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
-      return "\r\n" + " ".repeat(index);
-    })
-  },
-  "	": {
-    "\n": new Array(maxCachedValues).fill(0).map((_, index) => {
-      return "\n" + "	".repeat(index);
-    }),
-    "\r": new Array(maxCachedValues).fill(0).map((_, index) => {
-      return "\r" + "	".repeat(index);
-    }),
-    "\r\n": new Array(maxCachedValues).fill(0).map((_, index) => {
-      return "\r\n" + "	".repeat(index);
-    })
-  }
-};
-
-// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/parser.js
-var ParseOptions;
-(function(ParseOptions2) {
-  ParseOptions2.DEFAULT = {
-    allowTrailingComma: false
-  };
-})(ParseOptions || (ParseOptions = {}));
-function parseTree(text, errors = [], options = ParseOptions.DEFAULT) {
-  let currentParent = { type: "array", offset: -1, length: -1, children: [], parent: void 0 };
-  function ensurePropertyComplete(endOffset) {
-    if (currentParent.type === "property") {
-      currentParent.length = endOffset - currentParent.offset;
-      currentParent = currentParent.parent;
-    }
-  }
-  function onValue(valueNode) {
-    currentParent.children.push(valueNode);
-    return valueNode;
-  }
-  const visitor = {
-    onObjectBegin: (offset) => {
-      currentParent = onValue({ type: "object", offset, length: -1, parent: currentParent, children: [] });
-    },
-    onObjectProperty: (name, offset, length) => {
-      currentParent = onValue({ type: "property", offset, length: -1, parent: currentParent, children: [] });
-      currentParent.children.push({ type: "string", value: name, offset, length, parent: currentParent });
-    },
-    onObjectEnd: (offset, length) => {
-      ensurePropertyComplete(offset + length);
-      currentParent.length = offset + length - currentParent.offset;
-      currentParent = currentParent.parent;
-      ensurePropertyComplete(offset + length);
-    },
-    onArrayBegin: (offset, length) => {
-      currentParent = onValue({ type: "array", offset, length: -1, parent: currentParent, children: [] });
-    },
-    onArrayEnd: (offset, length) => {
-      currentParent.length = offset + length - currentParent.offset;
-      currentParent = currentParent.parent;
-      ensurePropertyComplete(offset + length);
-    },
-    onLiteralValue: (value, offset, length) => {
-      onValue({ type: getNodeType(value), offset, length, parent: currentParent, value });
-      ensurePropertyComplete(offset + length);
-    },
-    onSeparator: (sep2, offset, length) => {
-      if (currentParent.type === "property") {
-        if (sep2 === ":") {
-          currentParent.colonOffset = offset;
-        } else if (sep2 === ",") {
-          ensurePropertyComplete(offset);
-        }
-      }
-    },
-    onError: (error2, offset, length) => {
-      errors.push({ error: error2, offset, length });
-    }
-  };
-  visit(text, visitor, options);
-  const result = currentParent.children[0];
-  if (result) {
-    delete result.parent;
-  }
-  return result;
-}
-function visit(text, visitor, options = ParseOptions.DEFAULT) {
-  const _scanner = createScanner(text, false);
-  const _jsonPath = [];
-  let suppressedCallbacks = 0;
-  function toNoArgVisit(visitFunction) {
-    return visitFunction ? () => suppressedCallbacks === 0 && visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()) : () => true;
-  }
-  function toOneArgVisit(visitFunction) {
-    return visitFunction ? (arg) => suppressedCallbacks === 0 && visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter()) : () => true;
-  }
-  function toOneArgVisitWithPath(visitFunction) {
-    return visitFunction ? (arg) => suppressedCallbacks === 0 && visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter(), () => _jsonPath.slice()) : () => true;
-  }
-  function toBeginVisit(visitFunction) {
-    return visitFunction ? () => {
-      if (suppressedCallbacks > 0) {
-        suppressedCallbacks++;
-      } else {
-        let cbReturn = visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter(), () => _jsonPath.slice());
-        if (cbReturn === false) {
-          suppressedCallbacks = 1;
-        }
-      }
-    } : () => true;
-  }
-  function toEndVisit(visitFunction) {
-    return visitFunction ? () => {
-      if (suppressedCallbacks > 0) {
-        suppressedCallbacks--;
-      }
-      if (suppressedCallbacks === 0) {
-        visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength(), _scanner.getTokenStartLine(), _scanner.getTokenStartCharacter());
-      }
-    } : () => true;
-  }
-  const onObjectBegin = toBeginVisit(visitor.onObjectBegin), onObjectProperty = toOneArgVisitWithPath(visitor.onObjectProperty), onObjectEnd = toEndVisit(visitor.onObjectEnd), onArrayBegin = toBeginVisit(visitor.onArrayBegin), onArrayEnd = toEndVisit(visitor.onArrayEnd), onLiteralValue = toOneArgVisitWithPath(visitor.onLiteralValue), onSeparator = toOneArgVisit(visitor.onSeparator), onComment = toNoArgVisit(visitor.onComment), onError = toOneArgVisit(visitor.onError);
-  const disallowComments = options && options.disallowComments;
-  const allowTrailingComma = options && options.allowTrailingComma;
-  function scanNext() {
-    while (true) {
-      const token = _scanner.scan();
-      switch (_scanner.getTokenError()) {
-        case 4:
-          handleError(
-            14
-            /* ParseErrorCode.InvalidUnicode */
-          );
-          break;
-        case 5:
-          handleError(
-            15
-            /* ParseErrorCode.InvalidEscapeCharacter */
-          );
-          break;
-        case 3:
-          handleError(
-            13
-            /* ParseErrorCode.UnexpectedEndOfNumber */
-          );
-          break;
-        case 1:
-          if (!disallowComments) {
-            handleError(
-              11
-              /* ParseErrorCode.UnexpectedEndOfComment */
-            );
-          }
-          break;
-        case 2:
-          handleError(
-            12
-            /* ParseErrorCode.UnexpectedEndOfString */
-          );
-          break;
-        case 6:
-          handleError(
-            16
-            /* ParseErrorCode.InvalidCharacter */
-          );
-          break;
-      }
-      switch (token) {
-        case 12:
-        case 13:
-          if (disallowComments) {
-            handleError(
-              10
-              /* ParseErrorCode.InvalidCommentToken */
-            );
-          } else {
-            onComment();
-          }
-          break;
-        case 16:
-          handleError(
-            1
-            /* ParseErrorCode.InvalidSymbol */
-          );
-          break;
-        case 15:
-        case 14:
-          break;
-        default:
-          return token;
-      }
-    }
-  }
-  function handleError(error2, skipUntilAfter = [], skipUntil = []) {
-    onError(error2);
-    if (skipUntilAfter.length + skipUntil.length > 0) {
-      let token = _scanner.getToken();
-      while (token !== 17) {
-        if (skipUntilAfter.indexOf(token) !== -1) {
-          scanNext();
-          break;
-        } else if (skipUntil.indexOf(token) !== -1) {
-          break;
-        }
-        token = scanNext();
-      }
-    }
-  }
-  function parseString(isValue) {
-    const value = _scanner.getTokenValue();
-    if (isValue) {
-      onLiteralValue(value);
-    } else {
-      onObjectProperty(value);
-      _jsonPath.push(value);
-    }
-    scanNext();
-    return true;
-  }
-  function parseLiteral() {
-    switch (_scanner.getToken()) {
-      case 11:
-        const tokenValue = _scanner.getTokenValue();
-        let value = Number(tokenValue);
-        if (isNaN(value)) {
-          handleError(
-            2
-            /* ParseErrorCode.InvalidNumberFormat */
-          );
-          value = 0;
-        }
-        onLiteralValue(value);
-        break;
-      case 7:
-        onLiteralValue(null);
-        break;
-      case 8:
-        onLiteralValue(true);
-        break;
-      case 9:
-        onLiteralValue(false);
-        break;
-      default:
-        return false;
-    }
-    scanNext();
-    return true;
-  }
-  function parseProperty() {
-    if (_scanner.getToken() !== 10) {
-      handleError(3, [], [
-        2,
-        5
-        /* SyntaxKind.CommaToken */
-      ]);
-      return false;
-    }
-    parseString(false);
-    if (_scanner.getToken() === 6) {
-      onSeparator(":");
-      scanNext();
-      if (!parseValue()) {
-        handleError(4, [], [
-          2,
-          5
-          /* SyntaxKind.CommaToken */
-        ]);
-      }
-    } else {
-      handleError(5, [], [
-        2,
-        5
-        /* SyntaxKind.CommaToken */
-      ]);
-    }
-    _jsonPath.pop();
-    return true;
-  }
-  function parseObject() {
-    onObjectBegin();
-    scanNext();
-    let needsComma = false;
-    while (_scanner.getToken() !== 2 && _scanner.getToken() !== 17) {
-      if (_scanner.getToken() === 5) {
-        if (!needsComma) {
-          handleError(4, [], []);
-        }
-        onSeparator(",");
-        scanNext();
-        if (_scanner.getToken() === 2 && allowTrailingComma) {
-          break;
-        }
-      } else if (needsComma) {
-        handleError(6, [], []);
-      }
-      if (!parseProperty()) {
-        handleError(4, [], [
-          2,
-          5
-          /* SyntaxKind.CommaToken */
-        ]);
-      }
-      needsComma = true;
-    }
-    onObjectEnd();
-    if (_scanner.getToken() !== 2) {
-      handleError(7, [
-        2
-        /* SyntaxKind.CloseBraceToken */
-      ], []);
-    } else {
-      scanNext();
-    }
-    return true;
-  }
-  function parseArray() {
-    onArrayBegin();
-    scanNext();
-    let isFirstElement = true;
-    let needsComma = false;
-    while (_scanner.getToken() !== 4 && _scanner.getToken() !== 17) {
-      if (_scanner.getToken() === 5) {
-        if (!needsComma) {
-          handleError(4, [], []);
-        }
-        onSeparator(",");
-        scanNext();
-        if (_scanner.getToken() === 4 && allowTrailingComma) {
-          break;
-        }
-      } else if (needsComma) {
-        handleError(6, [], []);
-      }
-      if (isFirstElement) {
-        _jsonPath.push(0);
-        isFirstElement = false;
-      } else {
-        _jsonPath[_jsonPath.length - 1]++;
-      }
-      if (!parseValue()) {
-        handleError(4, [], [
-          4,
-          5
-          /* SyntaxKind.CommaToken */
-        ]);
-      }
-      needsComma = true;
-    }
-    onArrayEnd();
-    if (!isFirstElement) {
-      _jsonPath.pop();
-    }
-    if (_scanner.getToken() !== 4) {
-      handleError(8, [
-        4
-        /* SyntaxKind.CloseBracketToken */
-      ], []);
-    } else {
-      scanNext();
-    }
-    return true;
-  }
-  function parseValue() {
-    switch (_scanner.getToken()) {
-      case 3:
-        return parseArray();
-      case 1:
-        return parseObject();
-      case 10:
-        return parseString(true);
-      default:
-        return parseLiteral();
-    }
-  }
-  scanNext();
-  if (_scanner.getToken() === 17) {
-    if (options.allowEmptyContent) {
-      return true;
-    }
-    handleError(4, [], []);
-    return false;
-  }
-  if (!parseValue()) {
-    handleError(4, [], []);
-    return false;
-  }
-  if (_scanner.getToken() !== 17) {
-    handleError(9, [], []);
-  }
-  return true;
-}
-function getNodeType(value) {
-  switch (typeof value) {
-    case "boolean":
-      return "boolean";
-    case "number":
-      return "number";
-    case "string":
-      return "string";
-    case "object": {
-      if (!value) {
-        return "null";
-      } else if (Array.isArray(value)) {
-        return "array";
-      }
-      return "object";
-    }
-    default:
-      return "null";
-  }
-}
-
-// node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/main.js
-var ScanError;
-(function(ScanError2) {
-  ScanError2[ScanError2["None"] = 0] = "None";
-  ScanError2[ScanError2["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
-  ScanError2[ScanError2["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
-  ScanError2[ScanError2["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
-  ScanError2[ScanError2["InvalidUnicode"] = 4] = "InvalidUnicode";
-  ScanError2[ScanError2["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
-  ScanError2[ScanError2["InvalidCharacter"] = 6] = "InvalidCharacter";
-})(ScanError || (ScanError = {}));
-var SyntaxKind;
-(function(SyntaxKind2) {
-  SyntaxKind2[SyntaxKind2["OpenBraceToken"] = 1] = "OpenBraceToken";
-  SyntaxKind2[SyntaxKind2["CloseBraceToken"] = 2] = "CloseBraceToken";
-  SyntaxKind2[SyntaxKind2["OpenBracketToken"] = 3] = "OpenBracketToken";
-  SyntaxKind2[SyntaxKind2["CloseBracketToken"] = 4] = "CloseBracketToken";
-  SyntaxKind2[SyntaxKind2["CommaToken"] = 5] = "CommaToken";
-  SyntaxKind2[SyntaxKind2["ColonToken"] = 6] = "ColonToken";
-  SyntaxKind2[SyntaxKind2["NullKeyword"] = 7] = "NullKeyword";
-  SyntaxKind2[SyntaxKind2["TrueKeyword"] = 8] = "TrueKeyword";
-  SyntaxKind2[SyntaxKind2["FalseKeyword"] = 9] = "FalseKeyword";
-  SyntaxKind2[SyntaxKind2["StringLiteral"] = 10] = "StringLiteral";
-  SyntaxKind2[SyntaxKind2["NumericLiteral"] = 11] = "NumericLiteral";
-  SyntaxKind2[SyntaxKind2["LineCommentTrivia"] = 12] = "LineCommentTrivia";
-  SyntaxKind2[SyntaxKind2["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
-  SyntaxKind2[SyntaxKind2["LineBreakTrivia"] = 14] = "LineBreakTrivia";
-  SyntaxKind2[SyntaxKind2["Trivia"] = 15] = "Trivia";
-  SyntaxKind2[SyntaxKind2["Unknown"] = 16] = "Unknown";
-  SyntaxKind2[SyntaxKind2["EOF"] = 17] = "EOF";
-})(SyntaxKind || (SyntaxKind = {}));
-var parseTree2 = parseTree;
-var ParseErrorCode;
-(function(ParseErrorCode2) {
-  ParseErrorCode2[ParseErrorCode2["InvalidSymbol"] = 1] = "InvalidSymbol";
-  ParseErrorCode2[ParseErrorCode2["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
-  ParseErrorCode2[ParseErrorCode2["PropertyNameExpected"] = 3] = "PropertyNameExpected";
-  ParseErrorCode2[ParseErrorCode2["ValueExpected"] = 4] = "ValueExpected";
-  ParseErrorCode2[ParseErrorCode2["ColonExpected"] = 5] = "ColonExpected";
-  ParseErrorCode2[ParseErrorCode2["CommaExpected"] = 6] = "CommaExpected";
-  ParseErrorCode2[ParseErrorCode2["CloseBraceExpected"] = 7] = "CloseBraceExpected";
-  ParseErrorCode2[ParseErrorCode2["CloseBracketExpected"] = 8] = "CloseBracketExpected";
-  ParseErrorCode2[ParseErrorCode2["EndOfFileExpected"] = 9] = "EndOfFileExpected";
-  ParseErrorCode2[ParseErrorCode2["InvalidCommentToken"] = 10] = "InvalidCommentToken";
-  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
-  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
-  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
-  ParseErrorCode2[ParseErrorCode2["InvalidUnicode"] = 14] = "InvalidUnicode";
-  ParseErrorCode2[ParseErrorCode2["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
-  ParseErrorCode2[ParseErrorCode2["InvalidCharacter"] = 16] = "InvalidCharacter";
-})(ParseErrorCode || (ParseErrorCode = {}));
-
-// src/matrices.ts
-var MAX_JOB_BYTES = 64 * 1024;
-var MAX_TOTAL_BYTES = 256 * 1024;
-var MAX_JOBS = 64;
-var JSON_ONLY = { disallowComments: true, allowTrailingComma: false };
-var buildMatrixRows = (raw) => {
-  if (raw.trim() === "") {
-    return void 0;
-  }
-  const errors = [];
-  const root = parseTree2(raw, errors, JSON_ONLY);
-  if (root?.type !== "object" || errors.length > 0) {
-    warn("matrices: not a JSON object; sending no matrix rows.");
-    return void 0;
-  }
-  const matrixRows = {};
-  const omitted = [];
-  let total = 0;
-  for (const property of root.children ?? []) {
-    const [key, value] = property.children ?? [];
-    if (key === void 0 || value === void 0) {
-      continue;
-    }
-    const jobKey = String(key.value);
-    if (value.type !== "array") {
-      warn(`matrices.${jobKey}: not a JSON list of rows; deciding it whole.`);
-      continue;
-    }
-    if ((value.children ?? []).length === 0) {
-      continue;
-    }
-    const text = raw.slice(value.offset, value.offset + value.length);
-    const bytes = Buffer.byteLength(text);
-    if (bytes > MAX_JOB_BYTES || total + bytes > MAX_TOTAL_BYTES || Object.keys(matrixRows).length >= MAX_JOBS) {
-      omitted.push(jobKey);
-      continue;
-    }
-    matrixRows[jobKey] = text;
-    total += bytes;
-  }
-  if (omitted.length > 0) {
-    warn(
-      `matrices: too large to send in full; deciding these jobs whole: ${omitted.join(", ")}.`
-    );
-  }
-  if (Object.keys(matrixRows).length === 0 && omitted.length === 0) {
-    return void 0;
-  }
-  return { matrixRows, matrixRowsOmitted: omitted.slice(0, MAX_JOBS) };
-};
-
-// src/inputs.ts
-var KNOWN_SIGNALS = new Set(SIGNAL_TYPES);
-var MAX_IMPACT_COUNT = 1e7;
-var MAX_IMPACTS = 8;
-var IMPACT_ENTRY = strictObject({
-  source: string2().regex(
-    /^[a-z0-9][a-z0-9._-]{0,63}$/,
-    "must be lowercase letters, digits, '.', '_' or '-', at most 64 characters"
-  ),
-  count: number2().int().min(0).max(MAX_IMPACT_COUNT).optional(),
-  all: boolean2().optional()
-}).refine(({ count, all }) => all === true || count !== void 0, {
-  message: "needs a count unless all is true"
-});
-var describeIssue = (error2) => error2.issues.map(
-  (issue2) => issue2.path.length === 0 ? issue2.message : `${issue2.path.join(".")}: ${issue2.message}`
-).join("; ");
-var readImpacts = () => {
-  const raw = core3.getInput("impacts").trim();
-  if (raw === "") {
-    return void 0;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    warn("impacts: not valid JSON; sending no impacts.");
-    return void 0;
-  }
-  if (!Array.isArray(parsed)) {
-    warn("impacts: not a JSON list; sending no impacts.");
-    return void 0;
-  }
-  const impacts = [];
-  parsed.forEach((item, index) => {
-    const entry = IMPACT_ENTRY.safeParse(item);
-    if (!entry.success) {
-      warn(
-        `impacts[${String(index)}]: ${describeIssue(entry.error)}; dropping it.`
-      );
-      return;
-    }
-    const { source, count, all = false } = entry.data;
-    if (impacts.some((impact) => impact.source === source)) {
-      warn(`impacts: lists ${source} more than once; keeping the first.`);
-      return;
-    }
-    if (impacts.length >= MAX_IMPACTS) {
-      warn(
-        `impacts: more than ${String(MAX_IMPACTS)} entries; dropping ${source}.`
-      );
-      return;
-    }
-    impacts.push({ source, all, ...count === void 0 ? {} : { count } });
-  });
-  return impacts.length === 0 ? void 0 : impacts;
-};
-var splitList = (raw) => raw.split(",").map((entry) => entry.trim()).filter(Boolean);
-var applyAnnotationSetting = () => {
-  const raw = core3.getInput("enable-annotation").trim().toLowerCase();
-  setAnnotationsEnabled(raw === "true");
-  if (raw !== "" && raw !== "false" && raw !== "true") {
-    warn(
-      `enable-annotation: "${raw}" is not "true" or "false"; treating it as false.`
-    );
-  }
-};
-var readInputs = () => {
-  applyAnnotationSetting();
-  const token = core3.getInput("token", { required: true });
-  core3.setSecret(token);
-  const jobKeys = splitList(core3.getInput("job-keys"));
-  const ignoreSignals = splitList(core3.getInput("ignore-signals"));
-  for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
-    warn(
-      `ignore-signals: "${signal}" is not a signal this action version knows about; forwarding it anyway.`
-    );
-  }
-  const impacts = readImpacts();
-  const matrices = buildMatrixRows(core3.getInput("matrices"));
-  return {
-    token,
-    jobKeys,
-    ignoreSignals,
-    actionRef: core3.getInput("gh-action-ref"),
-    githubToken: core3.getInput("github-token"),
-    ...impacts === void 0 ? {} : { impacts },
-    ...matrices === void 0 ? {} : { matrices }
   };
 };
 

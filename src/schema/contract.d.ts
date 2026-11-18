@@ -15,7 +15,9 @@ export interface paths {
         put?: never;
         /**
          * Generate a CI skip plan
-         * @description Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.
+         * @description Requires the **Generate Dynamic CI plans** permission.
+         *
+         *     Returns a per-job verdict for one workflow run: which jobs the change makes it safe to skip, and the evidence behind each decision. Normally called once per run by the [`trunk-io/dynamic-ci`](https://github.com/trunk-io/dynamic-ci) action, which maps the verdicts onto job outputs.
          *
          *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
          *
@@ -39,7 +41,9 @@ export interface paths {
         put?: never;
         /**
          * Generate a CI skip plan for a Buildkite pipeline
-         * @description As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.
+         * @description Requires the **Generate Dynamic CI plans** permission.
+         *
+         *     As [`dynamicCi.generatePlan`](#tag/dynamicCi/operation/dynamicCi.generatePlan), for a Buildkite pipeline. Identical request and response but for the workflow identity: Buildkite has no workflow file, so the pipeline is named by the organization and pipeline slugs its agent exports, and `jobKeys` are step `key:` values.
          *
          *     **Fail open.** A job absent from `jobs` must be run — that is the contract, not an error. Treat any non-200 the same way.
          *
@@ -76,8 +80,8 @@ export interface components {
              */
             prNumber: number | null;
             /**
-             * @description `BUILDKITE_BUILD_ID`, recorded so the plan can later be scored against the build's outcome.
-             * @example 01a0a151-99d4-4097-8806-a837f0830d9d
+             * @description `BUILDKITE_BUILD_NUMBER`, recorded so the plan can later be scored against the build's outcome. Not `BUILDKITE_BUILD_ID`: a build Trunk started before queue is matched by its number.
+             * @example 4821
              */
             runId: string;
             /**
@@ -144,6 +148,12 @@ export interface components {
             matrixBlocks?: {
                 [key: string]: unknown;
             };
+            /**
+             * Format: uuid
+             * @description Set by Trunk's Run Before Queue on a build it created (`TRUNK_RBQ_DISPATCH_ID`). Send it unchanged when the variable is present.
+             * @example 3f9d2c1e-7a4b-4e8f-9c2d-5b6a7e8f9a0b
+             */
+            rbqDispatchId?: string;
         };
         ChangedFile: {
             /** @example src/cache.ts */
@@ -277,6 +287,26 @@ export interface components {
              * @example 51d537a714c0f1c8a4e92b13d5f0e6a7c2b9d8e1
              */
             workflowFileSha?: string;
+            /**
+             * @description `GITHUB_JOB`: the key of the job this request is sent from, in the workflow file that defines it.
+             * @example dynamic-ci
+             */
+            filterJobKey?: string;
+            /**
+             * @description `job.workflow_ref`: the workflow file that defines the job this request is sent from. Inside a reusable workflow it names the called file, where `workflowPath` names the calling one. Omit it when GitHub leaves it empty.
+             * @example octo-org/octo-repo/.github/workflows/reusable-tests.yaml@refs/heads/main
+             */
+            jobWorkflowRef?: string;
+            /**
+             * @description `job.workflow_sha`: the commit that workflow file was read from. Omit it when GitHub leaves it empty.
+             * @example 9fd89fd49ccc84094552b62860aa14089c88c4a4
+             */
+            jobWorkflowSha?: string;
+            /**
+             * @description `job.check_run_id`: the check run of the job this request is sent from. Inside a reusable workflow it tells apart the jobs that call one file. Omit it when GitHub leaves it empty.
+             * @example 135132011429
+             */
+            checkRunId?: number;
             /**
              * @description For matrix jobs whose rows a planner job builds at run time (`fromJSON`): each job's rows array, by job key, as the exact JSON text the planner emitted. Send the text unchanged; Trunk returns the rows it keeps in the same text. A job is pruned per variation only when its rows are sent and they are its whole matrix. Send at most 64 jobs, 64 KiB and 256 rows per job, and 256 KiB in all; a job over its limits is decided as a whole.
              * @example {

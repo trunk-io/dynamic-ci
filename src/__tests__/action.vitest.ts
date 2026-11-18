@@ -147,6 +147,9 @@ const stubRunnerEnv = ({
   enableAnnotation = "false",
   impacts = "",
   matrices = "",
+  jobWorkflowRef = "",
+  jobWorkflowSha = "",
+  jobCheckRunId = "",
 }: {
   token?: string;
   omitToken?: boolean;
@@ -155,6 +158,9 @@ const stubRunnerEnv = ({
   enableAnnotation?: string;
   impacts?: string;
   matrices?: string;
+  jobWorkflowRef?: string;
+  jobWorkflowSha?: string;
+  jobCheckRunId?: string;
 } = {}): void => {
   vi.stubEnv("INPUT_TOKEN", omitToken ? undefined : token);
   vi.stubEnv("INPUT_JOB-KEYS", jobKeys);
@@ -162,6 +168,9 @@ const stubRunnerEnv = ({
   vi.stubEnv("INPUT_ENABLE-ANNOTATION", enableAnnotation);
   vi.stubEnv("INPUT_IMPACTS", impacts);
   vi.stubEnv("INPUT_MATRICES", matrices);
+  vi.stubEnv("INPUT_JOB-WORKFLOW-REF", jobWorkflowRef);
+  vi.stubEnv("INPUT_JOB-WORKFLOW-SHA", jobWorkflowSha);
+  vi.stubEnv("INPUT_JOB-CHECK-RUN-ID", jobCheckRunId);
   vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", API_BASE);
   vi.stubEnv("TRUNK_DYNAMIC_CI_MAX_ATTEMPTS", "1");
   vi.stubEnv("GITHUB_OUTPUT", outputPath);
@@ -265,6 +274,59 @@ describe("the action end to end", () => {
       workflowPath: ".github/workflows/pr.yaml",
       jobKeys: ["unit-tests"],
     });
+  });
+
+  it("sends the filter job's own identity from GITHUB_JOB and the job context", async () => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    stubRunnerEnv({
+      jobWorkflowRef:
+        "trunk-io/example/.github/workflows/reusable-tests.yaml@refs/heads/main",
+      jobWorkflowSha: "9fd89fd49ccc84094552b62860aa14089c88c4a4",
+      jobCheckRunId: "135132011429",
+    });
+    vi.stubEnv("GITHUB_JOB", "inner_filter");
+
+    await runAction();
+
+    expect(body).toMatchObject({
+      workflowPath: ".github/workflows/pr.yaml",
+      filterJobKey: "inner_filter",
+      jobWorkflowRef:
+        "trunk-io/example/.github/workflows/reusable-tests.yaml@refs/heads/main",
+      jobWorkflowSha: "9fd89fd49ccc84094552b62860aa14089c88c4a4",
+      checkRunId: 135132011429,
+    });
+  });
+
+  it.each([
+    { name: "empty, as on GitHub Enterprise Server", sha: "", runId: "" },
+    { name: "malformed", sha: "main", runId: "check-run" },
+  ])("leaves out job context that is $name", async ({ sha, runId }) => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    stubRunnerEnv({ jobWorkflowSha: sha, jobCheckRunId: runId });
+    vi.stubEnv("GITHUB_JOB", "");
+
+    await runAction();
+
+    expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    expect(body).not.toHaveProperty("filterJobKey");
+    expect(body).not.toHaveProperty("jobWorkflowRef");
+    expect(body).not.toHaveProperty("jobWorkflowSha");
+    expect(body).not.toHaveProperty("checkRunId");
   });
 
   // @actions/github calls undici's own fetch, which msw cannot see.
