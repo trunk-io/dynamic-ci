@@ -59,6 +59,18 @@ inputs:
       itself and decides matrix jobs as a whole.
     required: false
     default: ${{ github.token }}
+  job-workflow-ref:
+    description: Leave unset. The workflow file that defines this job.
+    required: false
+    default: ${{ job.workflow_ref }}
+  job-workflow-sha:
+    description: Leave unset. The commit that workflow file was read from.
+    required: false
+    default: ${{ job.workflow_sha }}
+  job-check-run-id:
+    description: Leave unset. This job's check run.
+    required: false
+    default: ${{ job.check_run_id }}
   gh-action-ref:
     description:
       The ref of the action being used. Defaults to the value GitHub resolves for

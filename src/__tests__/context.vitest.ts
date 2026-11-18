@@ -45,6 +45,7 @@ describe("buildRequest", () => {
       ignoreSignals: [],
       actionRef: "v1",
       githubToken: "",
+      job: {},
     });
     expect(request).toMatchObject({
       commitSha: ENV.sha,
@@ -67,6 +68,7 @@ describe("buildRequest", () => {
       ignoreSignals: [],
       actionRef: "v1",
       githubToken: "",
+      job: {},
     });
     expect(request.eventName).toBeUndefined();
   });
