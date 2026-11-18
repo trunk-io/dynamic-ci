@@ -1,5 +1,5 @@
 # Called by matrix-example-filter-in-reusable-workflow.yaml; check runs are
-# named "<caller job's name> / <this job's name>", e.g. "Tests / Suite (api)".
+# named "<caller job's name> / <this job's name>", e.g. "Tests / Group (api)".
 name: "Matrix example: filter in a reusable workflow (called)"
 
 on:
@@ -16,15 +16,33 @@ on:
         required: false
     # smoke: re-exported only so the caller's verdict can read them.
     outputs:
-      Suite:
-        description: The filter's Suite output
-        value: ${{ jobs.dynamic-ci-filter.outputs.Suite }}
-      Suite-include:
-        description: The filter's Suite-include output
-        value: ${{ jobs.dynamic-ci-filter.outputs.Suite-include }}
-      Suite-result:
-        description: The Suite job's result
-        value: ${{ jobs.tests-pass.outputs.Suite-result }}
+      groups:
+        description: The filter's groups output
+        value: ${{ jobs.dynamic-ci-filter.outputs.groups }}
+      groups-include:
+        description: The filter's groups-include output
+        value: ${{ jobs.dynamic-ci-filter.outputs.groups-include }}
+      groups-result:
+        description: The groups job's result
+        value: ${{ jobs.tests-pass.outputs.groups-result }}
+      areas:
+        description: The filter's areas output
+        value: ${{ jobs.dynamic-ci-filter.outputs.areas }}
+      areas-include:
+        description: The filter's areas-include output
+        value: ${{ jobs.dynamic-ci-filter.outputs.areas-include }}
+      areas-result:
+        description: The areas job's result
+        value: ${{ jobs.tests-pass.outputs.areas-result }}
+      lint:
+        description: The filter's lint output
+        value: ${{ jobs.dynamic-ci-filter.outputs.lint }}
+      lint-include:
+        description: The filter's lint-include output
+        value: ${{ jobs.dynamic-ci-filter.outputs.lint-include }}
+      lint-result:
+        description: The lint job's result
+        value: ${{ jobs.tests-pass.outputs.lint-result }}
 
 permissions: read-all
 
@@ -38,26 +56,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      rows: ${{ steps.plan.outputs.rows }}
+      groups: ${{ steps.plan.outputs.groups }}
+      areas: ${{ steps.plan.outputs.areas }}
+      lint: ${{ steps.plan.outputs.lint }}
     steps:
       # smoke: fixed rows, so the answer key knows what to expect.
       - id: plan
         run: |
-          rows='[{"name":"api"},{"name":"web"},{"name":"worker"}]'
-          echo "rows=$(jq -c . <<<"${rows}")" >> "${GITHUB_OUTPUT}"
+          groups='[{"name":"api"},{"name":"web"},{"name":"worker"}]'
+          areas='[{"area":"area-docs"},{"area":"area-search"},{"area":"area-billing"}]'
+          lint='[{"target":"core"},{"target":"cli"}]'
+          {
+            echo "groups=$(jq -c . <<<"${groups}")"
+            echo "areas=$(jq -c . <<<"${areas}")"
+            echo "lint=$(jq -c . <<<"${lint}")"
+          } >> "${GITHUB_OUTPUT}"
 
   dynamic-ci-filter:
     name: Dynamic CI Filter
     needs: [plan]
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Trunk decides "<caller>/Suite"; the action also sets it under Suite.
+    # Trunk decides "<caller>/<job>"; the action also sets each output under the
+    # job's own key, which is what the jobs below read.
     # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
     # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
     # and so cannot be declared in action.yaml.
     outputs:
-      Suite: ${{ steps.ci-filter.outputs.Suite || steps.sim.outputs.Suite }}
-      Suite-include: ${{ steps.ci-filter.outputs.Suite-include || steps.sim.outputs.Suite-include }}
+      groups: ${{ steps.ci-filter.outputs.groups || steps.sim.outputs.groups }}
+      groups-include: ${{ steps.ci-filter.outputs.groups-include || steps.sim.outputs.groups-include }}
+      areas: ${{ steps.ci-filter.outputs.areas || steps.sim.outputs.areas }}
+      areas-include: ${{ steps.ci-filter.outputs.areas-include || steps.sim.outputs.areas-include }}
+      lint: ${{ steps.ci-filter.outputs.lint || steps.sim.outputs.lint }}
+      lint-include: ${{ steps.ci-filter.outputs.lint-include || steps.sim.outputs.lint-include }}
     # trunk-ignore-end(actionlint/expression)
     steps:
       - uses: actions/checkout@v4
@@ -72,9 +103,13 @@ jobs:
         uses: ./
         with:
           token: ${{ secrets.TRUNK_API_TOKEN }}
-          # This workflow's job key; Trunk resolves it to "<caller>/Suite".
+          # Keyed by this workflow's own job keys; Trunk reads each as "<caller>/<job>".
           matrices: >-
-            {"Suite": ${{ needs.plan.outputs.rows || '[]' }}}
+            {
+              "groups": ${{ needs.plan.outputs.groups || '[]' }},
+              "areas": ${{ needs.plan.outputs.areas || '[]' }},
+              "lint": ${{ needs.plan.outputs.lint || '[]' }}
+            }
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io # smoke
 
@@ -87,33 +122,71 @@ jobs:
         if: env.MODE != 'live'
         run: node .github/smoke/matrix/smoke.ts simulate filter-in-reusable-workflow
 
-  Suite:
-    name: Suite (${{ matrix.name }})
+  groups:
+    name: Group (${{ matrix.name }})
     needs: [plan, dynamic-ci-filter]
     # A job with no verdict has no output and runs, so compare against 'false'.
-    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.Suite != 'false' }}
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.groups != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.Suite-include || needs.plan.outputs.rows) }}
+        include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.groups-include || needs.plan.outputs.groups) }}
     steps:
       - name: Run tests
-        run: echo "Testing ${SUITE}"
+        run: echo "Testing ${GROUP}"
         env:
-          SUITE: ${{ matrix.name }}
+          GROUP: ${{ matrix.name }}
+
+  # A name that is only an expression: GitHub reports each variation under its
+  # value alone, e.g. "Tests / area-docs", beside this workflow's other jobs.
+  areas:
+    name: ${{ matrix.area }}
+    needs: [plan, dynamic-ci-filter]
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.areas != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.areas-include || needs.plan.outputs.areas) }}
+    steps:
+      - name: Run tests
+        run: echo "Testing ${AREA}"
+        env:
+          AREA: ${{ matrix.area }}
+
+  # When Trunk skips every variation, the lint output is 'false' and the job is
+  # skipped whole, so its matrix is never expanded from an empty include.
+  lint:
+    name: Lint (${{ matrix.target }})
+    needs: [plan, dynamic-ci-filter]
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.lint != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.lint-include || needs.plan.outputs.lint) }}
+    steps:
+      - name: Run lint
+        run: echo "Linting ${TARGET}"
+        env:
+          TARGET: ${{ matrix.target }}
 
   # The check to require; never gate it, since a skipped gate cannot report.
   tests-pass:
     name: Tests pass
-    needs: [Suite]
+    needs: [groups, areas, lint]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # smoke
     outputs:
-      Suite-result: ${{ needs.Suite.result }}
+      groups-result: ${{ needs.groups.result }}
+      areas-result: ${{ needs.areas.result }}
+      lint-result: ${{ needs.lint.result }}
     steps:
       - name: Fail if a gated job failed
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}

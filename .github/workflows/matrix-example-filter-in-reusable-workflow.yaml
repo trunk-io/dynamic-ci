@@ -3,21 +3,24 @@
 #
 # Use this shape when a reusable workflow (here
 # matrix-example-filter-in-reusable-workflow-called.yaml) owns its planner,
-# filter and matrix job, so callers need no Dynamic CI wiring.
+# filter and matrix jobs, so callers need no Dynamic CI wiring. It has three
+# matrix jobs: `groups`, `areas` (named only by an expression) and `lint`.
 #
 # What to configure in Trunk
 #   Nothing in this file opts a job into per-variation verdicts. Trunk decides
-#   the called job under its caller, `tests/Suite` here, and in Trunk it lists
+#   each called job under its caller, `tests/groups` here, and in Trunk it lists
 #   its variation dimensions: the row fields that identify a variation.
-#     tests/Suite    name
+#     tests/groups   name
+#     tests/areas    area
+#     tests/lint     target
 #   A job with no dimensions configured gets one verdict for the whole matrix.
 #
 # What the filter needs, and emits
-#   `matrices` is keyed by the called workflow's own job key, `Suite`; with
-#   every Dynamic CI step inside one caller, Trunk reads it as `tests/Suite`.
-#   Leave out `job-keys`. Under the called job's own key it emits:
-#     Suite           'false' when every row is skipped, otherwise 'true'
-#     Suite-include   the rows that run, as a bare JSON array
+#   `matrices` is keyed by the called workflow's own job keys; with every
+#   Dynamic CI step inside one caller, Trunk reads `groups` as `tests/groups`.
+#   Leave out `job-keys`. Under each called job's own key it emits:
+#     groups           'false' when every row is skipped, otherwise 'true'
+#     groups-include   the rows that run, as a bare JSON array
 #
 # Required checks
 #   Require "Tests / Tests pass", never one row's check. A skipped row never

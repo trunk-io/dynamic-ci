@@ -187,6 +187,15 @@ const INFRA_JOBS = new Set([
   "Tests / Plan",
   "Tests / Dynamic CI Filter",
   "Tests / Tests pass",
+  // matrix-example-filter-in-caller-and-called-called.yaml, under its caller
+  "Checks / Plan",
+  "Checks / Dynamic CI Filter",
+  "Checks / Tests pass",
+  // matrix-example-filter-in-shared-reusable-workflow-called.yaml, under each caller
+  "Unit / Dynamic CI Filter",
+  "Unit / Tests pass",
+  "Integration / Dynamic CI Filter",
+  "Integration / Tests pass",
   // Not ours: pr.yaml's trunk-action posts this check run on the same commit,
   // and GitHub lists it among this run's jobs.
   "Trunk Check",
@@ -357,17 +366,26 @@ const checkPinned = (
   };
 };
 
+/** A fixture's name in reports: its key, under its caller when it has one. */
+const fixtureId = (fixture: Fixture): string =>
+  fixture.caller ? `${fixture.caller}/${fixture.key}` : fixture.key;
+
 const checkFixture = (
   fixture: Fixture,
   needs: Record<string, NeedsEntry>,
   outputs: Record<string, string>,
   observed: Job[],
 ): Check => {
-  const name = `${fixture.key} ran exactly the legs its outputs kept`;
+  const name = `${fixtureId(fixture)} ran exactly the legs its outputs kept`;
   const problems: string[] = [];
   if (!((fixture.caller ?? fixture.key) in needs)) {
     problems.push(
       "no such job in the verdict's needs: add it to the workflow, or to the verdict job's needs",
+    );
+  }
+  if (fixture.caller && needs[fixture.caller]?.result === "skipped") {
+    problems.push(
+      `the calling job ${fixture.caller} was skipped, so none of its jobs ran; this example expects it to run`,
     );
   }
   if (fixture.expect && pinApplies(fixture, outputs)) {
@@ -381,6 +399,11 @@ const checkFixture = (
     );
   }
   const { wholeSkip, pruned, kept } = intendedPrune(fixture, outputs);
+  if (fixture.mustRun && (wholeSkip || pruned.length > 0)) {
+    problems.push(
+      `the filter's outputs skip ${wholeSkip ? "the job" : `${String(pruned.length)} leg(s)`}, but it must run: ${fixture.mustRun}`,
+    );
+  }
 
   if (wholeSkip) {
     const [only, ...rest] = observed;
@@ -471,7 +494,7 @@ const verdict = async (
     const observed = jobs.filter(
       (job) => !INFRA_JOBS.has(job.name) && job.name.startsWith(fixture.prefix),
     );
-    observedByFixture[fixture.key] = observed;
+    observedByFixture[fixtureId(fixture)] = observed;
     const check = checkFixture(fixture, needs, outputsOf(fixture), observed);
     checks.push({ ...check, name: `${label}${check.name}` });
   }
@@ -542,7 +565,7 @@ const verdict = async (
   const rows = fixtures.map((fixture, i) => {
     const check = checks[i];
     const mark = check && check.problems.length > 0 ? "✘" : "✔";
-    return `| ${mark} | \`${fixture.key}\` | ${fixture.shape} | ${fixture.wiring} | ${check?.detail ?? ""} |`;
+    return `| ${mark} | \`${fixtureId(fixture)}\` | ${fixture.shape} | ${fixture.wiring} | ${check?.detail ?? ""} |`;
   });
   const summary = [
     `## Matrix ${example ? `example: ${example}` : "smoke"} (${process.env["MODE"] || "simulate"})`,

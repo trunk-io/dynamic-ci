@@ -78,6 +78,12 @@ export interface Fixture {
   /** The single check run GitHub reports when the job is skipped whole: the unexpanded name. */
   skippedName?: string;
   /**
+   * Why this job must run whatever the filter emits: Trunk cannot tell which
+   * job the filter's output is for, so it must not skip it. Any output that
+   * skips it, or prunes a leg, fails the fixture in both modes.
+   */
+  mustRun?: string;
+  /**
    * PINNED: what GitHub actually does with the outputs simulate mode emits for
    * this fixture, where that is NOT what the outputs meant. When the filter
    * emitted exactly those outputs, this replaces the expectation the verdict

@@ -1,0 +1,121 @@
+# Called by matrix-example-filter-in-caller-and-called.yaml; check runs are
+# named "<caller job's name> / <this job's name>", e.g. "Checks / Shard (1)".
+name: "Matrix example: filter in the caller and the called workflow (called)"
+
+on:
+  workflow_call:
+    inputs:
+      # smoke: `mode` only picks where the filter outputs come from.
+      mode:
+        description: Where the pruning outputs come from
+        type: string
+        default: simulate
+    secrets:
+      TRUNK_API_TOKEN:
+        description: Your organization's Trunk API token
+        required: false
+    # smoke: re-exported only so the caller's verdict can read them.
+    outputs:
+      shards:
+        description: The filter's shards output
+        value: ${{ jobs.dynamic-ci-filter.outputs.shards }}
+      shards-include:
+        description: The filter's shards-include output
+        value: ${{ jobs.dynamic-ci-filter.outputs.shards-include }}
+      shards-result:
+        description: The shards job's result
+        value: ${{ jobs.tests-pass.outputs.shards-result }}
+
+permissions: read-all
+
+# smoke
+env:
+  MODE: ${{ inputs.mode }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rows: ${{ steps.plan.outputs.rows }}
+    steps:
+      # smoke: fixed rows, so the answer key knows what to expect.
+      - id: plan
+        run: |
+          rows='[{"shard":1},{"shard":2},{"shard":3}]'
+          echo "rows=$(jq -c . <<<"${rows}")" >> "${GITHUB_OUTPUT}"
+
+  dynamic-ci-filter:
+    name: Dynamic CI Filter
+    needs: [plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Trunk decides "<caller>/shards"; the action also sets it under shards.
+    # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
+    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+    # and so cannot be declared in action.yaml.
+    outputs:
+      shards: ${{ steps.ci-filter.outputs.shards || steps.sim.outputs.shards }}
+      shards-include: ${{ steps.ci-filter.outputs.shards-include || steps.sim.outputs.shards-include }}
+    # trunk-ignore-end(actionlint/expression)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Run Dynamic CI Filter
+        id: ci-filter
+        if: env.MODE == 'live' # smoke
+        # smoke: yours is trunk-io/dynamic-ci@v1; this is the action at this commit.
+        uses: ./
+        with:
+          token: ${{ secrets.TRUNK_API_TOKEN }}
+          # This workflow's own job key; Trunk reads it as "<caller>/shards".
+          job-keys: shards
+          matrices: >-
+            {"shards": ${{ needs.plan.outputs.rows || '[]' }}}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io # smoke
+
+      # smoke: in simulate mode, emit the outputs the answer key asks for instead.
+      - uses: actions/setup-node@v4
+        if: env.MODE != 'live'
+        with:
+          node-version: "24"
+      - id: sim
+        if: env.MODE != 'live'
+        run: node .github/smoke/matrix/smoke.ts simulate filter-in-caller-and-called
+
+  shards:
+    name: Shard (${{ matrix.shard }})
+    needs: [plan, dynamic-ci-filter]
+    # A job with no verdict has no output and runs, so compare against 'false'.
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.shards != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.shards-include || needs.plan.outputs.rows) }}
+    steps:
+      - name: Run tests
+        run: echo "Testing shard ${SHARD}"
+        env:
+          SHARD: ${{ matrix.shard }}
+
+  # The check the caller's fan-in waits on; never gate it.
+  tests-pass:
+    name: Tests pass
+    needs: [shards]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # smoke
+    outputs:
+      shards-result: ${{ needs.shards.result }}
+    steps:
+      - name: Fail if a gated job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
