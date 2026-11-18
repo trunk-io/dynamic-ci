@@ -119,9 +119,9 @@ const simulatedOutputs = (fixture: Fixture): Record<string, string> => {
     ).values(),
   ];
   outputs[`${fixture.key}-exclude`] = JSON.stringify(exclude);
-  outputs[`${fixture.key}-matrix`] = JSON.stringify({
-    include: kept.map((leg) => shape(leg.values)),
-  });
+  const include = kept.map((leg) => shape(leg.values));
+  outputs[`${fixture.key}-matrix`] = JSON.stringify({ include });
+  outputs[`${fixture.key}-include`] = JSON.stringify(include);
   return outputs;
 };
 
@@ -146,6 +146,7 @@ const pinApplies = (
   const read: Record<Fixture["wiring"], string[]> = {
     exclude: ["", "-exclude"],
     matrix: ["", "-matrix"],
+    include: ["", "-include"],
     none: [""],
   };
   const simulated = simulatedOutputs(fixture);
@@ -182,6 +183,19 @@ const INFRA_JOBS = new Set([
   "Plan",
   "Tests pass",
   "Smoke verdict",
+  // matrix-example-filter-in-reusable-workflow-called.yaml, under its caller
+  "Tests / Plan",
+  "Tests / Dynamic CI Filter",
+  "Tests / Tests pass",
+  // matrix-example-filter-in-caller-and-called-called.yaml, under its caller
+  "Checks / Plan",
+  "Checks / Dynamic CI Filter",
+  "Checks / Tests pass",
+  // matrix-example-filter-in-shared-reusable-workflow-called.yaml, under each caller
+  "Unit / Dynamic CI Filter",
+  "Unit / Tests pass",
+  "Integration / Dynamic CI Filter",
+  "Integration / Tests pass",
   // Not ours: pr.yaml's trunk-action posts this check run on the same commit,
   // and GitHub lists it among this run's jobs.
   "Trunk Check",
@@ -276,22 +290,40 @@ const intendedPrune = (
   const exclude = parseOutput(outputs[`${fixture.key}-exclude`]) as
     | Row[]
     | undefined;
-  const matrix = parseOutput(outputs[`${fixture.key}-matrix`]) as
-    | { include: Row[] }
-    | undefined;
+  const keptRows =
+    fixture.wiring === "matrix"
+      ? (
+          parseOutput(outputs[`${fixture.key}-matrix`]) as
+            | { include: Row[] }
+            | undefined
+        )?.include
+      : (parseOutput(outputs[`${fixture.key}-include`]) as Row[] | undefined);
   const isPruned = (leg: Leg): boolean => {
     if (wholeSkip) return true;
     if (fixture.wiring === "exclude" && exclude) {
       return exclude.some((entry) => carries(leg.values, entry));
     }
-    if (fixture.wiring === "matrix" && matrix) {
-      return !matrix.include.some((row) => sameRow(row, leg.values));
+    if (
+      (fixture.wiring === "matrix" || fixture.wiring === "include") &&
+      keptRows
+    ) {
+      return !keptRows.some((row) => sameRow(row, leg.values));
     }
     return false; // unwired: an output it doesn't read can't prune anything
   };
   const pruned = fixture.legs.filter(isPruned);
   return { wholeSkip, pruned, kept: fixture.legs.filter((l) => !isPruned(l)) };
 };
+
+/** A called job's result comes back as `<key>-result`; the caller's covers its whole workflow. */
+const resultOf = (
+  fixture: Fixture,
+  needs: Record<string, NeedsEntry>,
+): string | undefined =>
+  fixture.caller
+    ? (needs[fixture.caller]?.outputs[`${fixture.key}-result`] ??
+      needs[fixture.caller]?.result)
+    : needs[fixture.key]?.result;
 
 /** A pinned fixture: GitHub must still behave exactly as `expect` records. */
 const checkPinned = (
@@ -302,7 +334,7 @@ const checkPinned = (
   name: string,
   problems: string[],
 ): Check => {
-  const result = needs[fixture.key]?.result;
+  const result = resultOf(fixture, needs);
   if (result !== (expect.result ?? "success")) {
     problems.push(
       `the job's result is ${String(result)}, but GitHub was observed to give ${expect.result ?? "success"} (${expect.note})`,
@@ -334,17 +366,26 @@ const checkPinned = (
   };
 };
 
+/** A fixture's name in reports: its key, under its caller when it has one. */
+const fixtureId = (fixture: Fixture): string =>
+  fixture.caller ? `${fixture.caller}/${fixture.key}` : fixture.key;
+
 const checkFixture = (
   fixture: Fixture,
   needs: Record<string, NeedsEntry>,
   outputs: Record<string, string>,
   observed: Job[],
 ): Check => {
-  const name = `${fixture.key} ran exactly the legs its outputs kept`;
+  const name = `${fixtureId(fixture)} ran exactly the legs its outputs kept`;
   const problems: string[] = [];
-  if (!(fixture.key in needs)) {
+  if (!((fixture.caller ?? fixture.key) in needs)) {
     problems.push(
       "no such job in the verdict's needs: add it to the workflow, or to the verdict job's needs",
+    );
+  }
+  if (fixture.caller && needs[fixture.caller]?.result === "skipped") {
+    problems.push(
+      `the calling job ${fixture.caller} was skipped, so none of its jobs ran; this example expects it to run`,
     );
   }
   if (fixture.expect && pinApplies(fixture, outputs)) {
@@ -358,6 +399,11 @@ const checkFixture = (
     );
   }
   const { wholeSkip, pruned, kept } = intendedPrune(fixture, outputs);
+  if (fixture.mustRun && (wholeSkip || pruned.length > 0)) {
+    problems.push(
+      `the filter's outputs skip ${wholeSkip ? "the job" : `${String(pruned.length)} leg(s)`}, but it must run: ${fixture.mustRun}`,
+    );
+  }
 
   if (wholeSkip) {
     const [only, ...rest] = observed;
@@ -387,7 +433,7 @@ const checkFixture = (
     };
   }
 
-  const result = needs[fixture.key]?.result;
+  const result = resultOf(fixture, needs);
   if (result !== undefined && result !== "success") {
     problems.push(`the job's result is ${result}, not success`);
   }
@@ -433,8 +479,10 @@ const verdict = async (
 ): Promise<void> => {
   const needs = JSON.parse(env("NEEDS")) as Record<string, NeedsEntry>;
   // The filter job's key: the examples use the README's, matrix-smoke.yaml its own.
-  const outputs =
+  const filterOutputs =
     (needs["dynamic-ci-filter"] ?? needs["filter"])?.outputs ?? {};
+  const outputsOf = (fixture: Fixture): Record<string, string> =>
+    fixture.caller ? (needs[fixture.caller]?.outputs ?? {}) : filterOutputs;
   const jobs = await fetchSettledJobs();
   // Flaky Tests keys a test on its name, and every example has a `test` job.
   const label = example ? `${example}: ` : "";
@@ -446,8 +494,8 @@ const verdict = async (
     const observed = jobs.filter(
       (job) => !INFRA_JOBS.has(job.name) && job.name.startsWith(fixture.prefix),
     );
-    observedByFixture[fixture.key] = observed;
-    const check = checkFixture(fixture, needs, outputs, observed);
+    observedByFixture[fixtureId(fixture)] = observed;
+    const check = checkFixture(fixture, needs, outputsOf(fixture), observed);
     checks.push({ ...check, name: `${label}${check.name}` });
   }
 
@@ -475,7 +523,10 @@ const verdict = async (
       {
         mode: process.env["MODE"] || "simulate",
         example: example ?? null,
-        outputs,
+        outputs: filterOutputs,
+        callerOutputs: Object.fromEntries(
+          fixtures.flatMap((f) => (f.caller ? [[f.caller, outputsOf(f)]] : [])),
+        ),
         fixtures: Object.fromEntries(
           Object.entries(observedByFixture).map(([key, observed]) => [
             key,
@@ -514,7 +565,7 @@ const verdict = async (
   const rows = fixtures.map((fixture, i) => {
     const check = checks[i];
     const mark = check && check.problems.length > 0 ? "✘" : "✔";
-    return `| ${mark} | \`${fixture.key}\` | ${fixture.shape} | ${fixture.wiring} | ${check?.detail ?? ""} |`;
+    return `| ${mark} | \`${fixtureId(fixture)}\` | ${fixture.shape} | ${fixture.wiring} | ${check?.detail ?? ""} |`;
   });
   const summary = [
     `## Matrix ${example ? `example: ${example}` : "smoke"} (${process.env["MODE"] || "simulate"})`,

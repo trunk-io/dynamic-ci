@@ -1,0 +1,127 @@
+# Example: the Dynamic CI filter inside a reusable workflow, where Trunk skips
+# individual rows of a matrix that workflow plans for itself.
+#
+# Use this shape when a reusable workflow (here
+# matrix-example-filter-in-reusable-workflow-called.yaml) owns its planner,
+# filter and matrix jobs, so callers need no Dynamic CI wiring. It has three
+# matrix jobs: `groups`, `areas` (named only by an expression) and `lint`.
+#
+# What to configure in Trunk
+#   Nothing in this file opts a job into per-variation verdicts. Trunk decides
+#   each called job under its caller, `tests/groups` here, and in Trunk it lists
+#   its variation dimensions: the row fields that identify a variation.
+#     tests/groups   name
+#     tests/areas    area
+#     tests/lint     target
+#   A job with no dimensions configured gets one verdict for the whole matrix.
+#
+# What the filter needs, and emits
+#   `matrices` is keyed by the called workflow's own job keys; with every
+#   Dynamic CI step inside one caller, Trunk reads `groups` as `tests/groups`.
+#   Leave out `job-keys`. Under each called job's own key it emits:
+#     groups           'false' when every row is skipped, otherwise 'true'
+#     groups-include   the rows that run, as a bare JSON array
+#
+# Required checks
+#   Require "Tests / Tests pass", never one row's check. A skipped row never
+#   reports, and a matrix skipped whole reports one check under its unexpanded
+#   name.
+#
+# This file is also a smoke test of how GitHub handles those outputs. Whatever
+# is marked `smoke:` is the test's harness: leave it out of your workflow.
+# .github/smoke/matrix/README.md says what the test asserts, and
+# .github/smoke/matrix/examples/filter-in-reusable-workflow.ts is its answer key.
+name: "Matrix example: filter in a reusable workflow"
+# smoke: the mode says where the filter's outputs come from (see the README).
+run-name: Matrix example filter-in-reusable-workflow (${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: read-all
+
+on:
+  # smoke: yours would run on every pull request.
+  pull_request:
+    paths:
+      - .github/workflows/matrix-example-filter-in-reusable-workflow.yaml
+      - .github/workflows/matrix-example-filter-in-reusable-workflow-called.yaml
+      - .github/smoke/matrix/**
+  # smoke: schedules run only from the default branch. MODE, run-name and the
+  # call's `mode` tell them apart by cron string, so change all four together.
+  schedule:
+    - cron: 14 */4 * * * # live: builds staging's history for every leg
+    - cron: 43 6 * * 1 # simulate: Mondays
+  workflow_dispatch:
+    inputs:
+      # smoke: `mode` only picks where the filter outputs come from.
+      # trunk-ignore(checkov/CKV_GHA_7)
+      mode:
+        description: Where the pruning outputs come from
+        type: choice
+        options: [simulate, live]
+        default: simulate
+
+# smoke
+env:
+  MODE: ${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}
+
+jobs:
+  tests:
+    name: Tests
+    uses: ./.github/workflows/matrix-example-filter-in-reusable-workflow-called.yaml
+    secrets:
+      # smoke: yours is secrets.TRUNK_API_TOKEN.
+      TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
+    # smoke
+    with:
+      mode: ${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}
+
+  # ---------------------------------------------------------------------------
+  # smoke: everything below is the smoke test, not part of the example.
+  # Did GitHub create exactly the legs the outputs kept, under the predicted names?
+  # ---------------------------------------------------------------------------
+  verdict:
+    name: Smoke verdict
+    needs: [tests]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Compare the check runs against the answer key
+        id: verdict
+        continue-on-error: true
+        run: node .github/smoke/matrix/smoke.ts verdict filter-in-reusable-workflow
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # observed.json is the golden data: every name GitHub rendered, per job.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: matrix-smoke-out
+          path: matrix-smoke-out/
+
+      - name: Trunk Analytics Uploader (Staging)
+        if: ${{ !cancelled() }}
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: matrix-smoke-out/junit.xml
+          org-slug: trunk-staging-org
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          allow-missing-junit-files: false
+          previous-step-outcome: ${{ steps.verdict.outcome }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      # The uploader re-fails the job too, but only with a token; a fork has none.
+      - name: Fail if the verdict failed
+        if: ${{ steps.verdict.outcome == 'failure' }}
+        run: exit 1

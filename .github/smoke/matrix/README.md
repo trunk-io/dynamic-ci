@@ -29,19 +29,26 @@ filter emits, and which check to require. It is also a smoke test of its own:
 everything marked `smoke:` is harness (the mode switch, the simulated outputs,
 the verdict job), and a customer leaves it out.
 
-| Example                 | Shape                                                   | Wiring  | What it shows                                                             |
-| ----------------------- | ------------------------------------------------------- | ------- | ------------------------------------------------------------------------- |
-| `static-axes`           | axes, all in `name:` (`test`) and some (`build`)        | exclude | The baseline exclude; a name that leaves an axis out shares a check       |
-| `axes-with-include`     | axes plus static include (`test`); no `name:` (`build`) | exclude | PINNED: include adds back an excluded variation; GitHub's default name    |
-| `shards`                | axes, one a shard index                                 | exclude | A suite skipped with all its shards, by an exclude that leaves out shard  |
-| `platform-objects`      | axis of objects                                         | exclude | An exclude matches an object-valued axis by the whole object              |
-| `include-list`          | include-only, literal fallback; every row skipped       | matrix  | Rows in `fromJSON(output \|\| '<literal>')`; `if:` before an empty matrix |
-| `planner-include`       | runtime include, stable fields, shards                  | matrix  | A planner's rows through `matrices`; `&&`/`\|\|` defaults in the name     |
-| `planner-matrix-object` | runtime matrix object                                   | matrix  | A planner that writes the whole matrix; its `include` goes to `matrices`  |
-| `reusable-workflow`     | reusable workflow, matrix from caller inputs            | exclude | The exclude passed as an input; the `caller / callee` check name          |
-| `skip-whole-only`       | axes plus runtime include; bin-packed; skipped whole    | none    | Shapes Trunk can only skip whole; the one check a skipped matrix reports  |
+| Example                              | Shape                                                    | Wiring  | What it shows                                                                                                                                  |
+| ------------------------------------ | -------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `static-axes`                        | axes, all in `name:` (`test`) and some (`build`)         | exclude | The baseline exclude; a name that leaves an axis out shares a check                                                                            |
+| `axes-with-include`                  | axes plus static include (`test`); no `name:` (`build`)  | exclude | PINNED: include adds back an excluded variation; GitHub's default name                                                                         |
+| `shards`                             | axes, one a shard index                                  | exclude | A suite skipped with all its shards, by an exclude that leaves out shard                                                                       |
+| `platform-objects`                   | axis of objects                                          | exclude | An exclude matches an object-valued axis by the whole object                                                                                   |
+| `include-list`                       | include-only, literal fallback; every row skipped        | matrix  | Rows in `fromJSON(output \|\| '<literal>')`; `if:` before an empty matrix                                                                      |
+| `planner-include`                    | runtime include, stable fields, shards                   | matrix  | A planner's rows through `matrices`; `&&`/`\|\|` defaults in the name                                                                          |
+| `planner-matrix-object`              | runtime matrix object                                    | matrix  | A planner that writes the whole matrix; its `include` goes to `matrices`                                                                       |
+| `reusable-workflow`                  | reusable workflow, matrix from caller inputs             | exclude | The exclude passed as an input; the `caller / callee` check name                                                                               |
+| `skip-whole-only`                    | axes plus runtime include; bin-packed; skipped whole     | none    | Shapes Trunk can only skip whole; the one check a skipped matrix reports                                                                       |
+| `filter-in-reusable-workflow`        | planner, filter and runtime include in a called workflow | include | `matrices` keyed by the local job; `<job>-include` read where Trunk decides `caller/job`; a name that is only an expression; every row skipped |
+| `filter-in-caller-and-called`        | filter in the caller and in the called workflow          | include | Each filter names its own jobs; the called matrix keeps its own verdict beside its caller's                                                    |
+| `filter-in-shared-reusable-workflow` | one job in a called workflow, called by two jobs         | none    | A filter inside a workflow called twice can't gate its own job, so it runs in both calls                                                       |
 
-`reusable-workflow` calls `matrix-example-reusable-workflow-tests.yaml`.
+`reusable-workflow` calls `matrix-example-reusable-workflow-tests.yaml`. Each
+`filter-in-*` example calls its `-called.yaml` workflow, which re-exports its
+filter's outputs and its jobs' results so the verdict can read them through
+the caller (`caller` in the answer key). Their infra jobs under each caller
+(`Tests / Plan`) are listed by name in `smoke.ts`.
 Shapes that only test GitHub's own rules stay in `matrix-smoke.yaml`.
 
 ## Two modes
@@ -51,7 +58,7 @@ Every example, and `matrix-smoke.yaml`, runs in one of two modes.
 - **`simulate`** — pull requests that touch these files, and weekly on Mondays
   to catch GitHub changing behavior a fixture pins. The filter job runs
   `smoke.ts simulate [example]`, which emits the per-leg pruning outputs the action will
-  emit (`<job>`, `<job>-exclude`, `<job>-matrix`) for the pruning the answer
+  emit (`<job>`, `<job>-exclude`, `<job>-matrix`, `<job>-include`) for the pruning the answer
   key asks for. Deterministic, and needs no service.
 - **`live`** — every 4 hours, or run the workflow by hand and pick `live`. The
   filter job runs the action at this commit against staging, with the
@@ -67,7 +74,7 @@ prune (the way each fixture is wired), and lists the run's check runs from the
 GitHub API. For every fixture:
 
 - **No pruned leg ran.** A leg whose combination is in `<job>-exclude`, or
-  missing from `<job>-matrix`, never became a job, so it never reported anything.
+  missing from `<job>-matrix` or `<job>-include`, never became a job, so it never reported anything.
 - **Every kept leg ran, under the name `fixtures.ts` predicts, and passed.**
   The jobs API can lag the workflow, so the verdict lists the jobs again for up
   to 3 minutes until every leg reads as completed. Pass or fail comes from each
@@ -76,10 +83,15 @@ GitHub API. For every fixture:
   name. That is the required-check hazard the fan-in job exists for.
 - **Every check run belongs to some fixture.** Otherwise a wrong prefix would let
   a fixture pass with no legs to check.
+- **A called job's caller ran.** A skipped caller runs none of its jobs, so its
+  fixtures would have nothing to check.
+- **A `mustRun` job is never skipped or pruned,** whatever the outputs say. It
+  marks a job the filter cannot gate, so the one thing asserted about the
+  service is that it left that job alone.
 
-**What the service decides is never asserted.** The verdict is the same in both
-modes: it checks that GitHub did what the outputs said, never whether the
-outputs were right.
+**What the service decides is otherwise never asserted.** The verdict is the
+same in both modes: it checks that GitHub did what the outputs said, never
+whether the outputs were right, except that a `mustRun` job ran.
 
 ## The fixtures in `matrix-smoke.yaml`
 

@@ -29,13 +29,20 @@ export interface Leg {
  * How the job reads the filter's pruning outputs:
  *   exclude  `strategy.matrix.exclude: fromJSON(<job>-exclude || '[]')` (axes)
  *   matrix   `strategy.matrix: fromJSON(<job>-matrix || <fallback>)` (include rows)
+ *   include  `strategy.matrix.include: fromJSON(<job>-include || <rows>)` (include rows)
  *   none     not wired; the job can only be skipped whole
  */
-export type Wiring = "exclude" | "matrix" | "none";
+export type Wiring = "exclude" | "matrix" | "include" | "none";
 
 export interface Fixture {
-  /** The job key under `jobs:`; also the filter output names `<key>`, `<key>-exclude`, `<key>-matrix`. */
+  /** The job key under `jobs:`; also the filter output names `<key>`, `<key>-exclude`, `<key>-matrix`, `<key>-include`. */
   key: string;
+  /**
+   * For a job inside a reusable workflow, the calling job's key. The verdict
+   * can only see the caller, so the called workflow re-exports the filter's
+   * outputs, and the job's result as `<key>-result`.
+   */
+  caller?: string;
   /** The kind of matrix, in a few words. */
   shape: string;
   /** What this fixture exists to show, in one line. */
@@ -70,6 +77,12 @@ export interface Fixture {
   stringify?: boolean;
   /** The single check run GitHub reports when the job is skipped whole: the unexpanded name. */
   skippedName?: string;
+  /**
+   * Why this job must run whatever the filter emits: Trunk cannot tell which
+   * job the filter's output is for, so it must not skip it. Any output that
+   * skips it, or prunes a leg, fails the fixture in both modes.
+   */
+  mustRun?: string;
   /**
    * PINNED: what GitHub actually does with the outputs simulate mode emits for
    * this fixture, where that is NOT what the outputs meant. When the filter

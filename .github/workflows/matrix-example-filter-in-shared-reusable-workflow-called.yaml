@@ -1,0 +1,94 @@
+# Called twice by matrix-example-filter-in-shared-reusable-workflow.yaml; check
+# runs are named "<caller job's name> / <this job's name>", e.g. "Unit / Check".
+name: "Matrix example: filter in a reusable workflow called twice (called)"
+
+on:
+  workflow_call:
+    inputs:
+      # smoke: `mode` only picks where the filter outputs come from.
+      mode:
+        description: Where the pruning outputs come from
+        type: string
+        default: simulate
+    secrets:
+      TRUNK_API_TOKEN:
+        description: Your organization's Trunk API token
+        required: false
+    # smoke: re-exported only so the caller's verdict can read them.
+    outputs:
+      check:
+        description: The filter's check output
+        value: ${{ jobs.dynamic-ci-filter.outputs.check }}
+      check-result:
+        description: The check job's result
+        value: ${{ jobs.tests-pass.outputs.check-result }}
+
+permissions: read-all
+
+# smoke
+env:
+  MODE: ${{ inputs.mode }}
+
+jobs:
+  dynamic-ci-filter:
+    name: Dynamic CI Filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # With two callers, the action does not set `check`: it cannot tell which
+    # caller's verdict is this call's.
+    # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
+    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+    # and so cannot be declared in action.yaml.
+    outputs:
+      check: ${{ steps.ci-filter.outputs.check || steps.sim.outputs.check }}
+    # trunk-ignore-end(actionlint/expression)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Run Dynamic CI Filter
+        id: ci-filter
+        if: env.MODE == 'live' # smoke
+        # smoke: yours is trunk-io/dynamic-ci@v1; this is the action at this commit.
+        uses: ./
+        with:
+          token: ${{ secrets.TRUNK_API_TOKEN }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io # smoke
+
+      # smoke: in simulate mode, emit the outputs the answer key asks for instead.
+      - uses: actions/setup-node@v4
+        if: env.MODE != 'live'
+        with:
+          node-version: "24"
+      - id: sim
+        if: env.MODE != 'live'
+        run: node .github/smoke/matrix/smoke.ts simulate filter-in-shared-reusable-workflow
+
+  check:
+    name: Check
+    needs: [dynamic-ci-filter]
+    # A job with no verdict has no output and runs, so compare against 'false'.
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.check != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run checks
+        run: echo "Checking"
+
+  # The check the caller's fan-in waits on; never gate it.
+  tests-pass:
+    name: Tests pass
+    needs: [check]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # smoke
+    outputs:
+      check-result: ${{ needs.check.result }}
+    steps:
+      - name: Fail if a gated job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
