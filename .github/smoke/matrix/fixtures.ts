@@ -40,7 +40,7 @@ export interface Fixture {
   /**
    * For a job inside a reusable workflow, the calling job's key. The verdict
    * can only see the caller, so the called workflow re-exports the filter's
-   * outputs as its own, and the caller's result stands for the job's.
+   * outputs, and the job's result as `<key>-result`.
    */
   caller?: string;
   /** The kind of matrix, in a few words. */

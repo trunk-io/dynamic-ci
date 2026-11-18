@@ -45,8 +45,8 @@ on:
       - .github/workflows/matrix-example-filter-in-reusable-workflow.yaml
       - .github/workflows/matrix-example-filter-in-reusable-workflow-called.yaml
       - .github/smoke/matrix/**
-  # smoke: schedules run only from the default branch. MODE below tells them
-  # apart by cron string, so change both together.
+  # smoke: schedules run only from the default branch. MODE, run-name and the
+  # call's `mode` tell them apart by cron string, so change all four together.
   schedule:
     - cron: 14 */4 * * * # live: builds staging's history for every leg
     - cron: 43 6 * * 1 # simulate: Mondays
@@ -68,8 +68,9 @@ jobs:
   tests:
     name: Tests
     uses: ./.github/workflows/matrix-example-filter-in-reusable-workflow-called.yaml
-    # smoke: yours passes your token, secrets.TRUNK_API_TOKEN, the same way.
-    secrets: inherit
+    secrets:
+      # smoke: yours is secrets.TRUNK_API_TOKEN.
+      TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
     # smoke
     with:
       mode: ${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}

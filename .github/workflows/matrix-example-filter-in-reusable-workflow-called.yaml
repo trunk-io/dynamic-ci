@@ -10,6 +10,10 @@ on:
         description: Where the pruning outputs come from
         type: string
         default: simulate
+    secrets:
+      TRUNK_API_TOKEN:
+        description: Your organization's Trunk API token
+        required: false
     # smoke: re-exported only so the caller's verdict can read them.
     outputs:
       Suite:
@@ -18,6 +22,9 @@ on:
       Suite-include:
         description: The filter's Suite-include output
         value: ${{ jobs.dynamic-ci-filter.outputs.Suite-include }}
+      Suite-result:
+        description: The Suite job's result
+        value: ${{ jobs.tests-pass.outputs.Suite-result }}
 
 permissions: read-all
 
@@ -64,8 +71,7 @@ jobs:
         # smoke: yours is trunk-io/dynamic-ci@v1; this is the action at this commit.
         uses: ./
         with:
-          # smoke: yours is your organization's token, secrets.TRUNK_API_TOKEN.
-          token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
+          token: ${{ secrets.TRUNK_API_TOKEN }}
           # This workflow's job key; Trunk resolves it to "<caller>/Suite".
           matrices: >-
             {"Suite": ${{ needs.plan.outputs.rows || '[]' }}}
@@ -105,6 +111,9 @@ jobs:
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # smoke
+    outputs:
+      Suite-result: ${{ needs.Suite.result }}
     steps:
       - name: Fail if a gated job failed
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
