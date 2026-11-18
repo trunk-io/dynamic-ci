@@ -1,0 +1,111 @@
+# Called by matrix-example-filter-in-reusable-workflow.yaml; check runs are
+# named "<caller job's name> / <this job's name>", e.g. "Tests / Suite (api)".
+name: "Matrix example: filter in a reusable workflow (called)"
+
+on:
+  workflow_call:
+    inputs:
+      # smoke: `mode` only picks where the filter outputs come from.
+      mode:
+        description: Where the pruning outputs come from
+        type: string
+        default: simulate
+    # smoke: re-exported only so the caller's verdict can read them.
+    outputs:
+      Suite:
+        description: The filter's Suite output
+        value: ${{ jobs.dynamic-ci-filter.outputs.Suite }}
+      Suite-include:
+        description: The filter's Suite-include output
+        value: ${{ jobs.dynamic-ci-filter.outputs.Suite-include }}
+
+permissions: read-all
+
+# smoke
+env:
+  MODE: ${{ inputs.mode }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rows: ${{ steps.plan.outputs.rows }}
+    steps:
+      # smoke: fixed rows, so the answer key knows what to expect.
+      - id: plan
+        run: |
+          rows='[{"name":"api"},{"name":"web"},{"name":"worker"}]'
+          echo "rows=$(jq -c . <<<"${rows}")" >> "${GITHUB_OUTPUT}"
+
+  dynamic-ci-filter:
+    name: Dynamic CI Filter
+    needs: [plan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Trunk decides "<caller>/Suite"; the action also sets it under Suite.
+    # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
+    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
+    # and so cannot be declared in action.yaml.
+    outputs:
+      Suite: ${{ steps.ci-filter.outputs.Suite || steps.sim.outputs.Suite }}
+      Suite-include: ${{ steps.ci-filter.outputs.Suite-include || steps.sim.outputs.Suite-include }}
+    # trunk-ignore-end(actionlint/expression)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Run Dynamic CI Filter
+        id: ci-filter
+        if: env.MODE == 'live' # smoke
+        # smoke: yours is trunk-io/dynamic-ci@v1; this is the action at this commit.
+        uses: ./
+        with:
+          # smoke: yours is your organization's token, secrets.TRUNK_API_TOKEN.
+          token: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
+          # This workflow's job key; Trunk resolves it to "<caller>/Suite".
+          matrices: >-
+            {"Suite": ${{ needs.plan.outputs.rows || '[]' }}}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io # smoke
+
+      # smoke: in simulate mode, emit the outputs the answer key asks for instead.
+      - uses: actions/setup-node@v4
+        if: env.MODE != 'live'
+        with:
+          node-version: "24"
+      - id: sim
+        if: env.MODE != 'live'
+        run: node .github/smoke/matrix/smoke.ts simulate filter-in-reusable-workflow
+
+  Suite:
+    name: Suite (${{ matrix.name }})
+    needs: [plan, dynamic-ci-filter]
+    # A job with no verdict has no output and runs, so compare against 'false'.
+    if: ${{ !cancelled() && needs.dynamic-ci-filter.outputs.Suite != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.dynamic-ci-filter.outputs.Suite-include || needs.plan.outputs.rows) }}
+    steps:
+      - name: Run tests
+        run: echo "Testing ${SUITE}"
+        env:
+          SUITE: ${{ matrix.name }}
+
+  # The check to require; never gate it, since a skipped gate cannot report.
+  tests-pass:
+    name: Tests pass
+    needs: [Suite]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a gated job failed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
