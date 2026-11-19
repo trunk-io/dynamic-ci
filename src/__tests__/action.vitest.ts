@@ -27,6 +27,7 @@ const API_BASE = "https://dynamic-ci.test";
 const API_URL = `${API_BASE}/v2/dynamic-ci/generate-plan`;
 const TELEMETRY_URL =
   "https://telemetry.dynamic-ci.test/v1/dynamic-ci/plan-metrics";
+const TELEMETRY_V2_URL = `${API_BASE}/v2/telemetry/v1/metrics`;
 
 /** Status/reason are read back as raw protobuf field bytes; see decodeTelemetry. */
 let telemetryPosts: Uint8Array[] = [];
@@ -900,6 +901,63 @@ describe("the action end to end", () => {
       ).toMatchObject({
         status: PLAN_STATUS.failed,
         reason: PLAN_REASON.httpServerError,
+      });
+    });
+
+    it("sends a v2 API key's report to public-api as OTLP, not to trunk1", async () => {
+      const v2Posts: { authorization: string | null; body: unknown }[] = [];
+      server.overrideHandlers([
+        () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
+        () =>
+          http.post(TELEMETRY_URL, async ({ request: received }) => {
+            telemetryPosts.push(new Uint8Array(await received.arrayBuffer()));
+            return new HttpResponse(null, { status: 200 });
+          }),
+        () =>
+          http.post(TELEMETRY_V2_URL, async ({ request: received }) => {
+            v2Posts.push({
+              authorization: received.headers.get("authorization"),
+              body: await received.json(),
+            });
+            return HttpResponse.json({});
+          }),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests", token: "trunk_v2_AbC123" });
+
+      await runAction();
+
+      expect({
+        v1Posts: telemetryPosts.length,
+        authorizations: v2Posts.map((post) => post.authorization),
+        resources: v2Posts.map(
+          (post) =>
+            (
+              post.body as {
+                resourceMetrics: { resource: { attributes: unknown[] } }[];
+              }
+            ).resourceMetrics[0]?.resource.attributes,
+        ),
+        outputs: readOutputs(),
+      }).toEqual({
+        v1Posts: 0,
+        authorizations: ["Bearer trunk_v2_AbC123"],
+        resources: [
+          [
+            {
+              key: "service.name",
+              value: { stringValue: "trunk-dynamic-ci" },
+            },
+            {
+              key: "service.version",
+              value: { stringValue: "github/unknown" },
+            },
+            {
+              key: "deployment.environment.name",
+              value: { stringValue: "staging" },
+            },
+          ],
+        ],
+        outputs: { "unit-tests": "false" },
       });
     });
 

@@ -50,6 +50,15 @@ export const BACKOFF_START_MS_ENV = "TRUNK_DYNAMIC_CI_BACKOFF_START_MS";
 /** Path on the telemetry host, appended to `telemetry.<api-host>`. */
 export const TELEMETRY_PATH = "/v1/dynamic-ci/plan-metrics";
 
+/** Every v2 API key starts with this; trunk1's telemetry service refuses one. */
+export const V2_API_KEY_PREFIX = "trunk_v2_";
+
+/** public-api's OTLP metrics route, on the plan API's own host. */
+export const TELEMETRY_V2_PATH = "/v2/telemetry/v1/metrics";
+
+export const DEFAULT_TELEMETRY_V2_URL =
+  "https://api.trunk.io/v2/telemetry/v1/metrics";
+
 /** Opt out entirely, matching the uploader's escape hatch. */
 export const DISABLE_TELEMETRY_ENV = "TRUNK_DISABLE_TELEMETRY";
 
@@ -95,6 +104,13 @@ const apiUrlSchema = z
   .transform((base) => `${base.replace(/\/+$/, "")}${DYNAMIC_CI_PATH}`)
   .catch(DEFAULT_API_URL);
 
+const telemetryV2UrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((base) => `${base.replace(/\/+$/, "")}${TELEMETRY_V2_PATH}`)
+  .catch(DEFAULT_TELEMETRY_V2_URL);
+
 const telemetryUrlSchema = z
   .string()
   .trim()
@@ -131,3 +147,9 @@ export const resolveApiUrl = (): string =>
  */
 export const resolveTelemetryUrl = (): string =>
   telemetryUrlSchema.parse(process.env[API_ADDRESS_ENV]);
+
+export const resolveTelemetryV2Url = (): string =>
+  telemetryV2UrlSchema.parse(process.env[API_ADDRESS_ENV]);
+
+export const isV2ApiKey = (token: string): boolean =>
+  token.trim().startsWith(V2_API_KEY_PREFIX);

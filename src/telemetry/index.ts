@@ -4,15 +4,20 @@ import { backOff } from "exponential-backoff";
 import {
   BACKOFF_MAX_DELAY_MS,
   BACKOFF_TIME_MULTIPLE,
+  DEFAULT_API_URL,
   TELEMETRY_TIMEOUT_MS,
+  isV2ApiKey,
+  resolveApiUrl,
   resolveBackoffStartMs,
   resolveTelemetryUrl,
+  resolveTelemetryV2Url,
   telemetryDisabled,
 } from "../config";
 import type { Repo as RepoShape } from "../compat";
 import type { PlanOutcome } from "../outcome";
 import type { ChangedFilesSource } from "../changed-files";
 import type { WorkflowFileShaSource } from "../workflow-file-sha";
+import { planMetricsRequest } from "./otlp";
 import {
   Duration,
   PLAN_INPUT_SOURCE,
@@ -88,36 +93,18 @@ export const sendPlanTelemetry = async (
     return;
   }
   try {
-    const message = PlanRequestMetrics.create({
-      action_version: actionVersionLabel(telemetry.actionRef),
-      repo: Repo.create(telemetry.repo),
-      status: telemetry.outcome.status,
-      reason: telemetry.outcome.reason,
-      attempts: telemetry.attempts,
-      duration: durationOf(telemetry.durationMs),
-      job_count: telemetry.jobCount,
-      ...(telemetry.inputs === undefined
-        ? {}
-        : {
-            changed_files_source: inputSource(telemetry.inputs.changedFiles),
-            workflow_file_sha_source: inputSource(
-              telemetry.inputs.workflowFileSha,
-            ),
-          }),
-    });
-    const buffer = PlanRequestMetrics.encode(message).finish();
+    const request = isV2ApiKey(telemetry.token)
+      ? v2Request(telemetry)
+      : v1Request(telemetry);
 
     await backOff(
       async () => {
         // Node's fetch defaults to a 300s headers timeout, so an unbounded call here
         // would add minutes to every job against a host that accepts and stalls.
-        const response = await fetch(resolveTelemetryUrl(), {
+        const response = await fetch(request.url, {
           method: "POST",
-          body: Buffer.from(buffer),
-          headers: {
-            "Content-Type": "application/x-protobuf",
-            "x-api-token": telemetry.token,
-          },
+          body: request.body,
+          headers: request.headers,
           signal: AbortSignal.timeout(TELEMETRY_TIMEOUT_MS),
         });
         if (!response.ok) {
@@ -142,4 +129,61 @@ export const sendPlanTelemetry = async (
       `Telemetry upload failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+};
+
+interface TelemetryRequest {
+  url: string;
+  body: string | Buffer;
+  headers: Record<string, string>;
+}
+
+// trunk1 compares the key with the org's legacy one, so a v2 key goes to trunk2.
+const v2Request = (telemetry: PlanTelemetry): TelemetryRequest => ({
+  url: resolveTelemetryV2Url(),
+  body: JSON.stringify(
+    planMetricsRequest({
+      version: actionVersionLabel(telemetry.actionRef),
+      environment:
+        resolveApiUrl() === DEFAULT_API_URL ? "production" : "staging",
+      status: telemetry.outcome.status,
+      reason: telemetry.outcome.reason,
+      attempts: telemetry.attempts,
+      durationMs: telemetry.durationMs,
+      jobCount: telemetry.jobCount,
+      inputs: telemetry.inputs,
+      nowMs: Date.now(),
+    }),
+  ),
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${telemetry.token}`,
+  },
+});
+
+const v1Request = (telemetry: PlanTelemetry): TelemetryRequest => {
+  const message = PlanRequestMetrics.create({
+    action_version: actionVersionLabel(telemetry.actionRef),
+    repo: Repo.create(telemetry.repo),
+    status: telemetry.outcome.status,
+    reason: telemetry.outcome.reason,
+    attempts: telemetry.attempts,
+    duration: durationOf(telemetry.durationMs),
+    job_count: telemetry.jobCount,
+    ...(telemetry.inputs === undefined
+      ? {}
+      : {
+          changed_files_source: inputSource(telemetry.inputs.changedFiles),
+          workflow_file_sha_source: inputSource(
+            telemetry.inputs.workflowFileSha,
+          ),
+        }),
+  });
+  return {
+    url: resolveTelemetryUrl(),
+    body: Buffer.from(PlanRequestMetrics.encode(message).finish()),
+    headers: {
+      "Content-Type": "application/x-protobuf",
+      "x-api-token": telemetry.token,
+    },
+  };
 };

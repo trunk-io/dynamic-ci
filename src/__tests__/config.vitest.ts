@@ -5,11 +5,14 @@ import {
   DYNAMIC_CI_PATH,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_TELEMETRY_URL,
+  DEFAULT_TELEMETRY_V2_URL,
   DEFAULT_TIMEOUT_MS,
   TELEMETRY_PATH,
+  isV2ApiKey,
   resolveApiUrl,
   resolveMaxAttempts,
   resolveTelemetryUrl,
+  resolveTelemetryV2Url,
   resolveTimeoutMs,
   telemetryDisabled,
 } from "../config";
@@ -141,4 +144,35 @@ describe("telemetryDisabled", () => {
       expect(telemetryDisabled()).toBe(false);
     },
   );
+});
+
+describe("resolveTelemetryV2Url", () => {
+  it.each([
+    { address: undefined, url: DEFAULT_TELEMETRY_V2_URL },
+    { address: "", url: DEFAULT_TELEMETRY_V2_URL },
+    { address: "https://api.trunk.io", url: DEFAULT_TELEMETRY_V2_URL },
+    {
+      address: "https://api.trunk-staging.io/",
+      url: "https://api.trunk-staging.io/v2/telemetry/v1/metrics",
+    },
+    {
+      address: "http://localhost:3000",
+      url: "http://localhost:3000/v2/telemetry/v1/metrics",
+    },
+  ])("posts to the plan API's own host for $address", ({ address, url }) => {
+    vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", address);
+    expect(resolveTelemetryV2Url()).toBe(url);
+  });
+});
+
+describe("isV2ApiKey", () => {
+  it.each([
+    { token: "trunk_v2_AbC123", v2: true },
+    { token: "  trunk_v2_AbC123\n", v2: true },
+    { token: "0123456789abcdef", v2: false },
+    { token: "trunk_v1_AbC123", v2: false },
+    { token: "", v2: false },
+  ])("reads $token as v2: $v2", ({ token, v2 }) => {
+    expect(isV2ApiKey(token)).toBe(v2);
+  });
 });
