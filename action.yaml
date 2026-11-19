@@ -54,9 +54,11 @@ inputs:
   github-token:
     description:
       Token for reading the pull request's changed files and the workflow file
-      when the checkout does not have them. Needs the pull-requests read and
-      contents read permissions; without them, Trunk reads the changed files
-      itself and decides matrix jobs as a whole.
+      when the checkout does not have them, and this job's check run name
+      inside a reusable workflow. Needs the pull-requests read, contents read
+      and checks read permissions; without them, Trunk reads the changed files
+      itself, decides matrix jobs as a whole, and cannot tell apart several
+      jobs that call one reusable workflow.
     required: false
     default: ${{ github.token }}
   job-workflow-ref:

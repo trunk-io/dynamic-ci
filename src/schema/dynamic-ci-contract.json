@@ -455,6 +455,13 @@
             "description": "`job.check_run_id`: the check run of the job this request is sent from. Inside a reusable workflow it tells apart the jobs that call one file. Omit it when GitHub leaves it empty.",
             "example": 135132011429
           },
+          "checkRunName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "The name GitHub gave the check run `checkRunId` names (`<calling job> / <job>` inside a reusable workflow). Inside a reusable workflow called from several jobs it tells them apart. Omit it when the check run could not be read.",
+            "example": "Lint Suite / dynamic-ci"
+          },
           "matrixRows": {
             "type": "object",
             "additionalProperties": {

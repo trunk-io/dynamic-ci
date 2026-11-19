@@ -305,6 +305,82 @@ describe("the action end to end", () => {
     });
   });
 
+  // @actions/github calls undici's own fetch, which msw cannot see.
+  const withCheckRun = async (
+    status: number,
+    checkRun: unknown,
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    const original = getGlobalDispatcher();
+    const github = new MockAgent();
+    github.disableNetConnect();
+    github
+      .get("https://api.github.test")
+      .intercept({
+        path: "/repos/trunk-io/example/check-runs/135132011429",
+        method: "GET",
+      })
+      .reply(status, JSON.stringify(checkRun), {
+        headers: { "content-type": "application/json" },
+      });
+    setGlobalDispatcher(github);
+    vi.stubEnv("INPUT_GITHUB-TOKEN", "gh-token");
+    vi.stubEnv("GITHUB_API_URL", "https://api.github.test");
+    try {
+      await run();
+    } finally {
+      setGlobalDispatcher(original);
+      await github.close();
+    }
+  };
+
+  const fromCalledWorkflow = (): { body: () => unknown } => {
+    let body: unknown;
+    server.overrideHandlers([
+      () =>
+        http.post(API_URL, async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(skipUnitTests);
+        }),
+    ]);
+    stubRunnerEnv({
+      jobWorkflowRef:
+        "trunk-io/example/.github/workflows/reusable-tests.yaml@refs/heads/main",
+      jobCheckRunId: "135132011429",
+    });
+    vi.stubEnv("GITHUB_JOB", "inner_filter");
+    return { body: () => body };
+  };
+
+  it("sends the check run's name inside a called workflow", async () => {
+    const captured = fromCalledWorkflow();
+
+    await withCheckRun(
+      200,
+      { id: 135132011429, name: "Lint Suite / inner_filter" },
+      runAction,
+    );
+
+    expect(captured.body()).toMatchObject({
+      checkRunId: 135132011429,
+      checkRunName: "Lint Suite / inner_filter",
+    });
+  });
+
+  it("still asks for a plan, without the name, when the check run read fails", async () => {
+    const captured = fromCalledWorkflow();
+
+    await withCheckRun(
+      403,
+      { message: "Resource not accessible by integration" },
+      runAction,
+    );
+
+    expect(readOutputs()).toEqual({ "unit-tests": "false" });
+    expect(captured.body()).toMatchObject({ checkRunId: 135132011429 });
+    expect(captured.body()).not.toHaveProperty("checkRunName");
+  });
+
   it.each([
     { name: "empty, as on GitHub Enterprise Server", sha: "", runId: "" },
     { name: "malformed", sha: "main", runId: "check-run" },

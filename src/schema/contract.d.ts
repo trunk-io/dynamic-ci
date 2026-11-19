@@ -308,6 +308,11 @@ export interface components {
              */
             checkRunId?: number;
             /**
+             * @description The name GitHub gave the check run `checkRunId` names (`<calling job> / <job>` inside a reusable workflow). Inside a reusable workflow called from several jobs it tells them apart. Omit it when the check run could not be read.
+             * @example Lint Suite / dynamic-ci
+             */
+            checkRunName?: string;
+            /**
              * @description For matrix jobs whose rows a planner job builds at run time (`fromJSON`): each job's rows array, by job key, as the exact JSON text the planner emitted. Send the text unchanged; Trunk returns the rows it keeps in the same text. A job is pruned per variation only when its rows are sent and they are its whole matrix. Send at most 64 jobs, 64 KiB and 256 rows per job, and 256 KiB in all; a job over its limits is decided as a whole.
              * @example {
              *       "tests": "[{\"suite\":\"api\",\"shard\":1},{\"suite\":\"web\",\"shard\":1}]"

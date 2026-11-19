@@ -96,6 +96,7 @@ what an expression can dereference, so a job written as `unit-tests` is read bac
 Run inside a reusable workflow, the action decides the jobs of the workflow that calls it,
 so a job it calls is keyed `<caller>/<job>`. Its output is also set under `<job>`, which is
 what a gate inside the called workflow reads, unless another job has that name.
+When several jobs call that workflow, `github-token` needs the `checks: read` permission.
 
 **Always write `!= 'false'`, never `== 'true'`.** A job with no verdict — a service
 outage, a job the service has never seen, a job whose key it has not resolved yet —
