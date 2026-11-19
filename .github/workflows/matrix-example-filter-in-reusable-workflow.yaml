@@ -33,7 +33,7 @@
 # .github/smoke/matrix/examples/filter-in-reusable-workflow.ts is its answer key.
 name: "Matrix example: filter in a reusable workflow"
 # smoke: the mode says where the filter's outputs come from (see the README).
-run-name: Matrix example filter-in-reusable-workflow (${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
+run-name: Matrix example filter-in-reusable-workflow (${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '14 */4 * * *') && 'live') || 'simulate' }}) for ${{ github.ref_name }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -42,12 +42,8 @@ concurrency:
 permissions: read-all
 
 on:
-  # smoke: yours would run on every pull request.
   pull_request:
-    paths:
-      - .github/workflows/matrix-example-filter-in-reusable-workflow.yaml
-      - .github/workflows/matrix-example-filter-in-reusable-workflow-called.yaml
-      - .github/smoke/matrix/**
+    types: [opened, synchronize, reopened]
   # smoke: schedules run only from the default branch. MODE, run-name and the
   # call's `mode` tell them apart by cron string, so change all four together.
   schedule:
@@ -65,7 +61,7 @@ on:
 
 # smoke
 env:
-  MODE: ${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}
+  MODE: ${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '14 */4 * * *') && 'live') || 'simulate' }}
 
 jobs:
   tests:
@@ -77,7 +73,7 @@ jobs:
       TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_DYNAMIC_CI_TOKEN }}
     # smoke
     with:
-      mode: ${{ inputs.mode || (github.event.schedule == '14 */4 * * *' && 'live') || 'simulate' }}
+      mode: ${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '14 */4 * * *') && 'live') || 'simulate' }}
 
   # ---------------------------------------------------------------------------
   # smoke: everything below is the smoke test, not part of the example.
