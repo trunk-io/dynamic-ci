@@ -53,12 +53,9 @@ jobs:
     timeout-minutes: 5
     # Trunk decides "<caller>/shards"; the action also sets it under shards.
     # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
-    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
-    # and so cannot be declared in action.yaml.
     outputs:
       shards: ${{ steps.ci-filter.outputs.shards || steps.sim.outputs.shards }}
       shards-include: ${{ steps.ci-filter.outputs.shards-include || steps.sim.outputs.shards-include }}
-    # trunk-ignore-end(actionlint/expression)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,8 +65,8 @@ jobs:
       - name: Run Dynamic CI Filter
         id: ci-filter
         if: env.MODE == 'live' # smoke
-        # smoke: yours is trunk-io/dynamic-ci@v1; this is the action at this commit.
-        uses: ./
+        # smoke: yours is trunk-io/dynamic-ci@v1. Live runs are on main, so this is that commit.
+        uses: trunk-io/dynamic-ci@main
         with:
           token: ${{ secrets.TRUNK_API_TOKEN }}
           # This workflow's own job key; Trunk reads it as "<caller>/shards".
