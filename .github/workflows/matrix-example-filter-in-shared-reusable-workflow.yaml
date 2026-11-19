@@ -62,6 +62,7 @@ env:
 
 jobs:
   unit:
+    # Trunk reads this file's parse to find the caller of the filter inside the call.
     name: Unit
     uses: ./.github/workflows/matrix-example-filter-in-shared-reusable-workflow-called.yaml
     secrets:

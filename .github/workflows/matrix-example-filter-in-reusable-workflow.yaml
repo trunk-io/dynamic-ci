@@ -69,6 +69,7 @@ env:
 
 jobs:
   tests:
+    # Trunk reads this file's parse to find the caller of the filter inside the call.
     name: Tests
     uses: ./.github/workflows/matrix-example-filter-in-reusable-workflow-called.yaml
     secrets:
