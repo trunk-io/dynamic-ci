@@ -63,7 +63,10 @@ Every example, and `matrix-smoke.yaml`, runs in one of two modes.
 - **`live`** — every 4 hours, or run the workflow by hand and pick `live`. The
   filter job runs the action at this commit against staging, with the
   planner's rows in `matrices`, and the scheduled runs build the CI history
-  staging decides on. Until the action can prune individual legs, it ignores
+  staging decides on. The examples whose filter runs inside a reusable workflow
+  use `trunk-io/dynamic-ci@main` rather than `./`: Trunk finds a filter's
+  caller only from a `trunk-io/dynamic-ci` step, and live runs are on `main`.
+  A live run dispatched from another branch therefore runs `main`'s action. Until the action can prune individual legs, it ignores
   `matrices` and prunes nothing, and the run checks only that nothing breaks.
   After that, the same verdict checks real pruning.
 

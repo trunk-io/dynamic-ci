@@ -80,8 +80,6 @@ jobs:
     # Trunk decides "<caller>/<job>"; the action also sets each output under the
     # job's own key, which is what the jobs below read.
     # smoke: yours reads steps.ci-filter only; drop each `|| steps.sim.outputs.*`.
-    # trunk-ignore-begin(actionlint/expression): per-job outputs are set at runtime
-    # and so cannot be declared in action.yaml.
     outputs:
       groups: ${{ steps.ci-filter.outputs.groups || steps.sim.outputs.groups }}
       groups-include: ${{ steps.ci-filter.outputs.groups-include || steps.sim.outputs.groups-include }}
@@ -89,7 +87,6 @@ jobs:
       areas-include: ${{ steps.ci-filter.outputs.areas-include || steps.sim.outputs.areas-include }}
       lint: ${{ steps.ci-filter.outputs.lint || steps.sim.outputs.lint }}
       lint-include: ${{ steps.ci-filter.outputs.lint-include || steps.sim.outputs.lint-include }}
-    # trunk-ignore-end(actionlint/expression)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,8 +96,8 @@ jobs:
       - name: Run Dynamic CI Filter
         id: ci-filter
         if: env.MODE == 'live' # smoke
-        # smoke: yours is trunk-io/dynamic-ci@v1; this is the action at this commit.
-        uses: ./
+        # smoke: yours is trunk-io/dynamic-ci@v1. Live runs are on main, so this is that commit.
+        uses: trunk-io/dynamic-ci@main
         with:
           token: ${{ secrets.TRUNK_API_TOKEN }}
           # Keyed by this workflow's own job keys; Trunk reads each as "<caller>/<job>".
