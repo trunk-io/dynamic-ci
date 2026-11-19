@@ -102,6 +102,17 @@ fire-and-forget — sent after the verdict is set, failures swallowed to `core.d
 short-deadlined — so it can never change an output or fail the step. Set
 `TRUNK_DISABLE_TELEMETRY=true` to turn it off.
 
+The token picks the lane. A v2 API key (`trunk_v2_…`) sends OTLP JSON metrics
+(`src/telemetry/otlp.ts`) to `<TRUNK_PUBLIC_API_ADDRESS>/v2/telemetry/v1/metrics` with
+`Authorization: Bearer`, because trunk1's telemetry service refuses a v2 key. Any other
+token sends the `PlanRequestMetrics` protobuf to trunk1 at `telemetry.<api-host>` with
+`x-api-token`. trunk2's route rejects a point whose metric name, unit, buckets or shape it
+does not list, and records a label value it does not list as `other`; this action never sees
+either, since the answer is a 200. `src/__tests__/__fixtures__/plan-metrics.json` is a copy of
+the body trunk2's tests read, and the two must stay equal. The OTLP body carries no repository
+(trunk2 records no `repo` label). Unlike trunk1's separate telemetry host, the v2 lane shares
+the plan call's gateway, so an outage of that gateway loses its own report too.
+
 `src/telemetry/protos.ts` defines the message with protobufjs reflection rather than
 generated code, copying the analytics-uploader: protoc's output needs regex surgery to
 become ESM, and protobufjs's `load` uses `XMLHttpRequest`, absent on a runner.

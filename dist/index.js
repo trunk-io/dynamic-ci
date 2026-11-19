@@ -2004,11 +2004,11 @@ var require_decodeText = __commonJS({
         return typeof data === "string" ? data : data.toString();
       }
     };
-    function decodeText(text, sourceEncoding, destEncoding) {
-      if (text) {
-        return getDecoder(destEncoding)(text, sourceEncoding);
+    function decodeText(text2, sourceEncoding, destEncoding) {
+      if (text2) {
+        return getDecoder(destEncoding)(text2, sourceEncoding);
       }
-      return text;
+      return text2;
     }
     module2.exports = decodeText;
   }
@@ -5538,16 +5538,16 @@ Content-Type: ${value.type || "application/octet-stream"}\r
           } else if (/application\/x-www-form-urlencoded/.test(contentType)) {
             let entries;
             try {
-              let text = "";
+              let text2 = "";
               const streamingDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
               for await (const chunk of consumeBody(this[kState].body)) {
                 if (!isUint8Array(chunk)) {
                   throw new TypeError("Expected Uint8Array chunk");
                 }
-                text += streamingDecoder.decode(chunk, { stream: true });
+                text2 += streamingDecoder.decode(chunk, { stream: true });
               }
-              text += streamingDecoder.decode();
-              entries = new URLSearchParams(text);
+              text2 += streamingDecoder.decode();
+              entries = new URLSearchParams(text2);
             } catch (err) {
               throw Object.assign(new TypeError(), { cause: err });
             }
@@ -18250,8 +18250,8 @@ var require_summary = __commonJS({
        *
        * @returns {Summary} summary instance
        */
-      addRaw(text, addEOL = false) {
-        this._buffer += text;
+      addRaw(text2, addEOL = false) {
+        this._buffer += text2;
         return addEOL ? this.addEOL() : this;
       }
       /**
@@ -18347,10 +18347,10 @@ var require_summary = __commonJS({
        *
        * @returns {Summary} summary instance
        */
-      addHeading(text, level) {
+      addHeading(text2, level) {
         const tag = `h${level}`;
         const allowedTag = ["h1", "h2", "h3", "h4", "h5", "h6"].includes(tag) ? tag : "h1";
-        const element = this.wrap(allowedTag, text);
+        const element = this.wrap(allowedTag, text2);
         return this.addRaw(element).addEOL();
       }
       /**
@@ -18379,9 +18379,9 @@ var require_summary = __commonJS({
        *
        * @returns {Summary} summary instance
        */
-      addQuote(text, cite) {
+      addQuote(text2, cite) {
         const attrs = Object.assign({}, cite && { cite });
-        const element = this.wrap("blockquote", text, attrs);
+        const element = this.wrap("blockquote", text2, attrs);
         return this.addRaw(element).addEOL();
       }
       /**
@@ -18392,8 +18392,8 @@ var require_summary = __commonJS({
        *
        * @returns {Summary} summary instance
        */
-      addLink(text, href) {
-        const element = this.wrap("a", text, { href });
+      addLink(text2, href) {
+        const element = this.wrap("a", text2, { href });
         return this.addRaw(element).addEOL();
       }
     };
@@ -52431,6 +52431,9 @@ var BACKOFF_MAX_DELAY_MS = 1e4;
 var BACKOFF_TIME_MULTIPLE = 2;
 var BACKOFF_START_MS_ENV = "TRUNK_DYNAMIC_CI_BACKOFF_START_MS";
 var TELEMETRY_PATH = "/v1/dynamic-ci/plan-metrics";
+var V2_API_KEY_PREFIX = "trunk_v2_";
+var TELEMETRY_V2_PATH = "/v2/telemetry/v1/metrics";
+var DEFAULT_TELEMETRY_V2_URL = "https://api.trunk.io/v2/telemetry/v1/metrics";
 var DISABLE_TELEMETRY_ENV = "TRUNK_DISABLE_TELEMETRY";
 var TELEMETRY_TIMEOUT_MS = 1e3;
 var telemetryUrl = (host) => `https://telemetry.${host}${TELEMETRY_PATH}`;
@@ -52440,6 +52443,7 @@ var maxAttemptsSchema = coerce_exports.number().int().positive().transform((atte
 var backoffStartMsSchema = coerce_exports.number().nonnegative().catch(BACKOFF_STARTING_DELAY_MS);
 var disableTelemetrySchema = string2().transform((value) => value.trim().toLowerCase() === "true").catch(false);
 var apiUrlSchema = string2().trim().min(1).transform((base) => `${base.replace(/\/+$/, "")}${DYNAMIC_CI_PATH}`).catch(DEFAULT_API_URL);
+var telemetryV2UrlSchema = string2().trim().min(1).transform((base) => `${base.replace(/\/+$/, "")}${TELEMETRY_V2_PATH}`).catch(DEFAULT_TELEMETRY_V2_URL);
 var telemetryUrlSchema = string2().trim().pipe(url()).transform((base) => {
   const url2 = new URL(base);
   return url2.protocol === "https:" ? telemetryUrl(url2.host) : `${url2.origin}${TELEMETRY_PATH}`;
@@ -52450,6 +52454,8 @@ var resolveBackoffStartMs = () => backoffStartMsSchema.parse(process.env[BACKOFF
 var telemetryDisabled = () => disableTelemetrySchema.parse(process.env[DISABLE_TELEMETRY_ENV]);
 var resolveApiUrl = () => apiUrlSchema.parse(process.env[API_ADDRESS_ENV]);
 var resolveTelemetryUrl = () => telemetryUrlSchema.parse(process.env[API_ADDRESS_ENV]);
+var resolveTelemetryV2Url = () => telemetryV2UrlSchema.parse(process.env[API_ADDRESS_ENV]);
+var isV2ApiKey = (token) => token.trim().startsWith(V2_API_KEY_PREFIX);
 
 // src/api.ts
 var RecommendationError = class extends Error {
@@ -53367,8 +53373,8 @@ var convertMarkedBigIntsReviver = (key, value, context3, userReviver) => {
   if (!hasUserReviver) return value;
   return userReviver(key, value, context3);
 };
-var JSONParseV2 = (text, reviver) => {
-  return JSON.parse(text, (key, value, context3) => {
+var JSONParseV2 = (text2, reviver) => {
+  return JSON.parse(text2, (key, value, context3) => {
     const isNumber = typeof value === "number";
     const isOutOfBounds = value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER;
     const isBigNumber = isNumber && isOutOfBounds;
@@ -53426,8 +53432,8 @@ var applyReviverIteratively = (parsed, userReviver) => {
   }
   return rootHolder[""];
 };
-var serializeBigInts = (text) => {
-  return text.replace(
+var serializeBigInts = (text2) => {
+  return text2.replace(
     stringsOrLargeNumbers,
     (match, digits, fractional, exponential) => {
       const isString = match[0] === '"';
@@ -53441,18 +53447,18 @@ var serializeBigInts = (text) => {
     }
   );
 };
-var JSONParse = (text, reviver) => {
-  if (!text) return originalParse(text, reviver);
+var JSONParse = (text2, reviver) => {
+  if (!text2) return originalParse(text2, reviver);
   try {
-    if (isContextSourceSupported()) return JSONParseV2(text, reviver);
-    const serializedData = serializeBigInts(text);
+    if (isContextSourceSupported()) return JSONParseV2(text2, reviver);
+    const serializedData = serializeBigInts(text2);
     return originalParse(
       serializedData,
       (key, value, context3) => convertMarkedBigIntsReviver(key, value, context3, reviver)
     );
   } catch (error2) {
     if (error2 instanceof RangeError) {
-      const serializedData = serializeBigInts(text);
+      const serializedData = serializeBigInts(text2);
       const parsed = originalParse(serializedData);
       return applyReviverIteratively(parsed, reviver);
     }
@@ -53620,12 +53626,12 @@ async function getResponseData(response) {
   }
   const mimetype = (0, import_content_type.parse)(contentType);
   if (isJSONResponse(mimetype)) {
-    let text = "";
+    let text2 = "";
     try {
-      text = await response.text();
-      return JSONParse(text);
+      text2 = await response.text();
+      return JSONParse(text2);
     } catch (err) {
-      return text;
+      return text2;
     }
   } else if (mimetype.type.startsWith("text/") || // `application/octet-stream` is the canonical "arbitrary binary" type
   // (RFC 2046) and must never be decoded as text, even when the response
@@ -56564,14 +56570,14 @@ var githubClient = (token) => getOctokit(token, {
 var core3 = __toESM(require_core(), 1);
 
 // node_modules/.pnpm/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/scanner.js
-function createScanner(text, ignoreTrivia = false) {
-  const len = text.length;
+function createScanner(text2, ignoreTrivia = false) {
+  const len = text2.length;
   let pos = 0, value = "", tokenOffset = 0, token = 16, lineNumber = 0, lineStartOffset = 0, tokenLineStartOffset = 0, prevTokenLineStartOffset = 0, scanError = 0;
   function scanHexDigits(count, exact) {
     let digits = 0;
     let value2 = 0;
     while (digits < count || !exact) {
-      let ch = text.charCodeAt(pos);
+      let ch = text2.charCodeAt(pos);
       if (ch >= 48 && ch <= 57) {
         value2 = value2 * 16 + ch - 48;
       } else if (ch >= 65 && ch <= 70) {
@@ -56598,35 +56604,35 @@ function createScanner(text, ignoreTrivia = false) {
   }
   function scanNumber() {
     let start = pos;
-    if (text.charCodeAt(pos) === 48) {
+    if (text2.charCodeAt(pos) === 48) {
       pos++;
     } else {
       pos++;
-      while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+      while (pos < text2.length && isDigit(text2.charCodeAt(pos))) {
         pos++;
       }
     }
-    if (pos < text.length && text.charCodeAt(pos) === 46) {
+    if (pos < text2.length && text2.charCodeAt(pos) === 46) {
       pos++;
-      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+      if (pos < text2.length && isDigit(text2.charCodeAt(pos))) {
         pos++;
-        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        while (pos < text2.length && isDigit(text2.charCodeAt(pos))) {
           pos++;
         }
       } else {
         scanError = 3;
-        return text.substring(start, pos);
+        return text2.substring(start, pos);
       }
     }
     let end = pos;
-    if (pos < text.length && (text.charCodeAt(pos) === 69 || text.charCodeAt(pos) === 101)) {
+    if (pos < text2.length && (text2.charCodeAt(pos) === 69 || text2.charCodeAt(pos) === 101)) {
       pos++;
-      if (pos < text.length && text.charCodeAt(pos) === 43 || text.charCodeAt(pos) === 45) {
+      if (pos < text2.length && text2.charCodeAt(pos) === 43 || text2.charCodeAt(pos) === 45) {
         pos++;
       }
-      if (pos < text.length && isDigit(text.charCodeAt(pos))) {
+      if (pos < text2.length && isDigit(text2.charCodeAt(pos))) {
         pos++;
-        while (pos < text.length && isDigit(text.charCodeAt(pos))) {
+        while (pos < text2.length && isDigit(text2.charCodeAt(pos))) {
           pos++;
         }
         end = pos;
@@ -56634,30 +56640,30 @@ function createScanner(text, ignoreTrivia = false) {
         scanError = 3;
       }
     }
-    return text.substring(start, end);
+    return text2.substring(start, end);
   }
   function scanString() {
     let result = "", start = pos;
     while (true) {
       if (pos >= len) {
-        result += text.substring(start, pos);
+        result += text2.substring(start, pos);
         scanError = 2;
         break;
       }
-      const ch = text.charCodeAt(pos);
+      const ch = text2.charCodeAt(pos);
       if (ch === 34) {
-        result += text.substring(start, pos);
+        result += text2.substring(start, pos);
         pos++;
         break;
       }
       if (ch === 92) {
-        result += text.substring(start, pos);
+        result += text2.substring(start, pos);
         pos++;
         if (pos >= len) {
           scanError = 2;
           break;
         }
-        const ch2 = text.charCodeAt(pos++);
+        const ch2 = text2.charCodeAt(pos++);
         switch (ch2) {
           case 34:
             result += '"';
@@ -56699,7 +56705,7 @@ function createScanner(text, ignoreTrivia = false) {
       }
       if (ch >= 0 && ch <= 31) {
         if (isLineBreak(ch)) {
-          result += text.substring(start, pos);
+          result += text2.substring(start, pos);
           scanError = 2;
           break;
         } else {
@@ -56720,19 +56726,19 @@ function createScanner(text, ignoreTrivia = false) {
       tokenOffset = len;
       return token = 17;
     }
-    let code = text.charCodeAt(pos);
+    let code = text2.charCodeAt(pos);
     if (isWhiteSpace(code)) {
       do {
         pos++;
         value += String.fromCharCode(code);
-        code = text.charCodeAt(pos);
+        code = text2.charCodeAt(pos);
       } while (isWhiteSpace(code));
       return token = 15;
     }
     if (isLineBreak(code)) {
       pos++;
       value += String.fromCharCode(code);
-      if (code === 13 && text.charCodeAt(pos) === 10) {
+      if (code === 13 && text2.charCodeAt(pos) === 10) {
         pos++;
         value += "\n";
       }
@@ -56768,31 +56774,31 @@ function createScanner(text, ignoreTrivia = false) {
       // comments
       case 47:
         const start = pos - 1;
-        if (text.charCodeAt(pos + 1) === 47) {
+        if (text2.charCodeAt(pos + 1) === 47) {
           pos += 2;
           while (pos < len) {
-            if (isLineBreak(text.charCodeAt(pos))) {
+            if (isLineBreak(text2.charCodeAt(pos))) {
               break;
             }
             pos++;
           }
-          value = text.substring(start, pos);
+          value = text2.substring(start, pos);
           return token = 12;
         }
-        if (text.charCodeAt(pos + 1) === 42) {
+        if (text2.charCodeAt(pos + 1) === 42) {
           pos += 2;
           const safeLength = len - 1;
           let commentClosed = false;
           while (pos < safeLength) {
-            const ch = text.charCodeAt(pos);
-            if (ch === 42 && text.charCodeAt(pos + 1) === 47) {
+            const ch = text2.charCodeAt(pos);
+            if (ch === 42 && text2.charCodeAt(pos + 1) === 47) {
               pos += 2;
               commentClosed = true;
               break;
             }
             pos++;
             if (isLineBreak(ch)) {
-              if (ch === 13 && text.charCodeAt(pos) === 10) {
+              if (ch === 13 && text2.charCodeAt(pos) === 10) {
                 pos++;
               }
               lineNumber++;
@@ -56803,7 +56809,7 @@ function createScanner(text, ignoreTrivia = false) {
             pos++;
             scanError = 1;
           }
-          value = text.substring(start, pos);
+          value = text2.substring(start, pos);
           return token = 13;
         }
         value += String.fromCharCode(code);
@@ -56813,7 +56819,7 @@ function createScanner(text, ignoreTrivia = false) {
       case 45:
         value += String.fromCharCode(code);
         pos++;
-        if (pos === len || !isDigit(text.charCodeAt(pos))) {
+        if (pos === len || !isDigit(text2.charCodeAt(pos))) {
           return token = 16;
         }
       // found a minus, followed by a number so
@@ -56835,10 +56841,10 @@ function createScanner(text, ignoreTrivia = false) {
       default:
         while (pos < len && isUnknownContentCharacter(code)) {
           pos++;
-          code = text.charCodeAt(pos);
+          code = text2.charCodeAt(pos);
         }
         if (tokenOffset !== pos) {
-          value = text.substring(tokenOffset, pos);
+          value = text2.substring(tokenOffset, pos);
           switch (value) {
             case "true":
               return token = 8;
@@ -57021,7 +57027,7 @@ var ParseOptions;
     allowTrailingComma: false
   };
 })(ParseOptions || (ParseOptions = {}));
-function parseTree(text, errors = [], options = ParseOptions.DEFAULT) {
+function parseTree(text2, errors = [], options = ParseOptions.DEFAULT) {
   let currentParent = { type: "array", offset: -1, length: -1, children: [], parent: void 0 };
   function ensurePropertyComplete(endOffset) {
     if (currentParent.type === "property") {
@@ -57072,15 +57078,15 @@ function parseTree(text, errors = [], options = ParseOptions.DEFAULT) {
       errors.push({ error: error2, offset, length });
     }
   };
-  visit(text, visitor, options);
+  visit(text2, visitor, options);
   const result = currentParent.children[0];
   if (result) {
     delete result.parent;
   }
   return result;
 }
-function visit(text, visitor, options = ParseOptions.DEFAULT) {
-  const _scanner = createScanner(text, false);
+function visit(text2, visitor, options = ParseOptions.DEFAULT) {
+  const _scanner = createScanner(text2, false);
   const _jsonPath = [];
   let suppressedCallbacks = 0;
   function toNoArgVisit(visitFunction) {
@@ -57488,13 +57494,13 @@ var buildMatrixRows = (raw) => {
     if ((value.children ?? []).length === 0) {
       continue;
     }
-    const text = raw.slice(value.offset, value.offset + value.length);
-    const bytes = Buffer.byteLength(text);
+    const text2 = raw.slice(value.offset, value.offset + value.length);
+    const bytes = Buffer.byteLength(text2);
     if (bytes > MAX_JOB_BYTES || total + bytes > MAX_TOTAL_BYTES || Object.keys(matrixRows).length >= MAX_JOBS) {
       omitted.push(jobKey);
       continue;
     }
-    matrixRows[jobKey] = text;
+    matrixRows[jobKey] = text2;
     total += bytes;
   }
   if (omitted.length > 0) {
@@ -58097,9 +58103,9 @@ var PRUNE_OUTPUTS = [
   { field: "matrix", suffix: "-matrix", shape: "object" },
   { field: "include", suffix: "-include", shape: "array" }
 ];
-var hasShape = (text, shape) => {
+var hasShape = (text2, shape) => {
   try {
-    const value = JSON.parse(text);
+    const value = JSON.parse(text2);
     return shape === "array" ? Array.isArray(value) : typeof value === "object" && value !== null && !Array.isArray(value);
   } catch {
     return false;
@@ -58111,8 +58117,8 @@ var setPruneOutputs = ({
   jobKeys
 }) => {
   for (const { field, suffix, shape } of PRUNE_OUTPUTS) {
-    const text = prune[field];
-    if (text === void 0) {
+    const text2 = prune[field];
+    if (text2 === void 0) {
       continue;
     }
     const name = `${jobKey}${suffix}`;
@@ -58120,12 +58126,12 @@ var setPruneOutputs = ({
       warn(
         `Not setting "${name}": a job has that key, and its own output would be overwritten. Every variation of "${jobKey}" runs.`
       );
-    } else if (!hasShape(text, shape)) {
+    } else if (!hasShape(text2, shape)) {
       warn(
         `Not setting "${name}": Trunk returned a value that is not a JSON ${shape}. Every variation of "${jobKey}" runs.`
       );
     } else {
-      core5.setOutput(name, text);
+      core5.setOutput(name, text2);
     }
   }
 };
@@ -58366,6 +58372,156 @@ var reportFailOpen = async (jobKeys, reason) => {
 // src/telemetry/index.ts
 var core7 = __toESM(require_core(), 1);
 var import_exponential_backoff2 = __toESM(require_backoff(), 1);
+
+// src/telemetry/otlp.ts
+var SERVICE_NAME = "trunk-dynamic-ci";
+var DURATION_BOUNDS_SECONDS = [
+  0.05,
+  0.1,
+  0.25,
+  0.5,
+  1,
+  2.5,
+  5,
+  10,
+  30,
+  60,
+  120,
+  300,
+  600
+];
+var JOB_BOUNDS = [0, 1, 2, 5, 10, 25, 50, 100, 250];
+var MAX_PLAN_SECONDS = 600;
+var MAX_JOBS2 = 256;
+var MAX_ATTEMPTS = 3;
+var AGGREGATION_TEMPORALITY_DELTA = 1;
+var NANOS_PER_MS = 1000000n;
+var MS_PER_SECOND = 1e3;
+var STATUS_LABEL = {
+  [PLAN_STATUS.success]: "success",
+  [PLAN_STATUS.failed]: "failed",
+  [PLAN_STATUS.omitted]: "omitted"
+};
+var INPUT_SOURCE_LABEL = {
+  checkout: "checkout",
+  api: "github_api"
+};
+var text = (key, value) => ({
+  key,
+  value: { stringValue: value }
+});
+var int2 = (key, value) => ({
+  key,
+  value: { intValue: String(value) }
+});
+var bucketCounts = (value, bounds) => {
+  const found = bounds.findIndex((bound) => value <= bound);
+  const bucket = found === -1 ? bounds.length : found;
+  return Array.from(
+    { length: bounds.length + 1 },
+    (_, i) => i === bucket ? "1" : "0"
+  );
+};
+var planMetricsRequest = (plan) => {
+  const durationMs = Math.max(0, Math.round(plan.durationMs));
+  const seconds = durationMs / MS_PER_SECOND;
+  const time3 = (BigInt(plan.nowMs) * NANOS_PER_MS).toString();
+  const startTime = (BigInt(plan.nowMs - durationMs) * NANOS_PER_MS).toString();
+  const status = text(
+    "trunk.dynamic_ci.plan.status",
+    STATUS_LABEL[plan.status] ?? "unspecified"
+  );
+  const inputs = plan.inputs === void 0 ? [] : [
+    text(
+      "trunk.dynamic_ci.plan.changed_files_source",
+      plan.inputs.changedFiles === void 0 ? "none" : INPUT_SOURCE_LABEL[plan.inputs.changedFiles]
+    ),
+    text(
+      "trunk.dynamic_ci.plan.workflow_file_sha_source",
+      plan.inputs.workflowFileSha === void 0 ? "none" : INPUT_SOURCE_LABEL[plan.inputs.workflowFileSha]
+    )
+  ];
+  const attempts = plan.attempts > 0 && plan.attempts <= MAX_ATTEMPTS ? [int2("trunk.dynamic_ci.plan.attempts", plan.attempts)] : [];
+  const histogram = (name, unit, value, bounds) => ({
+    name,
+    unit,
+    histogram: {
+      aggregationTemporality: AGGREGATION_TEMPORALITY_DELTA,
+      dataPoints: [
+        {
+          attributes: [status],
+          startTimeUnixNano: startTime,
+          timeUnixNano: time3,
+          count: "1",
+          sum: value,
+          min: value,
+          max: value,
+          explicitBounds: bounds,
+          bucketCounts: bucketCounts(value, bounds)
+        }
+      ]
+    }
+  });
+  return {
+    resourceMetrics: [
+      {
+        resource: {
+          attributes: [
+            text("service.name", SERVICE_NAME),
+            text("service.version", plan.version),
+            text("deployment.environment.name", plan.environment)
+          ]
+        },
+        scopeMetrics: [
+          {
+            scope: { name: SERVICE_NAME, version: plan.version },
+            metrics: [
+              {
+                name: "trunk.dynamic_ci.plans",
+                unit: "{plan}",
+                sum: {
+                  aggregationTemporality: AGGREGATION_TEMPORALITY_DELTA,
+                  isMonotonic: true,
+                  dataPoints: [
+                    {
+                      attributes: [
+                        status,
+                        text("trunk.dynamic_ci.plan.reason", plan.reason),
+                        ...attempts,
+                        ...inputs
+                      ],
+                      startTimeUnixNano: startTime,
+                      timeUnixNano: time3,
+                      asInt: "1"
+                    }
+                  ]
+                }
+              },
+              ...seconds <= MAX_PLAN_SECONDS ? [
+                histogram(
+                  "trunk.dynamic_ci.plan.duration",
+                  "s",
+                  seconds,
+                  DURATION_BOUNDS_SECONDS
+                )
+              ] : [],
+              ...Number.isInteger(plan.jobCount) && plan.jobCount >= 0 && plan.jobCount <= MAX_JOBS2 ? [
+                histogram(
+                  "trunk.dynamic_ci.plan.jobs",
+                  "{job}",
+                  plan.jobCount,
+                  JOB_BOUNDS
+                )
+              ] : []
+            ]
+          }
+        ]
+      }
+    ]
+  };
+};
+
+// src/telemetry/index.ts
 var TELEMETRY_ATTEMPTS = 3;
 var HTTP_SERVER_ERROR_FLOOR2 = 500;
 var TelemetryHttpError = class extends Error {
@@ -58376,13 +58532,13 @@ var TelemetryHttpError = class extends Error {
     this.isClientError = status < HTTP_SERVER_ERROR_FLOOR2;
   }
 };
-var MS_PER_SECOND = 1e3;
-var NANOS_PER_MS = 1e6;
+var MS_PER_SECOND2 = 1e3;
+var NANOS_PER_MS2 = 1e6;
 var durationOf = (durationMs) => {
   const ms = Math.max(0, Math.round(durationMs));
   return Duration.create({
-    seconds: Math.floor(ms / MS_PER_SECOND),
-    nanos: ms % MS_PER_SECOND * NANOS_PER_MS
+    seconds: Math.floor(ms / MS_PER_SECOND2),
+    nanos: ms % MS_PER_SECOND2 * NANOS_PER_MS2
   });
 };
 var FULL_SHA = /^[0-9a-f]{40}$/i;
@@ -58397,31 +58553,13 @@ var sendPlanTelemetry = async (telemetry) => {
     return;
   }
   try {
-    const message = PlanRequestMetrics.create({
-      action_version: actionVersionLabel(telemetry.actionRef),
-      repo: Repo.create(telemetry.repo),
-      status: telemetry.outcome.status,
-      reason: telemetry.outcome.reason,
-      attempts: telemetry.attempts,
-      duration: durationOf(telemetry.durationMs),
-      job_count: telemetry.jobCount,
-      ...telemetry.inputs === void 0 ? {} : {
-        changed_files_source: inputSource(telemetry.inputs.changedFiles),
-        workflow_file_sha_source: inputSource(
-          telemetry.inputs.workflowFileSha
-        )
-      }
-    });
-    const buffer = PlanRequestMetrics.encode(message).finish();
+    const request2 = isV2ApiKey(telemetry.token) ? v2Request(telemetry) : v1Request(telemetry);
     await (0, import_exponential_backoff2.backOff)(
       async () => {
-        const response = await fetch(resolveTelemetryUrl(), {
+        const response = await fetch(request2.url, {
           method: "POST",
-          body: Buffer.from(buffer),
-          headers: {
-            "Content-Type": "application/x-protobuf",
-            "x-api-token": telemetry.token
-          },
+          body: request2.body,
+          headers: request2.headers,
           signal: AbortSignal.timeout(TELEMETRY_TIMEOUT_MS)
         });
         if (!response.ok) {
@@ -58446,9 +58584,54 @@ var sendPlanTelemetry = async (telemetry) => {
     );
   }
 };
+var v2Request = (telemetry) => ({
+  url: resolveTelemetryV2Url(),
+  body: JSON.stringify(
+    planMetricsRequest({
+      version: actionVersionLabel(telemetry.actionRef),
+      environment: resolveApiUrl() === DEFAULT_API_URL ? "production" : "staging",
+      status: telemetry.outcome.status,
+      reason: telemetry.outcome.reason,
+      attempts: telemetry.attempts,
+      durationMs: telemetry.durationMs,
+      jobCount: telemetry.jobCount,
+      inputs: telemetry.inputs,
+      nowMs: Date.now()
+    })
+  ),
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${telemetry.token}`
+  }
+});
+var v1Request = (telemetry) => {
+  const message = PlanRequestMetrics.create({
+    action_version: actionVersionLabel(telemetry.actionRef),
+    repo: Repo.create(telemetry.repo),
+    status: telemetry.outcome.status,
+    reason: telemetry.outcome.reason,
+    attempts: telemetry.attempts,
+    duration: durationOf(telemetry.durationMs),
+    job_count: telemetry.jobCount,
+    ...telemetry.inputs === void 0 ? {} : {
+      changed_files_source: inputSource(telemetry.inputs.changedFiles),
+      workflow_file_sha_source: inputSource(
+        telemetry.inputs.workflowFileSha
+      )
+    }
+  });
+  return {
+    url: resolveTelemetryUrl(),
+    body: Buffer.from(PlanRequestMetrics.encode(message).finish()),
+    headers: {
+      "Content-Type": "application/x-protobuf",
+      "x-api-token": telemetry.token
+    }
+  };
+};
 
 // src/main.ts
-var INPUT_SOURCE_LABEL = {
+var INPUT_SOURCE_LABEL2 = {
   checkout: "the checkout",
   api: "the GitHub API"
 };
@@ -58468,11 +58651,11 @@ var run = async () => {
     core8.info("Changed files: not sent; Trunk will fetch the diff.");
   } else {
     core8.info(
-      `Changed files: ${String(request2.changedFiles.totalFiles)} from ${INPUT_SOURCE_LABEL[changedFilesSource]}.`
+      `Changed files: ${String(request2.changedFiles.totalFiles)} from ${INPUT_SOURCE_LABEL2[changedFilesSource]}.`
     );
   }
   core8.info(
-    workflowFileShaSource === void 0 ? "Workflow file sha: not found, so matrix jobs are decided as a whole." : `Workflow file sha: ${request2.workflowFileSha ?? ""} from ${INPUT_SOURCE_LABEL[workflowFileShaSource]}.`
+    workflowFileShaSource === void 0 ? "Workflow file sha: not found, so matrix jobs are decided as a whole." : `Workflow file sha: ${request2.workflowFileSha ?? ""} from ${INPUT_SOURCE_LABEL2[workflowFileShaSource]}.`
   );
   const requestInputs = {
     changedFiles: changedFilesSource,
