@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { warn } from "./annotations";
+import { resolveCheckRunName } from "./check-run-name";
 import type { DynamicCiRequest, Repo } from "./compat";
 import * as z from "zod";
 import {
@@ -174,8 +175,8 @@ export const buildRequest = async (
   const pr = pullRequestDiff(event, prNumber);
   const cwd = process.env["GITHUB_WORKSPACE"] || process.cwd();
   const workflowPath = resolveWorkflowPath();
-  // In parallel: both read the checkout first and fall back to one API call.
-  const [resolved, workflowFile] = await Promise.all([
+  // In parallel: the first two read the checkout first and fall back to one API call.
+  const [resolved, workflowFile, checkRunName] = await Promise.all([
     pr === undefined
       ? undefined
       : resolveChangedFiles({
@@ -190,6 +191,11 @@ export const buildRequest = async (
       repo,
       githubToken: inputs.githubToken,
       cwd,
+    }),
+    resolveCheckRunName({
+      job: inputs.job,
+      repo,
+      githubToken: inputs.githubToken,
     }),
   ]);
 
@@ -212,6 +218,7 @@ export const buildRequest = async (
       ? {}
       : { workflowFileSha: workflowFile.sha }),
     ...filterJobIdentity(inputs.job),
+    ...(checkRunName === undefined ? {} : { checkRunName }),
     jobKeys: inputs.jobKeys,
     ...(inputs.ignoreSignals.length > 0
       ? { ignoreSignals: inputs.ignoreSignals }
