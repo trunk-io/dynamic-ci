@@ -961,6 +961,77 @@ describe("the action end to end", () => {
       });
     });
 
+    it.each([
+      {
+        name: "a 500",
+        answer: () => new HttpResponse(null, { status: 500 }),
+        calls: 3,
+      },
+      {
+        name: "a 401",
+        answer: () => new HttpResponse(null, { status: 401 }),
+        calls: 1,
+      },
+      {
+        name: "a dropped connection",
+        answer: () => HttpResponse.error(),
+        calls: 3,
+      },
+      {
+        name: "no answer",
+        answer: async () => {
+          await delay("infinite");
+          return new HttpResponse(null, { status: 200 });
+        },
+        calls: 3,
+      },
+    ])(
+      "keeps the verdict and passes the step when trunk2's telemetry gives $name",
+      async ({ answer, calls }) => {
+        let received = 0;
+        server.overrideHandlers([
+          () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
+          () =>
+            http.post(TELEMETRY_V2_URL, () => {
+              received += 1;
+              return answer();
+            }),
+        ]);
+        stubRunnerEnv({ jobKeys: "unit-tests", token: "trunk_v2_AbC123" });
+        vi.stubEnv("TRUNK_DYNAMIC_CI_BACKOFF_START_MS", "1");
+        const startedAt = Date.now();
+
+        await expect(runAction()).resolves.toBeUndefined();
+
+        expect({
+          outputs: readOutputs(),
+          received,
+          exitCode: process.exitCode,
+          errors: stdout().includes("::error"),
+          withinBudget: Date.now() - startedAt < 10_000,
+        }).toEqual({
+          outputs: { "unit-tests": "false" },
+          received: calls,
+          exitCode: undefined,
+          errors: false,
+          withinBudget: true,
+        });
+      },
+    );
+
+    it("fails open and passes the step when the address is not a URL", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests", token: "trunk_v2_AbC123" });
+      vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", "not a url");
+      vi.stubEnv("TRUNK_DYNAMIC_CI_BACKOFF_START_MS", "1");
+
+      await expect(runAction()).resolves.toBeUndefined();
+
+      expect({ outputs: readOutputs(), exitCode: process.exitCode }).toEqual({
+        outputs: { "unit-tests": "true" },
+        exitCode: undefined,
+      });
+    });
+
     // The lane is fire-and-forget: it runs after the verdict is set, and a telemetry
     // outage must not change a single output or fail the step.
     it("leaves outputs untouched when telemetry itself fails", async () => {
