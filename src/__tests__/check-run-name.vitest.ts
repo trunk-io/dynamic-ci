@@ -54,10 +54,19 @@ const resolve = (job: JobIdentity = CALLED_JOB, githubToken = "gh-token") =>
   resolveCheckRunName({ job, repo: REPO, githubToken });
 
 describe("resolveCheckRunName", () => {
-  it("reads the check run's name inside a called workflow", async () => {
+  it.each([
+    { name: "inside a called workflow", job: CALLED_JOB },
+    {
+      name: "whatever the case of the repository in the ref",
+      job: {
+        ...CALLED_JOB,
+        workflowRef: "Acme/Widgets/.github/workflows/suite.yml@refs/heads/main",
+      },
+    },
+  ])("reads the check run's name $name", async ({ job }) => {
     checkRunReturns(200, { id: 77, name: "Lint Suite / filter" });
 
-    expect({ name: await resolve(), reads }).toEqual({
+    expect({ name: await resolve(job), reads }).toEqual({
       name: "Lint Suite / filter",
       reads: 1,
     });
@@ -77,6 +86,13 @@ describe("resolveCheckRunName", () => {
       job: { workflowRef: CALLED_JOB.workflowRef },
     },
     { name: "there is no token", job: CALLED_JOB, githubToken: "" },
+    {
+      name: "the called workflow is another repository's",
+      job: {
+        ...CALLED_JOB,
+        workflowRef: "acme/shared/.github/workflows/suite.yml@v1",
+      },
+    },
   ])("reads nothing when $name", async ({ job, githubToken }) => {
     checkRunReturns(200, { id: 77, name: "Lint Suite / filter" });
 

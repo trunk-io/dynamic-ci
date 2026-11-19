@@ -5,12 +5,18 @@ import { MAX_JOB_IDENTITY_LENGTH, type JobIdentity } from "./inputs";
 
 const API_TIMEOUT_MS = 10_000;
 
+const inThisRepository = (workflowRef: string, repo: Repo): boolean =>
+  workflowRef
+    .toLowerCase()
+    .startsWith(`${repo.owner}/${repo.name}/`.toLowerCase());
+
 /**
  * The name GitHub gave this job's check run (`<calling job> / <job>`), which is
  * the only thing that tells apart several jobs calling one reusable workflow.
- * Read with the workflow's own token, and only inside a called workflow, so a
- * top-level filter spends nothing. Any failure sends none: Trunk then reads the
- * keys as sent.
+ * Read with the workflow's own token, and only inside a called workflow of this
+ * repository: a top-level filter needs none, and Trunk never parses another
+ * repository's workflow, so its name could not be used. Any failure sends none:
+ * Trunk then reads the keys as sent.
  */
 export const resolveCheckRunName = async ({
   job,
@@ -26,7 +32,8 @@ export const resolveCheckRunName = async ({
     githubToken === "" ||
     job.checkRunId === undefined ||
     job.workflowRef === undefined ||
-    job.workflowRef === workflowRef
+    job.workflowRef === workflowRef ||
+    !inThisRepository(job.workflowRef, repo)
   ) {
     return undefined;
   }

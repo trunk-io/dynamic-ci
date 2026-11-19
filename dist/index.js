@@ -57629,13 +57629,14 @@ var readInputs = () => {
 
 // src/check-run-name.ts
 var API_TIMEOUT_MS = 1e4;
+var inThisRepository = (workflowRef, repo) => workflowRef.toLowerCase().startsWith(`${repo.owner}/${repo.name}/`.toLowerCase());
 var resolveCheckRunName = async ({
   job,
   repo,
   githubToken
 }) => {
   const workflowRef = process.env["GITHUB_WORKFLOW_REF"] ?? "";
-  if (githubToken === "" || job.checkRunId === void 0 || job.workflowRef === void 0 || job.workflowRef === workflowRef) {
+  if (githubToken === "" || job.checkRunId === void 0 || job.workflowRef === void 0 || job.workflowRef === workflowRef || !inThisRepository(job.workflowRef, repo)) {
     return void 0;
   }
   try {
