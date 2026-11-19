@@ -31,6 +31,7 @@ export const FIXTURES: Fixture[] = [
       { values: { area: "area-billing" }, name: "Tests / area-billing" },
     ],
     prune: [{ area: "area-billing" }],
+    skippedName: "Tests / matrix.area",
   },
   {
     key: "lint",

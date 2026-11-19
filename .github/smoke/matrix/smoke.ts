@@ -370,6 +370,10 @@ const checkPinned = (
 const fixtureId = (fixture: Fixture): string =>
   fixture.caller ? `${fixture.caller}/${fixture.key}` : fixture.key;
 
+/** A name that is only an expression is skipped under its bare body, which shares no prefix. */
+const claims = (fixture: Fixture, name: string): boolean =>
+  name.startsWith(fixture.prefix) || name === fixture.skippedName;
+
 const checkFixture = (
   fixture: Fixture,
   needs: Record<string, NeedsEntry>,
@@ -492,7 +496,7 @@ const verdict = async (
   for (const fixture of fixtures) {
     // An infra job can share a fixture's prefix: "Tests pass" starts with "Test".
     const observed = jobs.filter(
-      (job) => !INFRA_JOBS.has(job.name) && job.name.startsWith(fixture.prefix),
+      (job) => !INFRA_JOBS.has(job.name) && claims(fixture, job.name),
     );
     observedByFixture[fixtureId(fixture)] = observed;
     const check = checkFixture(fixture, needs, outputsOf(fixture), observed);
@@ -503,8 +507,7 @@ const verdict = async (
   // own check would pass vacuously on the legs it can't see.
   const unclaimed = jobs.filter(
     (job) =>
-      !INFRA_JOBS.has(job.name) &&
-      !fixtures.some((f) => job.name.startsWith(f.prefix)),
+      !INFRA_JOBS.has(job.name) && !fixtures.some((f) => claims(f, job.name)),
   );
   checks.push({
     name: `${label}every check run belongs to a fixture`,
