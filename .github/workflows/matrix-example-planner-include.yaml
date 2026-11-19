@@ -38,7 +38,7 @@
 # .github/smoke/matrix/examples/planner-include.ts is its answer key.
 name: "Matrix example: planner include"
 # smoke: the mode says where the filter's outputs come from (see the README).
-run-name: Matrix example planner-include (${{ inputs.mode || (github.event.schedule == '29 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
+run-name: Matrix example planner-include (${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '29 */4 * * *') && 'live') || 'simulate' }}) for ${{ github.ref_name }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -47,11 +47,8 @@ concurrency:
 permissions: read-all
 
 on:
-  # smoke: yours would run on every pull request.
   pull_request:
-    paths:
-      - .github/workflows/matrix-example-planner-include.yaml
-      - .github/smoke/matrix/**
+    types: [opened, synchronize, reopened]
   # smoke: schedules run only from the default branch. MODE below tells them
   # apart by cron string, so change both together.
   schedule:
@@ -69,7 +66,7 @@ on:
 
 # smoke
 env:
-  MODE: ${{ inputs.mode || (github.event.schedule == '29 */4 * * *' && 'live') || 'simulate' }}
+  MODE: ${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '29 */4 * * *') && 'live') || 'simulate' }}
 
 jobs:
   # The planner: writes the rows the test matrix is made of, as a JSON array.

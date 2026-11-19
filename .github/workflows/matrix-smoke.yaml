@@ -13,7 +13,7 @@
 #                   against staging. Asserts the same invariants whatever staging
 #                   decides, and its runs are the CI history staging decides on.
 name: Matrix Smoke
-run-name: Matrix Smoke (${{ inputs.mode || (github.event.schedule == '17 */4 * * *' && 'live') || 'simulate' }}) for ${{ github.ref_name }}
+run-name: Matrix Smoke (${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '17 */4 * * *') && 'live') || 'simulate' }}) for ${{ github.ref_name }}
 
 concurrency:
   group: matrix-smoke-${{ github.head_ref || github.run_id }}
@@ -23,9 +23,7 @@ permissions: read-all
 
 on:
   pull_request:
-    paths:
-      - .github/workflows/matrix-smoke.yaml
-      - .github/smoke/matrix/**
+    types: [opened, synchronize, reopened]
   # Schedules run only from the default branch. MODE below tells them apart by
   # cron string, so change both together.
   schedule:
@@ -40,7 +38,7 @@ on:
         default: simulate
 
 env:
-  MODE: ${{ inputs.mode || (github.event.schedule == '17 */4 * * *' && 'live') || 'simulate' }}
+  MODE: ${{ inputs.mode || ((github.event_name == 'pull_request' || github.event.schedule == '17 */4 * * *') && 'live') || 'simulate' }}
 
 jobs:
   # A planner job: builds the rows its workflow's runtime matrices are made of.
