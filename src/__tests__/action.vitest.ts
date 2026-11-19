@@ -27,6 +27,7 @@ const API_BASE = "https://dynamic-ci.test";
 const API_URL = `${API_BASE}/v2/dynamic-ci/generate-plan`;
 const TELEMETRY_URL =
   "https://telemetry.dynamic-ci.test/v1/dynamic-ci/plan-metrics";
+const TELEMETRY_V2_URL = `${API_BASE}/v2/telemetry/v1/metrics`;
 
 /** Status/reason are read back as raw protobuf field bytes; see decodeTelemetry. */
 let telemetryPosts: Uint8Array[] = [];
@@ -900,6 +901,134 @@ describe("the action end to end", () => {
       ).toMatchObject({
         status: PLAN_STATUS.failed,
         reason: PLAN_REASON.httpServerError,
+      });
+    });
+
+    it("sends a v2 API key's report to public-api as OTLP, not to trunk1", async () => {
+      const v2Posts: { authorization: string | null; body: unknown }[] = [];
+      server.overrideHandlers([
+        () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
+        () =>
+          http.post(TELEMETRY_URL, async ({ request: received }) => {
+            telemetryPosts.push(new Uint8Array(await received.arrayBuffer()));
+            return new HttpResponse(null, { status: 200 });
+          }),
+        () =>
+          http.post(TELEMETRY_V2_URL, async ({ request: received }) => {
+            v2Posts.push({
+              authorization: received.headers.get("authorization"),
+              body: await received.json(),
+            });
+            return HttpResponse.json({});
+          }),
+      ]);
+      stubRunnerEnv({ jobKeys: "unit-tests", token: "trunk_v2_AbC123" });
+
+      await runAction();
+
+      expect({
+        v1Posts: telemetryPosts.length,
+        authorizations: v2Posts.map((post) => post.authorization),
+        resources: v2Posts.map(
+          (post) =>
+            (
+              post.body as {
+                resourceMetrics: { resource: { attributes: unknown[] } }[];
+              }
+            ).resourceMetrics[0]?.resource.attributes,
+        ),
+        outputs: readOutputs(),
+      }).toEqual({
+        v1Posts: 0,
+        authorizations: ["Bearer trunk_v2_AbC123"],
+        resources: [
+          [
+            {
+              key: "service.name",
+              value: { stringValue: "trunk-dynamic-ci" },
+            },
+            {
+              key: "service.version",
+              value: { stringValue: "github/unknown" },
+            },
+            {
+              key: "deployment.environment.name",
+              value: { stringValue: "staging" },
+            },
+          ],
+        ],
+        outputs: { "unit-tests": "false" },
+      });
+    });
+
+    it.each([
+      {
+        name: "a 500",
+        answer: () => new HttpResponse(null, { status: 500 }),
+        calls: 3,
+      },
+      {
+        name: "a 401",
+        answer: () => new HttpResponse(null, { status: 401 }),
+        calls: 1,
+      },
+      {
+        name: "a dropped connection",
+        answer: () => HttpResponse.error(),
+        calls: 3,
+      },
+      {
+        name: "no answer",
+        answer: async () => {
+          await delay("infinite");
+          return new HttpResponse(null, { status: 200 });
+        },
+        calls: 3,
+      },
+    ])(
+      "keeps the verdict and passes the step when trunk2's telemetry gives $name",
+      async ({ answer, calls }) => {
+        let received = 0;
+        server.overrideHandlers([
+          () => http.post(API_URL, () => HttpResponse.json(skipUnitTests)),
+          () =>
+            http.post(TELEMETRY_V2_URL, () => {
+              received += 1;
+              return answer();
+            }),
+        ]);
+        stubRunnerEnv({ jobKeys: "unit-tests", token: "trunk_v2_AbC123" });
+        vi.stubEnv("TRUNK_DYNAMIC_CI_BACKOFF_START_MS", "1");
+        const startedAt = Date.now();
+
+        await expect(runAction()).resolves.toBeUndefined();
+
+        expect({
+          outputs: readOutputs(),
+          received,
+          exitCode: process.exitCode,
+          errors: stdout().includes("::error"),
+          withinBudget: Date.now() - startedAt < 10_000,
+        }).toEqual({
+          outputs: { "unit-tests": "false" },
+          received: calls,
+          exitCode: undefined,
+          errors: false,
+          withinBudget: true,
+        });
+      },
+    );
+
+    it("fails open and passes the step when the address is not a URL", async () => {
+      stubRunnerEnv({ jobKeys: "unit-tests", token: "trunk_v2_AbC123" });
+      vi.stubEnv("TRUNK_PUBLIC_API_ADDRESS", "not a url");
+      vi.stubEnv("TRUNK_DYNAMIC_CI_BACKOFF_START_MS", "1");
+
+      await expect(runAction()).resolves.toBeUndefined();
+
+      expect({ outputs: readOutputs(), exitCode: process.exitCode }).toEqual({
+        outputs: { "unit-tests": "true" },
+        exitCode: undefined,
       });
     });
 
