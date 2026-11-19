@@ -55,20 +55,23 @@ Shapes that only test GitHub's own rules stay in `matrix-smoke.yaml`.
 
 Every example, and `matrix-smoke.yaml`, runs in one of two modes.
 
-- **`simulate`** — pull requests that touch these files, and weekly on Mondays
-  to catch GitHub changing behavior a fixture pins. The filter job runs
+- **`simulate`** — weekly on Mondays, to catch GitHub changing behavior a
+  fixture pins, or run the workflow by hand and pick `simulate` (use this on a
+  branch to check a fixture change). The filter job runs
   `smoke.ts simulate [example]`, which emits the per-leg pruning outputs the action will
   emit (`<job>`, `<job>-exclude`, `<job>-matrix`, `<job>-include`) for the pruning the answer
   key asks for. Deterministic, and needs no service.
-- **`live`** — every 4 hours, or run the workflow by hand and pick `live`. The
-  filter job runs the action at this commit against staging, with the
-  planner's rows in `matrices`, and the scheduled runs build the CI history
-  staging decides on. The examples whose filter runs inside a reusable workflow
-  use `trunk-io/dynamic-ci@main` rather than `./`: Trunk finds a filter's
-  caller only from a `trunk-io/dynamic-ci` step, and live runs are on `main`.
-  A live run dispatched from another branch therefore runs `main`'s action. Until the action can prune individual legs, it ignores
-  `matrices` and prunes nothing, and the run checks only that nothing breaks.
-  After that, the same verdict checks real pruning.
+- **`live`** — every pull request, every 4 hours, or run the workflow by hand
+  and pick `live`. The filter job runs the action against staging, with the
+  planner's rows in `matrices`, and the runs build the CI history staging
+  decides on. No example is a required check, so a red one blocks nothing; read
+  it as an audit of what staging decided. A called matrix job is decided per
+  variation only on a pull request whose diff leaves `.github/workflows/`
+  alone: with no base commit (the scheduled and dispatched runs) or with a
+  workflow change, Trunk decides it whole. The examples whose filter runs
+  inside a reusable workflow use `trunk-io/dynamic-ci@main` rather than `./`,
+  because Trunk finds a filter's caller only from a `trunk-io/dynamic-ci` step,
+  so on a pull request they run `main`'s action, not the branch's.
 
 ## What is asserted
 
