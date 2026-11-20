@@ -19678,7 +19678,7 @@ var require_core = __commonJS({
       process.env["PATH"] = `${inputPath}${path.delimiter}${process.env["PATH"]}`;
     }
     exports2.addPath = addPath;
-    function getInput2(name, options) {
+    function getInput3(name, options) {
       const val = process.env[`INPUT_${name.replace(/ /g, "_").toUpperCase()}`] || "";
       if (options && options.required && !val) {
         throw new Error(`Input required and not supplied: ${name}`);
@@ -19688,9 +19688,9 @@ var require_core = __commonJS({
       }
       return val.trim();
     }
-    exports2.getInput = getInput2;
+    exports2.getInput = getInput3;
     function getMultilineInput(name, options) {
-      const inputs = getInput2(name, options).split("\n").filter((x) => x !== "");
+      const inputs = getInput3(name, options).split("\n").filter((x) => x !== "");
       if (options && options.trimWhitespace === false) {
         return inputs;
       }
@@ -19700,7 +19700,7 @@ var require_core = __commonJS({
     function getBooleanInput(name, options) {
       const trueValue = ["true", "True", "TRUE"];
       const falseValue = ["false", "False", "FALSE"];
-      const val = getInput2(name, options);
+      const val = getInput3(name, options);
       if (trueValue.includes(val))
         return true;
       if (falseValue.includes(val))
@@ -57608,11 +57608,12 @@ var applyAnnotationSetting = () => {
     );
   }
 };
+var readJobKeys = () => splitList(core3.getInput("job-keys"));
 var readInputs = () => {
   applyAnnotationSetting();
   const token = core3.getInput("token", { required: true });
   core3.setSecret(token);
-  const jobKeys = splitList(core3.getInput("job-keys"));
+  const jobKeys = readJobKeys();
   const ignoreSignals = splitList(core3.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
     warn(
@@ -57900,7 +57901,11 @@ var GitHubEventSchema = object({
     additions: number2().optional(),
     deletions: number2().optional(),
     base: object({ sha: string2().optional(), ref: string2().optional() }).optional(),
-    head: object({ sha: string2().optional(), ref: string2().optional() }).optional()
+    head: object({
+      sha: string2().optional(),
+      ref: string2().optional(),
+      repo: object({ full_name: string2().optional() }).optional()
+    }).optional()
   }).optional()
 });
 var readEvent = () => {
@@ -57914,6 +57919,13 @@ var readEvent = () => {
     warn(`Could not read GITHUB_EVENT_PATH: ${String(error2)}`);
     return {};
   }
+};
+var isForkPullRequest = () => {
+  if (process.env["GITHUB_EVENT_NAME"] !== "pull_request") {
+    return false;
+  }
+  const headRepo = readEvent().pull_request?.head?.repo?.full_name;
+  return headRepo !== void 0 && headRepo !== process.env["GITHUB_REPOSITORY"];
 };
 var parseRepo = () => {
   const [owner = "", name = ""] = (process.env["GITHUB_REPOSITORY"] ?? "").split("/");
@@ -58639,7 +58651,13 @@ var failOpen = async (jobKeys, reason) => {
   setFailOpenOutputs(jobKeys);
   await reportFailOpen(jobKeys, reason);
 };
+var missingTokenReason = () => isForkPullRequest() ? "this pull request comes from a fork. GitHub does not give repository secrets to workflows that run for a fork's pull request, so there is no token to send, and Dynamic CI does not decide jobs for fork pull requests." : "the token input is empty. Set it to your Trunk organization API token, for example from a TRUNK_API_TOKEN repository secret.";
 var run = async () => {
+  if (core8.getInput("token") === "") {
+    applyAnnotationSetting();
+    await failOpen(readJobKeys(), missingTokenReason());
+    return;
+  }
   const inputs = readInputs();
   const { request: request2, changedFilesSource, workflowFileShaSource } = await buildRequest(inputs);
   const apiUrl = resolveApiUrl();
