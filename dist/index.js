@@ -51721,7 +51721,7 @@ var dynamic_ci_contract_default = {
       apiKey: {
         type: "http",
         scheme: "bearer",
-        description: "An API key, sent as `Authorization: Bearer <key>`. An organization admin creates one in the Trunk app under **Settings \u2192 Developer \u2192 API Keys** and chooses the permissions it holds. A key with none can read merge queues but change nothing in them. Permissions cover merge queues and test-result uploads, including the quarantine lookups a CI run makes before it uploads; any key can call the other Flaky Tests and Dynamic CI endpoints, including their writes."
+        description: "An API key, sent as `Authorization: Bearer <key>`. An organization admin creates one in the Trunk app under **Settings \u2192 Developer \u2192 API Keys** and chooses the permissions it holds. A new key starts with no permissions: it can read merge queues but change nothing in them, and it cannot get a Dynamic CI plan. Each endpoint that needs a permission names it in its description; the Dynamic CI plan endpoints need **Generate Dynamic CI plans**."
       },
       trunkToken: {
         type: "apiKey",
