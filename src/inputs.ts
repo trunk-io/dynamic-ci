@@ -178,6 +178,9 @@ export const applyAnnotationSetting = (): void => {
  * this copy does not know is warned about and still sent, so a typo is inert
  * rather than failing the whole workflow open.
  */
+/** The `job-keys` input, split and trimmed. Empty means the whole workflow. */
+export const readJobKeys = (): string[] => splitList(core.getInput("job-keys"));
+
 export const readInputs = (): ActionInputs => {
   // First, so that every warning below is subject to it.
   applyAnnotationSetting();
@@ -186,7 +189,7 @@ export const readInputs = (): ActionInputs => {
   // Ensure the token is scrubbed from any log output.
   core.setSecret(token);
 
-  const jobKeys = splitList(core.getInput("job-keys"));
+  const jobKeys = readJobKeys();
 
   const ignoreSignals = splitList(core.getInput("ignore-signals"));
   for (const signal of ignoreSignals.filter((id) => !KNOWN_SIGNALS.has(id))) {
