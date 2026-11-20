@@ -3,8 +3,8 @@ import { warn } from "./annotations";
 import { RecommendationError, requestRecommendations } from "./api";
 import { resolveApiUrl, resolveMaxAttempts, resolveTimeoutMs } from "./config";
 import type { ChangedFilesSource } from "./changed-files";
-import { buildRequest, parseRepo } from "./context";
-import { applyAnnotationSetting, readInputs } from "./inputs";
+import { buildRequest, isForkPullRequest, parseRepo } from "./context";
+import { applyAnnotationSetting, readInputs, readJobKeys } from "./inputs";
 import { outcomeForError, outcomeForResponse } from "./outcome";
 import { setFailOpenOutputs, setOutputs } from "./outputs";
 import { reportFailOpen, reportRecommendations } from "./report";
@@ -21,7 +21,17 @@ const failOpen = async (jobKeys: string[], reason: string): Promise<void> => {
   await reportFailOpen(jobKeys, reason);
 };
 
+const missingTokenReason = (): string =>
+  isForkPullRequest()
+    ? "this pull request comes from a fork. GitHub does not give repository secrets to workflows that run for a fork's pull request, so there is no token to send, and Dynamic CI does not decide jobs for fork pull requests."
+    : "the token input is empty. Set it to your Trunk organization API token, for example from a TRUNK_API_TOKEN repository secret.";
+
 export const run = async (): Promise<void> => {
+  if (core.getInput("token") === "") {
+    applyAnnotationSetting();
+    await failOpen(readJobKeys(), missingTokenReason());
+    return;
+  }
   const inputs = readInputs();
   const { request, changedFilesSource, workflowFileShaSource } =
     await buildRequest(inputs);

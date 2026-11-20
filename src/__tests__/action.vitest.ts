@@ -821,9 +821,63 @@ describe("the action end to end", () => {
 
     await expect(runAction()).resolves.toBeUndefined();
 
-    // No job set is known at this point, and an absent output already means "run".
-    expect(readOutputs()).toEqual({});
-    expect(readFileSync(summaryPath, "utf8")).toContain("fail-open");
+    expect(readOutputs()).toEqual({ "unit-tests": "true" });
+    const summary = readFileSync(summaryPath, "utf8");
+    expect(summary).toContain("fail-open");
+    expect(summary).toContain("the token input is empty");
+    expect(telemetryPosts).toEqual([]);
+  });
+
+  it("says a fork pull request has no token, and runs every job", async () => {
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        pull_request: {
+          ...PR_EVENT.pull_request,
+          head: {
+            ...PR_EVENT.pull_request.head,
+            repo: { full_name: "someone/example" },
+          },
+        },
+      }),
+    );
+    try {
+      stubRunnerEnv({ jobKeys: "unit-tests", omitToken: true });
+
+      await expect(runAction()).resolves.toBeUndefined();
+
+      expect(readOutputs()).toEqual({ "unit-tests": "true" });
+      expect(stdout()).toContain("this pull request comes from a fork");
+      expect(telemetryPosts).toEqual([]);
+    } finally {
+      writeFileSync(eventPath, JSON.stringify(PR_EVENT));
+    }
+  });
+
+  it("does not call a same-repository pull request with no token a fork", async () => {
+    writeFileSync(
+      eventPath,
+      JSON.stringify({
+        pull_request: {
+          ...PR_EVENT.pull_request,
+          head: {
+            ...PR_EVENT.pull_request.head,
+            repo: { full_name: "trunk-io/example" },
+          },
+        },
+      }),
+    );
+    try {
+      stubRunnerEnv({ jobKeys: "unit-tests", omitToken: true });
+
+      await runAction();
+
+      const logs = stdout();
+      expect(logs).toContain("the token input is empty");
+      expect(logs).not.toContain("comes from a fork");
+    } finally {
+      writeFileSync(eventPath, JSON.stringify(PR_EVENT));
+    }
   });
 
   it("writes a per-job summary table that omits ABSTAIN signals", async () => {

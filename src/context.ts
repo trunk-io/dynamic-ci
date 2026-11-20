@@ -31,7 +31,11 @@ const GitHubEventSchema = z.object({
         .object({ sha: z.string().optional(), ref: z.string().optional() })
         .optional(),
       head: z
-        .object({ sha: z.string().optional(), ref: z.string().optional() })
+        .object({
+          sha: z.string().optional(),
+          ref: z.string().optional(),
+          repo: z.object({ full_name: z.string().optional() }).optional(),
+        })
         .optional(),
     })
     .optional(),
@@ -49,7 +53,7 @@ interface GitHubEvent {
     additions?: number;
     deletions?: number;
     base?: { sha?: string; ref?: string };
-    head?: { sha?: string; ref?: string };
+    head?: { sha?: string; ref?: string; repo?: { full_name?: string } };
   };
 }
 
@@ -67,6 +71,20 @@ const readEvent = (): GitHubEvent => {
 };
 
 /** Resolve repo host/owner/name from runner env (`GITHUB_REPOSITORY`, `GITHUB_SERVER_URL`). */
+/**
+ * Whether this is a `pull_request` run for a pull request from a fork. GitHub
+ * gives such a run no repository secrets, so it has no token to send.
+ */
+export const isForkPullRequest = (): boolean => {
+  if (process.env["GITHUB_EVENT_NAME"] !== "pull_request") {
+    return false;
+  }
+  const headRepo = readEvent().pull_request?.head?.repo?.full_name;
+  return (
+    headRepo !== undefined && headRepo !== process.env["GITHUB_REPOSITORY"]
+  );
+};
+
 export const parseRepo = (): Repo => {
   const [owner = "", name = ""] = (
     process.env["GITHUB_REPOSITORY"] ?? ""

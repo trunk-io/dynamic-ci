@@ -110,8 +110,12 @@ The action is built so that it can never block your CI:
 - A transport error, non-2xx response, malformed response, or a request exceeding the
   latency budget (30s by default) all leave every job's output unset, which your
   `!= 'false'` conditionals read as "run".
-- Unexpected failures — a missing token, for example — are caught too, and emit no
-  outputs at all, which your `!= 'false'` conditionals read as "run".
+- An empty `token` sets every job in `job-keys` to `'true'` and says why. On a pull
+  request from a fork that is expected: GitHub gives a fork's pull request no
+  repository secrets, so Dynamic CI does not decide jobs for fork pull requests and
+  every job runs.
+- Unexpected failures are caught too, and emit no outputs at all, which your
+  `!= 'false'` conditionals read as "run".
 - It never calls `core.setFailed`, so the step itself always succeeds. Failing the
   step would defeat the purpose.
 
